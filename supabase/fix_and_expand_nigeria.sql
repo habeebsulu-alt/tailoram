@@ -1,5 +1,5 @@
 -- ============================================================
--- FIX RLS & EXPAND TO ALL OF NIGERIA
+-- FIX RLS & EXPAND TO ALL OF NIGERIA (Idempotent Safe Run)
 -- Paste this script into your Supabase SQL Editor and click RUN
 -- ============================================================
 
@@ -7,14 +7,13 @@
 alter table public.designer_profiles 
   add column if not exists state text not null default 'Lagos';
 
--- 2. Drop existing restrictive insert policy on profiles and recreate a robust one
+-- 2. Drop existing policies before recreating to avoid duplicate policy error
 drop policy if exists "Users can insert their own profile" on public.profiles;
-
 create policy "Users can insert their own profile"
   on public.profiles for insert
   with check (auth.uid() = id or auth.uid() is null);
 
--- Also allow upserts / updates
+drop policy if exists "Users can update their own profile" on public.profiles;
 create policy "Users can update their own profile"
   on public.profiles for update
   using (auth.uid() = id);
