@@ -54,18 +54,18 @@ export default function HomePage() {
           
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-100 border border-brand-200 text-brand-800 text-xs font-semibold tracking-wide shadow-sm">
             <span className="flex h-2 w-2 rounded-full bg-lagos-green animate-pulse" />
-            Lagos, Nigeria&apos;s Bespoke Fashion Network
+            Across Lagos, Abuja, Port Harcourt &amp; All 36 States
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-lagos-dark tracking-tight font-serif leading-tight">
             Connect with Exceptional <br className="hidden sm:inline" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-700 via-brand-600 to-amber-600">
-              Lagos Fashion Designers
+              Nigerian Fashion Designers
             </span>
           </h1>
 
           <p className="text-base sm:text-lg text-stone-700 max-w-2xl mx-auto leading-relaxed">
-            From bespoke Owambe Aso Ebi and sharp Senator suits to contemporary Ankara pieces. Find trusted tailors in your neighborhood, view their portfolios, and send direct custom requests.
+            From bespoke Owambe Aso Ebi and sharp Senator suits to contemporary Ankara and Agbada pieces. Find trusted tailors in your city, view their portfolios, and send direct custom requests.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -197,7 +197,7 @@ export default function HomePage() {
                 <div><span className="font-semibold">Email:</span> {user.email}</div>
                 <div><span className="font-semibold">Role:</span> {profile?.role}</div>
                 {designerProfile && (
-                  <div><span className="font-semibold">Brand:</span> {designerProfile.business_name} ({designerProfile.area})</div>
+                  <div><span className="font-semibold">Brand:</span> {designerProfile.business_name} ({designerProfile.area}, {designerProfile.state})</div>
                 )}
               </div>
             </div>
@@ -209,10 +209,10 @@ export default function HomePage() {
       <section className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="text-center max-w-xl mx-auto mb-10">
           <h3 className="text-2xl font-bold text-lagos-dark font-serif">
-            Built Specifically for Lagos Tailoring
+            Built for Nigeria&apos;s Creative Fashion Ecosystem
           </h3>
           <p className="text-sm text-stone-600 mt-2">
-            A social marketplace designed for real Nigerian fashion creators and fabric lovers.
+            A social marketplace designed for real Nigerian fashion creators and fabric lovers nationwide.
           </p>
         </div>
 
@@ -221,9 +221,9 @@ export default function HomePage() {
             <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center">
               <MapPin className="w-5 h-5" />
             </div>
-            <h4 className="font-bold text-lg text-lagos-dark">Neighborhood Discovery</h4>
+            <h4 className="font-bold text-lg text-lagos-dark">Nationwide &amp; Local Hubs</h4>
             <p className="text-sm text-stone-600 leading-relaxed">
-              Find tailors nearby in Ikeja, Lekki, Surulere, Yaba, or VI to easily drop off materials and do fitting sessions without spending hours in Lagos traffic.
+              Find tailors in Lagos, Abuja, Port Harcourt, Ibadan, Kano, or anywhere in Nigeria to drop off materials and do fittings conveniently.
             </p>
           </div>
 

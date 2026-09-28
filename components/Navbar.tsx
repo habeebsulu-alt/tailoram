@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Scissors, Menu, X, User, LogOut, LayoutDashboard, ShoppingBag, PlusCircle } from 'lucide-react';
+import { Scissors, Menu, X, User, LogOut, LayoutDashboard, ShoppingBag } from 'lucide-react';
 
 export default function Navbar() {
   const { user, profile, designerProfile, signOut } = useAuth();
@@ -32,7 +32,7 @@ export default function Navbar() {
                 Tailoram
               </span>
               <span className="text-[10px] -mt-1 font-semibold uppercase tracking-widest text-brand-600">
-                Lagos Edition
+                Nigeria
               </span>
             </div>
           </Link>

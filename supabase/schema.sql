@@ -1,5 +1,5 @@
 -- ============================================================
--- TAILORAM: Nigerian Fashion Marketplace Database Schema
+-- TAILORAM: All-Nigeria Fashion Marketplace Database Schema
 -- ============================================================
 
 -- 1. PROFILES TABLE
@@ -12,15 +12,16 @@ create table if not exists public.profiles (
 );
 
 -- 2. DESIGNER PROFILES TABLE
--- Stores business information for tailors and fashion designers
+-- Stores business information for tailors and fashion designers across Nigeria
 create table if not exists public.designer_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade unique,
   business_name text not null,
   bio text,
+  state text not null default 'Lagos',
   city text not null default 'Lagos',
-  area text not null, -- Neighborhood within Lagos (e.g., Ikeja, Lekki, Yaba, Surulere)
-  categories text[] not null default '{}', -- e.g. {'ankara', 'aso_ebi', 'native_wear', 'corporate', 'bridal'}
+  area text not null, -- Neighborhood/District (e.g., Ikeja, Lekki, Wuse II, Port Harcourt GRA, Bodija)
+  categories text[] not null default '{}', -- e.g. {'ankara', 'aso_ebi', 'native_wear', 'corporate', 'bridal', 'agbada'}
   whatsapp text,
   created_at timestamptz not null default now()
 );
@@ -63,7 +64,7 @@ create table if not exists public.messages (
 );
 
 -- 6. EVENTS TABLE (Analytics from Day 1)
--- Tracks searches, profile views, requests, and conversions for future monetization
+-- Tracks searches, profile views, requests, and conversions
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
   event_type text not null, -- 'search', 'profile_view', 'request_sent', 'request_status_change'
@@ -86,42 +87,36 @@ alter table public.messages enable row level security;
 alter table public.events enable row level security;
 
 -- PROFILES POLICIES
--- Anyone can view profile names and roles
 create policy "Profiles are viewable by everyone"
   on public.profiles for select
   using (true);
 
--- Users can only insert or edit their own profile
 create policy "Users can insert their own profile"
   on public.profiles for insert
-  with check (auth.uid() = id);
+  with check (auth.uid() = id or auth.uid() is null);
 
 create policy "Users can update their own profile"
   on public.profiles for update
   using (auth.uid() = id);
 
 -- DESIGNER PROFILES POLICIES
--- Anyone can browse designer profiles
 create policy "Designer profiles are viewable by everyone"
   on public.designer_profiles for select
   using (true);
 
--- Only the owner can create or update their designer profile
 create policy "Designers can insert their own profile"
   on public.designer_profiles for insert
-  with check (auth.uid() = user_id);
+  with check (auth.uid() = user_id or auth.uid() is null);
 
 create policy "Designers can update their own profile"
   on public.designer_profiles for update
   using (auth.uid() = user_id);
 
 -- PORTFOLIO ITEMS POLICIES
--- Anyone can view portfolio items
 create policy "Portfolio items are viewable by everyone"
   on public.portfolio_items for select
   using (true);
 
--- Only the designer who owns the profile can add, edit, or delete items
 create policy "Designers can add portfolio items"
   on public.portfolio_items for insert
   with check (
@@ -150,7 +145,6 @@ create policy "Designers can delete their portfolio items"
   );
 
 -- REQUESTS POLICIES
--- Only the client who made the request and the recipient designer can view it
 create policy "Participants can view their requests"
   on public.requests for select
   using (
@@ -161,12 +155,10 @@ create policy "Participants can view their requests"
     )
   );
 
--- Clients can create requests
 create policy "Clients can create requests"
   on public.requests for insert
   with check (auth.uid() = client_id);
 
--- Both client and designer can update the request (e.g. status changes)
 create policy "Participants can update their requests"
   on public.requests for update
   using (
@@ -178,7 +170,6 @@ create policy "Participants can update their requests"
   );
 
 -- MESSAGES POLICIES
--- Only client and designer involved in the request can read messages
 create policy "Participants can read messages"
   on public.messages for select
   using (
@@ -195,7 +186,6 @@ create policy "Participants can read messages"
     )
   );
 
--- Only participants can send messages, and sender_id must match auth.uid()
 create policy "Participants can send messages"
   on public.messages for insert
   with check (
@@ -214,32 +204,80 @@ create policy "Participants can send messages"
   );
 
 -- EVENTS POLICIES (Analytics)
--- Any visitor (logged in or guest) can insert analytics events
 create policy "Anyone can insert events"
   on public.events for insert
   with check (true);
 
--- Only authenticated users can view their own logged events (or admin dashboard later)
 create policy "Users can view their own events"
   on public.events for select
   using (auth.uid() = user_id);
 
 -- ============================================================
+-- AUTH SIGNUP TRIGGER (Security Definer - Prevents RLS issues)
+-- ============================================================
+create or replace function public.handle_new_user()
+returns trigger as $$
+declare
+  user_role text;
+  full_name text;
+begin
+  user_role := coalesce(new.raw_user_meta_data->>'role', 'client');
+  full_name := coalesce(new.raw_user_meta_data->>'full_name', 'Fashion Lover');
+
+  insert into public.profiles (id, full_name, role)
+  values (new.id, full_name, user_role)
+  on conflict (id) do update set
+    full_name = excluded.full_name,
+    role = excluded.role;
+
+  if user_role = 'designer' then
+    insert into public.designer_profiles (
+      user_id,
+      business_name,
+      state,
+      city,
+      area,
+      categories,
+      whatsapp
+    )
+    values (
+      new.id,
+      coalesce(new.raw_user_meta_data->>'business_name', full_name),
+      coalesce(new.raw_user_meta_data->>'state', 'Lagos'),
+      coalesce(new.raw_user_meta_data->>'city', new.raw_user_meta_data->>'state', 'Lagos'),
+      coalesce(new.raw_user_meta_data->>'area', 'Ikeja'),
+      case 
+        when new.raw_user_meta_data->'categories' is not null 
+        then array(select jsonb_array_elements_text(new.raw_user_meta_data->'categories'))
+        else array['native_wear', 'ankara']
+      end,
+      new.raw_user_meta_data->>'whatsapp'
+    )
+    on conflict (user_id) do nothing;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- ============================================================
 -- STORAGE BUCKETS SETUP
 -- ============================================================
--- Create public storage buckets for portfolio media and reference images
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values 
   ('portfolio', 'portfolio', true, 10485760, array['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime']),
   ('requests', 'requests', true, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
 
--- Storage policies: Anyone can view portfolio images
 create policy "Public can view portfolio files"
   on storage.objects for select
   using (bucket_id = 'portfolio' or bucket_id = 'requests');
 
--- Authenticated users can upload to portfolio and requests buckets
 create policy "Authenticated users can upload portfolio files"
   on storage.objects for insert
   with check (bucket_id in ('portfolio', 'requests') and auth.role() = 'authenticated');

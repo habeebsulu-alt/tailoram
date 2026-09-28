@@ -12,6 +12,7 @@ export interface DesignerProfile {
   user_id: string;
   business_name: string;
   bio: string | null;
+  state: string;
   city: string;
   area: string;
   categories: string[];
@@ -69,23 +70,165 @@ export interface AnalyticsEvent {
   created_at?: string;
 }
 
-export const LAGOS_AREAS = [
-  'Ikeja',
-  'Lekki',
-  'Victoria Island',
-  'Yaba',
-  'Surulere',
-  'Ikoyi',
-  'Ajah',
-  'Magodo',
-  'Maryland',
-  'Gbagada',
-  'Festac',
-  'Ogba',
-  'Alaba',
-  'Ikorodu',
-  'Other (Lagos)'
+// All 36 Nigerian States + FCT Abuja
+export const NIGERIAN_STATES = [
+  'Lagos',
+  'Abuja (FCT)',
+  'Rivers (Port Harcourt)',
+  'Oyo (Ibadan)',
+  'Kano',
+  'Enugu',
+  'Anambra',
+  'Delta',
+  'Edo',
+  'Kwara',
+  'Ogun',
+  'Kaduna',
+  'Abia',
+  'Adamawa',
+  'Akwa Ibom',
+  'Bauchi',
+  'Bayelsa',
+  'Benue',
+  'Borno',
+  'Cross River',
+  'Ebonyi',
+  'Ekiti',
+  'Gombe',
+  'Imo',
+  'Jigawa',
+  'Katsina',
+  'Kebbi',
+  'Kogi',
+  'Nasarawa',
+  'Niger',
+  'Ondo',
+  'Osun',
+  'Plateau',
+  'Sokoto',
+  'Taraba',
+  'Yobe',
+  'Zamfara'
 ] as const;
+
+// Common areas / cities mapped by top fashion hub states
+export const STATE_AREAS: Record<string, string[]> = {
+  'Lagos': [
+    'Ikeja',
+    'Lekki',
+    'Victoria Island',
+    'Yaba',
+    'Surulere',
+    'Ikoyi',
+    'Ajah',
+    'Magodo',
+    'Maryland',
+    'Gbagada',
+    'Festac',
+    'Ogba',
+    'Ikorodu',
+    'Alaba',
+    'Other (Lagos)'
+  ],
+  'Abuja (FCT)': [
+    'Wuse II',
+    'Maitama',
+    'Garki',
+    'Jabi',
+    'Utako',
+    'Gwarinpa',
+    'Asokoro',
+    'Apo',
+    'Central Area',
+    'Kubwa',
+    'Lugbe',
+    'Other (Abuja)'
+  ],
+  'Rivers (Port Harcourt)': [
+    'GRA Phase 1 & 2',
+    'Old GRA',
+    'D-Line',
+    'Peter Odili Road',
+    'Trans-Amadi',
+    'Rumuokoro',
+    'Woji',
+    'Ada George',
+    'Other (Rivers)'
+  ],
+  'Oyo (Ibadan)': [
+    'Bodija',
+    'Ring Road',
+    'Jericho',
+    'Dugbe',
+    'UI / Samonda',
+    'Oluyole',
+    'Challenge',
+    'Iyaganku',
+    'Other (Oyo)'
+  ],
+  'Kano': [
+    'Nassarawa GRA',
+    'Bompai',
+    'Fagge',
+    'Sabon Gari',
+    'Tarauni',
+    'Kano City Center',
+    'Other (Kano)'
+  ],
+  'Enugu': [
+    'Independence Layout',
+    'New Haven',
+    'GRA Enugu',
+    'Achara Layout',
+    'Ogui',
+    'Abakpa',
+    'Other (Enugu)'
+  ],
+  'Anambra': [
+    'Awka GRA',
+    'Onitsha Main',
+    'Nnewi',
+    'Fegge',
+    'Other (Anambra)'
+  ],
+  'Delta': [
+    'Asaba GRA',
+    'Warri GRA',
+    'Effurun',
+    'Okpanam',
+    'Other (Delta)'
+  ],
+  'Edo': [
+    'GRA Benin',
+    'Airport Road',
+    'Uselu',
+    'Sapele Road',
+    'Other (Edo)'
+  ],
+  'Kwara': [
+    'GRA Ilorin',
+    'Fate Road',
+    'Tanke',
+    'Adewole',
+    'Taiwo Road',
+    'Other (Kwara)'
+  ],
+  'Ogun': [
+    'Abeokuta GRA',
+    'Ijebu Ode',
+    'Sagamu',
+    'Mowe / Ibafo',
+    'Ota',
+    'Other (Ogun)'
+  ],
+  'Kaduna': [
+    'Barnawa',
+    'Malali',
+    'Kaduna GRA',
+    'Sabon Tasha',
+    'Other (Kaduna)'
+  ]
+};
 
 export const FASHION_CATEGORIES = [
   { id: 'ankara', label: 'Ankara Styles' },
@@ -96,4 +239,5 @@ export const FASHION_CATEGORIES = [
   { id: 'bridal', label: 'Bridal & Wedding' },
   { id: 'casual', label: 'Casual & Contemporary' },
   { id: 'ready_to_wear', label: 'Ready-to-Wear (RTW)' },
+  { id: 'children_wear', label: 'Children Fashion' },
 ] as const;

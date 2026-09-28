@@ -4,26 +4,40 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { LAGOS_AREAS, FASHION_CATEGORIES, UserRole } from '@/lib/types';
-import { Scissors, User, Sparkles, AlertCircle, ArrowRight } from 'lucide-react';
+import { NIGERIAN_STATES, STATE_AREAS, FASHION_CATEGORIES, UserRole } from '@/lib/types';
+import { Scissors, User, Sparkles, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export default function SignUpPage() {
   const router = useRouter();
   const { signUp } = useAuth();
 
-  const [role, setRole] = useState<UserRole>('client');
+  const [role, setRole] = useState<UserRole>('designer');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
-  // Designer-specific fields
+  // Designer-specific fields across Nigeria
   const [businessName, setBusinessName] = useState('');
-  const [area, setArea] = useState<string>(LAGOS_AREAS[0]);
+  const [selectedState, setSelectedState] = useState<string>('Lagos');
+  const [area, setArea] = useState<string>(STATE_AREAS['Lagos'][0]);
+  const [customArea, setCustomArea] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['native_wear', 'ankara']);
   const [whatsapp, setWhatsapp] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successNotice, setSuccessNotice] = useState('');
+
+  // Handle state change: update available areas
+  const handleStateChange = (newState: string) => {
+    setSelectedState(newState);
+    const availableAreas = STATE_AREAS[newState];
+    if (availableAreas && availableAreas.length > 0) {
+      setArea(availableAreas[0]);
+    } else {
+      setArea('General Area');
+    }
+  };
 
   const toggleCategory = (catId: string) => {
     if (selectedCategories.includes(catId)) {
@@ -38,6 +52,7 @@ export default function SignUpPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+    setSuccessNotice('');
 
     if (!fullName.trim() || !email.trim() || !password.trim()) {
       setErrorMessage('Please fill in all required fields.');
@@ -56,22 +71,38 @@ export default function SignUpPage() {
 
     setLoading(true);
 
+    const finalArea = area === 'Other' || area.startsWith('Other')
+      ? (customArea.trim() || area)
+      : area;
+
     const designerDetails =
       role === 'designer'
         ? {
             businessName: businessName.trim(),
-            area,
+            state: selectedState,
+            city: selectedState,
+            area: finalArea,
             categories: selectedCategories,
             whatsapp: whatsapp.trim() || undefined,
           }
         : undefined;
 
-    const { error } = await signUp(email, password, fullName, role, designerDetails);
+    const { error, needsEmailConfirmation } = await signUp(
+      email.trim(),
+      password,
+      fullName.trim(),
+      role,
+      designerDetails
+    );
 
     setLoading(false);
 
     if (error) {
       setErrorMessage(error.message || 'Something went wrong during sign up. Please try again.');
+    } else if (needsEmailConfirmation) {
+      setSuccessNotice(
+        'Account created successfully! Please check your email to confirm your account, then log in. (Tip: You can turn off "Confirm email" in Supabase settings for instant login).'
+      );
     } else {
       // Direct user according to role
       if (role === 'designer') {
@@ -82,9 +113,11 @@ export default function SignUpPage() {
     }
   };
 
+  const availableAreas = STATE_AREAS[selectedState] || ['General / City Center', 'Other'];
+
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-stone-200">
+      <div className="max-w-md w-full space-y-6 bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-stone-200">
         
         {/* Header */}
         <div className="text-center">
@@ -95,7 +128,7 @@ export default function SignUpPage() {
             Join Tailoram
           </h2>
           <p className="mt-1 text-sm text-stone-600">
-            Connect with Lagos fashion designers or showcase your tailor work
+            Connecting Nigerian fashion designers, tailors &amp; clients nationwide
           </p>
         </div>
 
@@ -105,19 +138,6 @@ export default function SignUpPage() {
             I am joining as a:
           </label>
           <div className="grid grid-cols-2 gap-3 p-1 bg-stone-100 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setRole('client')}
-              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold transition-all ${
-                role === 'client'
-                  ? 'bg-white text-lagos-dark shadow-sm'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-            >
-              <User className="w-4 h-4 text-brand-600" />
-              Client
-            </button>
-
             <button
               type="button"
               onClick={() => setRole('designer')}
@@ -130,8 +150,37 @@ export default function SignUpPage() {
               <Scissors className="w-4 h-4 text-brand-600" />
               Tailor / Designer
             </button>
+
+            <button
+              type="button"
+              onClick={() => setRole('client')}
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold transition-all ${
+                role === 'client'
+                  ? 'bg-white text-lagos-dark shadow-sm'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <User className="w-4 h-4 text-brand-600" />
+              Client
+            </button>
           </div>
         </div>
+
+        {/* Success Notice */}
+        {successNotice && (
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm space-y-2">
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-600 mt-0.5" />
+              <p className="font-semibold">{successNotice}</p>
+            </div>
+            <Link
+              href="/login"
+              className="inline-block mt-2 font-bold text-emerald-700 underline text-xs"
+            >
+              Go to Login page &rarr;
+            </Link>
+          </div>
+        )}
 
         {/* Error Alert */}
         {errorMessage && (
@@ -142,148 +191,186 @@ export default function SignUpPage() {
         )}
 
         {/* Sign Up Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1">
-              Your Full Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="e.g. Babatunde Adeleke"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
-            />
-          </div>
+        {!successNotice && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
+                Your Full Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="e.g. Babatunde Adeleke"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1">
-              Email Address <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
-            />
-          </div>
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
+                Email Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-stone-700 mb-1">
-              Password <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
-            />
-          </div>
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
+                Password <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all"
+              />
+            </div>
 
-          {/* Designer specific fields */}
-          {role === 'designer' && (
-            <div className="pt-3 border-t border-stone-200 space-y-4">
-              <div className="bg-brand-50/60 p-3 rounded-xl">
-                <p className="text-xs font-bold text-brand-800">
-                  Fashion Brand Details
-                </p>
-                <p className="text-[11px] text-stone-600">
-                  This information will be displayed on your public tailor profile.
-                </p>
-              </div>
+            {/* Designer specific fields */}
+            {role === 'designer' && (
+              <div className="pt-3 border-t border-stone-200 space-y-4">
+                <div className="bg-brand-50/60 p-3 rounded-xl">
+                  <p className="text-xs font-bold text-brand-800">
+                    Fashion Brand Details
+                  </p>
+                  <p className="text-[11px] text-stone-600">
+                    Tell clients across Nigeria where you operate and what you make.
+                  </p>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  Brand / Business Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="e.g. Seyi Stitches & Couture"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                    Brand / Business Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    placeholder="e.g. Seyi Stitches & Couture"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  Lagos Neighborhood (Area) <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={area}
-                  onChange={(e) => setArea(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-                >
-                  {LAGOS_AREAS.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                {/* State & City/Area Selectors */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 mb-1">
+                      State in Nigeria <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={selectedState}
+                      onChange={(e) => handleStateChange(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-stone-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      {NIGERIAN_STATES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  WhatsApp Number (Optional)
-                </label>
-                <input
-                  type="tel"
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
-                  placeholder="e.g. +234 801 234 5678"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 mb-1">
+                      Area / Neighborhood <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={area}
+                      onChange={(e) => setArea(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-stone-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      {availableAreas.map((a) => (
+                        <option key={a} value={a}>
+                          {a}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                  Your Specialties / Categories
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {FASHION_CATEGORIES.map((cat) => {
-                    const isSelected = selectedCategories.includes(cat.id);
-                    return (
-                      <button
-                        type="button"
-                        key={cat.id}
-                        onClick={() => toggleCategory(cat.id)}
-                        className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
-                          isSelected
-                            ? 'bg-brand-600 text-white border-brand-600'
-                            : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
-                        }`}
-                      >
-                        {cat.label}
-                      </button>
-                    );
-                  })}
+                {/* If selected Other or custom */}
+                {(area.startsWith('Other') || area === 'General / City Center') && (
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 mb-1">
+                      Specific Neighborhood Name
+                    </label>
+                    <input
+                      type="text"
+                      value={customArea}
+                      onChange={(e) => setCustomArea(e.target.value)}
+                      placeholder="e.g. Bodija, GRA Phase 2, etc."
+                      className="w-full px-3.5 py-2 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                    WhatsApp Number (Optional)
+                  </label>
+                  <input
+                    type="tel"
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(e.target.value)}
+                    placeholder="e.g. +234 801 234 5678"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+                    Your Specialties / Categories
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {FASHION_CATEGORIES.map((cat) => {
+                      const isSelected = selectedCategories.includes(cat.id);
+                      return (
+                        <button
+                          type="button"
+                          key={cat.id}
+                          onClick={() => toggleCategory(cat.id)}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                            isSelected
+                              ? 'bg-brand-600 text-white border-brand-600'
+                              : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-4 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white font-semibold text-sm bg-brand-600 hover:bg-brand-700 active:scale-[0.99] transition-all disabled:opacity-50 shadow-md shadow-brand-600/20"
-          >
-            {loading ? (
-              <span>Creating your account...</span>
-            ) : (
-              <>
-                <span>Create {role === 'designer' ? 'Tailor' : 'Client'} Account</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
             )}
-          </button>
-        </form>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-4 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white font-semibold text-sm bg-brand-600 hover:bg-brand-700 active:scale-[0.99] transition-all disabled:opacity-50 shadow-md shadow-brand-600/20"
+            >
+              {loading ? (
+                <span>Creating your account...</span>
+              ) : (
+                <>
+                  <span>Create {role === 'designer' ? 'Tailor' : 'Client'} Account</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+        )}
 
         {/* Footer link to Login */}
         <p className="text-center text-xs text-stone-600">

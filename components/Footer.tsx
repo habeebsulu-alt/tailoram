@@ -1,5 +1,4 @@
 import React from 'react';
-import Link from 'next/link';
 import { Scissors, Heart } from 'lucide-react';
 
 export default function Footer() {
@@ -19,20 +18,21 @@ export default function Footer() {
               </span>
             </div>
             <p className="text-sm text-stone-400 max-w-sm leading-relaxed">
-              Nigeria&apos;s premier social marketplace connecting skilled fashion designers and tailors in Lagos with clients for custom outfits, owambe attire, and native wear.
+              Nigeria&apos;s premier social marketplace connecting skilled fashion designers and bespoke tailors across Lagos, Abuja, Port Harcourt, Ibadan, and all 36 states with clients for custom outfits, owambe attire, and native wear.
             </p>
           </div>
 
-          {/* Lagos Areas */}
+          {/* Nigerian Hubs */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-brand-400 mb-3">
-              Lagos Hubs
+              Fashion Hubs
             </h4>
             <ul className="text-sm space-y-2 text-stone-400">
-              <li>Ikeja &amp; Maryland</li>
-              <li>Lekki &amp; Ajah</li>
-              <li>Victoria Island &amp; Ikoyi</li>
-              <li>Yaba &amp; Surulere</li>
+              <li>Lagos (Ikeja, Lekki, VI, Yaba)</li>
+              <li>Abuja FCT (Wuse, Maitama, Jabi)</li>
+              <li>Rivers (Port Harcourt GRA)</li>
+              <li>Oyo (Ibadan Bodija, Ring Road)</li>
+              <li>Kano, Enugu, Delta &amp; Nationwide</li>
             </ul>
           </div>
 
@@ -42,10 +42,10 @@ export default function Footer() {
               Specialties
             </h4>
             <ul className="text-sm space-y-2 text-stone-400">
-              <li>Ankara &amp; Adire</li>
+              <li>Ankara &amp; Adire Styles</li>
               <li>Aso Ebi &amp; Owambe Glam</li>
-              <li>Agbada &amp; Senegalese</li>
-              <li>Bespoke Bridal Wear</li>
+              <li>Agbada &amp; Senator Suits</li>
+              <li>Bespoke Bridal &amp; Wedding Wear</li>
             </ul>
           </div>
 
@@ -54,7 +54,7 @@ export default function Footer() {
         <div className="pt-6 border-t border-stone-800 text-xs text-stone-500 flex flex-col sm:flex-row items-center justify-between gap-2 text-center">
           <p>© {new Date().getFullYear()} Tailoram. Built for Nigerian Fashion Excellence.</p>
           <p className="flex items-center gap-1">
-            Made with <Heart className="w-3 h-3 text-red-500 fill-red-500 inline" /> in Lagos, Nigeria
+            Made with <Heart className="w-3 h-3 text-red-500 fill-red-500 inline" /> for Nigerian fashion creators
           </p>
         </div>
       </div>

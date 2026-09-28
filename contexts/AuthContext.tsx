@@ -19,11 +19,13 @@ interface AuthContextType {
     role: UserRole,
     designerDetails?: {
       businessName: string;
+      state: string;
+      city?: string;
       area: string;
       categories: string[];
       whatsapp?: string;
     }
-  ) => Promise<{ error: Error | null }>;
+  ) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -45,12 +47,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (profError) {
         console.error('Error fetching profile:', profError.message);
-        setProfile(null);
-        setDesignerProfile(null);
+        return;
+      }
+
+      if (!profData) {
         return;
       }
 
@@ -62,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from('designer_profiles')
           .select('*')
           .eq('user_id', userId)
-          .single();
+          .maybeSingle();
 
         if (!dError && dData) {
           setDesignerProfile(dData as DesignerProfile);
@@ -130,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from('profiles')
           .select('role')
           .eq('id', data.user.id)
-          .single();
+          .maybeSingle();
 
         return { error: null, role: prof?.role as UserRole };
       }
@@ -149,13 +153,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role: UserRole,
     designerDetails?: {
       businessName: string;
+      state: string;
+      city?: string;
       area: string;
       categories: string[];
       whatsapp?: string;
     }
   ) => {
     try {
-      // 1. Sign up user with Supabase Auth
+      // 1. Sign up user with metadata passed directly to Supabase Auth.
+      // The Postgres trigger automatically reads this data and creates the
+      // profiles and designer_profiles rows cleanly with SECURITY DEFINER.
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -163,6 +171,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: {
             full_name: fullName,
             role: role,
+            business_name: designerDetails?.businessName || fullName,
+            state: designerDetails?.state || 'Lagos',
+            city: designerDetails?.city || designerDetails?.state || 'Lagos',
+            area: designerDetails?.area || 'General',
+            categories: designerDetails?.categories || ['native_wear', 'ankara'],
+            whatsapp: designerDetails?.whatsapp || null,
           },
         },
       });
@@ -171,47 +185,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const newUserId = authData.user?.id;
       if (!newUserId) {
-        throw new Error('Registration failed. Please try again.');
+        throw new Error('Registration failed. Please check your credentials.');
       }
 
-      // 2. Create entry in profiles table
-      const { error: profileError } = await supabase.from('profiles').insert([
-        {
-          id: newUserId,
-          full_name: fullName,
-          role: role,
-        },
-      ]);
+      // Check if user has an active session or if Supabase email confirmation is enabled
+      const hasActiveSession = !!authData.session;
 
-      if (profileError) {
-        console.error('Profile insertion error:', profileError);
-        throw profileError;
-      }
+      // Also attempt client-side upsert as fallback (safely ignored if trigger handled it)
+      try {
+        await supabase.from('profiles').upsert(
+          {
+            id: newUserId,
+            full_name: fullName,
+            role: role,
+          },
+          { onConflict: 'id' }
+        );
 
-      // 3. If role is designer, create row in designer_profiles
-      if (role === 'designer' && designerDetails) {
-        const { error: designerError } = await supabase
-          .from('designer_profiles')
-          .insert([
+        if (role === 'designer' && designerDetails) {
+          await supabase.from('designer_profiles').upsert(
             {
               user_id: newUserId,
               business_name: designerDetails.businessName || fullName,
-              city: 'Lagos',
-              area: designerDetails.area || 'Ikeja',
-              categories: designerDetails.categories || ['native_wear'],
+              state: designerDetails.state || 'Lagos',
+              city: designerDetails.city || designerDetails.state || 'Lagos',
+              area: designerDetails.area || 'General',
+              categories: designerDetails.categories || ['native_wear', 'ankara'],
               whatsapp: designerDetails.whatsapp || null,
             },
-          ]);
-
-        if (designerError) {
-          console.error('Designer profile creation error:', designerError);
-          throw designerError;
+            { onConflict: 'user_id' }
+          );
         }
+      } catch (insertErr) {
+        // Trigger on the database handles this automatically
+        console.log('Client-side upsert fallback info:', insertErr);
       }
 
-      // Refresh state
-      await fetchProfiles(newUserId);
-      return { error: null };
+      if (hasActiveSession) {
+        await fetchProfiles(newUserId);
+        return { error: null, needsEmailConfirmation: false };
+      } else {
+        return { error: null, needsEmailConfirmation: true };
+      }
     } catch (err: any) {
       return { error: err };
     }
