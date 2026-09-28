@@ -230,6 +230,8 @@ export const STATE_AREAS: Record<string, string[]> = {
   ]
 };
 
+export const LAGOS_AREAS = STATE_AREAS['Lagos'];
+
 export const FASHION_CATEGORIES = [
   { id: 'ankara', label: 'Ankara Styles' },
   { id: 'aso_ebi', label: 'Aso Ebi & Owambe' },
