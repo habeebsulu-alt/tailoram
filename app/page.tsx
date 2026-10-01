@@ -30,7 +30,32 @@ import {
   Flame,
   Clock,
   ArrowUpDown,
+  Navigation,
+  Compass,
 } from 'lucide-react';
+
+const NIGERIAN_HUBS = [
+  { state: 'Lagos', name: 'Lagos', desc: 'Lekki, Ikeja, VI, Yaba, Surulere', lat: 6.5244, lng: 3.3792 },
+  { state: 'Abuja (FCT)', name: 'Abuja', desc: 'Maitama, Wuse II, Garki, Jabi', lat: 9.0765, lng: 7.3986 },
+  { state: 'Rivers (Port Harcourt)', name: 'Port Harcourt', desc: 'Old GRA, Peter Odili, D-Line', lat: 4.8156, lng: 7.0498 },
+  { state: 'Oyo (Ibadan)', name: 'Ibadan', desc: 'Bodija, Ring Road, Jericho', lat: 7.3775, lng: 3.9470 },
+  { state: 'Kano', name: 'Kano', desc: 'Nassarawa GRA, Bompai, City Center', lat: 12.0022, lng: 8.5920 },
+  { state: 'Enugu', name: 'Enugu', desc: 'Independence Layout, New Haven, GRA', lat: 6.4584, lng: 7.5464 },
+];
+
+function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -45,6 +70,11 @@ export default function HomePage() {
   const [selectedArea, setSelectedArea] = useState<string>('All Areas');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'ranking' | 'rating' | 'reviews' | 'newest'>('ranking');
+
+  // Geolocation & Around Me state
+  const [geoLocating, setGeoLocating] = useState(false);
+  const [nearMeLocation, setNearMeLocation] = useState<string | null>(null);
+  const [nearMeModalOpen, setNearMeModalOpen] = useState(false);
 
   // Load all designers with portfolio items and reviews
   useEffect(() => {
@@ -192,6 +222,71 @@ export default function HomePage() {
     setSelectedArea('All Areas');
     setSelectedCategory('all');
     setSortBy('ranking');
+    setNearMeLocation(null);
+  };
+
+  const handleFindAroundMe = () => {
+    if (typeof window === 'undefined') return;
+
+    if (!navigator.geolocation) {
+      setNearMeModalOpen(true);
+      return;
+    }
+
+    setGeoLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setGeoLocating(false);
+        const { latitude, longitude } = position.coords;
+
+        let closestHub = NIGERIAN_HUBS[0];
+        let minDistance = Infinity;
+
+        for (const hub of NIGERIAN_HUBS) {
+          const dist = getDistance(latitude, longitude, hub.lat, hub.lng);
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestHub = hub;
+          }
+        }
+
+        setSelectedState(closestHub.state);
+        setSelectedArea('All Areas');
+        setNearMeLocation(closestHub.name);
+
+        const element = document.getElementById('marketplace-designers');
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      },
+      (error) => {
+        console.warn('Geolocation denied or unavailable:', error);
+        setGeoLocating(false);
+        setNearMeModalOpen(true);
+      },
+      { timeout: 7000 }
+    );
+  };
+
+  const handleSelectCityNearMe = (stateName: string, cityName: string) => {
+    setSelectedState(stateName);
+    setSelectedArea('All Areas');
+    setNearMeLocation(cityName);
+    setNearMeModalOpen(false);
+
+    const element = document.getElementById('marketplace-designers');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleExploreAll = () => {
+    resetFilters();
+    setNearMeLocation(null);
+    const element = document.getElementById('marketplace-designers');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   const hasActiveFilters =
@@ -227,8 +322,45 @@ export default function HomePage() {
             Browse real portfolios, read verified client reviews, compare rankings, and commission bespoke Agbada, Aso Ebi, Ankara styles, and Senator suits.
           </p>
 
+          {/* Action Choices: View Designers Around Me vs Explore All Designers */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
+            <button
+              onClick={handleFindAroundMe}
+              disabled={geoLocating}
+              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base shadow-lg shadow-brand-600/25 hover:shadow-xl transition-all flex items-center justify-center gap-2.5 group"
+            >
+              {geoLocating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>Locating Studios Near You...</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                    <Navigation className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <span>View Designers Around Me</span>
+                  <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                    Nearby
+                  </span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleExploreAll}
+              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-white hover:bg-stone-50 active:scale-[0.98] text-stone-900 font-extrabold text-sm sm:text-base border-2 border-stone-200 hover:border-stone-300 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 group"
+            >
+              <Compass className="w-4 h-4 text-amber-500 group-hover:rotate-45 transition-transform" />
+              <span>Explore All Designers</span>
+              <span className="text-[11px] bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full font-bold">
+                {designers.length} Studios
+              </span>
+            </button>
+          </div>
+
           {/* Luxury Highlights Bar */}
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 pt-2 text-xs font-bold text-stone-600">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 pt-3 text-xs font-bold text-stone-600">
             <div className="flex items-center gap-1.5 bg-white/80 backdrop-blur-sm px-3.5 py-1.5 rounded-xl border border-stone-200/80 shadow-xs">
               <Trophy className="w-4 h-4 text-amber-500" />
               <span>Ranked by Verified Client Feedback</span>
@@ -369,8 +501,47 @@ export default function HomePage() {
       </section>
 
       {/* DESIGNERS MARKETPLACE & RANKINGS GRID */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      <section id="marketplace-designers" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         
+        {/* Active Proximity / Around Me Notification Banner */}
+        {nearMeLocation && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-brand-50 to-amber-50 border border-brand-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-300">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-brand-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Navigation className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-brand-200/70 text-brand-800">
+                    Proximity Filter Active
+                  </span>
+                  <span className="text-xs text-stone-500 font-medium">
+                    {filteredAndRankedDesigners.length} Studios in Region
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-stone-900 mt-0.5">
+                  Showing verified bespoke tailors around {nearMeLocation}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setNearMeModalOpen(true)}
+                className="text-xs font-bold text-stone-700 bg-white hover:bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-200 shadow-2xs transition-colors"
+              >
+                Change Location
+              </button>
+              <button
+                onClick={handleExploreAll}
+                className="text-xs font-bold text-brand-700 hover:text-white bg-white hover:bg-brand-600 px-3 py-1.5 rounded-xl border border-brand-200 shadow-2xs transition-all"
+              >
+                View All Nationwide
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h2 className="text-2xl font-black text-stone-900 tracking-tight flex items-center gap-2">
@@ -567,6 +738,74 @@ export default function HomePage() {
         )}
 
       </section>
+
+      {/* Location Picker Modal (Fallback / Manual City Select) */}
+      {nearMeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-stone-200">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center">
+                  <Navigation className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-stone-900">
+                    Find Designers Around You
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Select your city or closest Nigerian fashion hub
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setNearMeModalOpen(false)}
+                className="text-stone-400 hover:text-stone-600 font-bold p-1 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {NIGERIAN_HUBS.map((hub) => (
+                <button
+                  key={hub.state}
+                  onClick={() => handleSelectCityNearMe(hub.state, hub.name)}
+                  className="p-3.5 rounded-2xl border border-stone-200 hover:border-brand-500 hover:bg-brand-50/50 text-left transition-all group flex flex-col justify-between"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sm text-stone-900 group-hover:text-brand-700">
+                      {hub.name}
+                    </span>
+                    <MapPin className="w-4 h-4 text-stone-400 group-hover:text-brand-600 transition-colors" />
+                  </div>
+                  <p className="text-[11px] text-stone-500 mt-1 line-clamp-1">
+                    {hub.desc}
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setNearMeModalOpen(false);
+                  handleExploreAll();
+                }}
+                className="text-xs font-semibold text-stone-500 hover:text-stone-800"
+              >
+                Browse All 36 States Instead
+              </button>
+
+              <button
+                onClick={() => setNearMeModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
