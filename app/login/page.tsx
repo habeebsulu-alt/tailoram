@@ -44,11 +44,7 @@ export default function LoginPage() {
     setLoading(false);
 
     if (error) {
-      setErrorMessage(
-        error.message === 'Invalid login credentials'
-          ? 'Invalid email or password. If testing demo accounts, please run the password sync script in Supabase or reset via Admin.'
-          : error.message
-      );
+      setErrorMessage(error.message || 'Invalid email or password. Please try again.');
     } else {
       if (role === 'designer') {
         router.push('/dashboard');
@@ -77,19 +73,9 @@ export default function LoginPage() {
 
         {/* Error Alert */}
         {errorMessage && (
-          <div className="flex flex-col gap-1.5 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs">
-            <div className="flex items-center gap-2 font-bold">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
-              <span>{errorMessage}</span>
-            </div>
-            <div className="text-[11px] text-red-600 pl-6">
-              Need to initialize demo passwords? Run{' '}
-              <code className="bg-red-100 px-1 py-0.5 rounded font-mono">supabase/add_admin_password_reset.sql</code>{' '}
-              in your Supabase SQL editor or use the{' '}
-              <Link href="/admin" className="underline font-bold">
-                Admin Console
-              </Link>.
-            </div>
+          <div className="flex items-center gap-2.5 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
+            <span>{errorMessage}</span>
           </div>
         )}
 
@@ -167,15 +153,11 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Footer link to Sign Up and Admin */}
+        {/* Footer link to Sign Up */}
         <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs text-stone-600">
-          <Link href="/signup" className="font-semibold text-brand-600 hover:underline">
+          <span>Don&apos;t have an account yet?</span>
+          <Link href="/signup" className="font-bold text-brand-600 hover:underline">
             Create an account
-          </Link>
-
-          <Link href="/admin" className="font-semibold text-stone-500 hover:text-amber-600 flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Admin Control</span>
           </Link>
         </div>
 
