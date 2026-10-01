@@ -6,8 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageCompressor';
+import { logEvent } from '@/lib/analytics';
 import {
   PortfolioItem,
+  OutfitRequest,
+  Review,
   NIGERIAN_STATES,
   STATE_AREAS,
   FASHION_CATEGORIES,
@@ -28,17 +31,35 @@ import {
   Phone,
   Sparkles,
   Loader2,
+  Inbox,
+  Star,
+  MessageSquare,
+  Clock,
+  XCircle,
+  Check,
+  ChevronRight,
+  TrendingUp,
 } from 'lucide-react';
 
 export default function DesignerDashboard() {
   const router = useRouter();
   const { user, profile, designerProfile, refreshProfile, loading: authLoading } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'portfolio' | 'profile'>('portfolio');
+  const [activeTab, setActiveTab] = useState<'portfolio' | 'requests' | 'reviews' | 'profile'>('portfolio');
 
   // Portfolio items state
   const [items, setItems] = useState<PortfolioItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
+
+  // Requests state
+  const [requests, setRequests] = useState<OutfitRequest[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(true);
+  const [requestFilter, setRequestFilter] = useState<'all' | 'pending' | 'accepted' | 'completed' | 'declined'>('all');
+  const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
+
+  // Reviews state
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
 
   // Upload modal & form state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -98,11 +119,53 @@ export default function DesignerDashboard() {
     }
   };
 
+  // Load requests
+  const loadRequests = async (designerId: string) => {
+    try {
+      setLoadingRequests(true);
+      const { data, error } = await supabase
+        .from('requests')
+        .select('*, client:client_id(full_name)')
+        .eq('designer_id', designerId)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setRequests(data as OutfitRequest[]);
+      }
+    } catch (err) {
+      console.error('Failed to load requests:', err);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  // Load reviews
+  const loadReviews = async (designerId: string) => {
+    try {
+      setLoadingReviews(true);
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('*, client:client_id(full_name)')
+        .eq('designer_id', designerId)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setReviews(data as Review[]);
+      }
+    } catch (err) {
+      console.error('Failed to load reviews:', err);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
     } else if (designerProfile?.id) {
       loadPortfolio(designerProfile.id);
+      loadRequests(designerProfile.id);
+      loadReviews(designerProfile.id);
     }
   }, [user, designerProfile, authLoading, router]);
 
@@ -158,17 +221,14 @@ export default function DesignerDashboard() {
       const isVideo = uploadFile.type.startsWith('video/');
       const mediaType = isVideo ? 'video' : 'image';
 
-      // 1. Client-side compress images to save mobile data
       let finalFile: File = uploadFile;
       if (!isVideo) {
         finalFile = await compressImage(uploadFile, 1400, 1400, 0.82);
       }
 
-      // 2. Generate clean storage filename
       const fileExt = finalFile.name.split('.').pop() || (isVideo ? 'mp4' : 'webp');
       const fileName = `${designerProfile.id}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
 
-      // 3. Upload to Supabase Storage 'portfolio' bucket
       const { error: storageError } = await supabase.storage
         .from('portfolio')
         .upload(fileName, finalFile, {
@@ -177,7 +237,6 @@ export default function DesignerDashboard() {
         });
 
       if (storageError) {
-        // Provide friendly message if bucket doesn't exist
         if (storageError.message.includes('Bucket not found')) {
           throw new Error(
             'The "portfolio" storage bucket has not been created yet in Supabase. Please go to Supabase Dashboard -> Storage -> Create new bucket named "portfolio" (Public: Yes).'
@@ -186,12 +245,10 @@ export default function DesignerDashboard() {
         throw storageError;
       }
 
-      // 4. Retrieve public URL
       const {
         data: { publicUrl },
       } = supabase.storage.from('portfolio').getPublicUrl(fileName);
 
-      // 5. Insert record into portfolio_items table
       const { error: dbError } = await supabase.from('portfolio_items').insert([
         {
           designer_id: designerProfile.id,
@@ -203,20 +260,18 @@ export default function DesignerDashboard() {
 
       if (dbError) throw dbError;
 
-      // 6. Reset form & refresh list
       setUploadSuccess('Portfolio item added successfully!');
       setUploadFile(null);
       setPreviewUrl(null);
       setCaption('');
       if (fileInputRef.current) fileInputRef.current.value = '';
-      
+
       await loadPortfolio(designerProfile.id);
-      
+
       setTimeout(() => {
         setUploadModalOpen(false);
         setUploadSuccess('');
       }, 1200);
-
     } catch (err: any) {
       console.error('Upload failed:', err);
       setUploadError(err.message || 'Failed to upload media. Please try again.');
@@ -232,7 +287,6 @@ export default function DesignerDashboard() {
     try {
       setDeletingId(item.id);
 
-      // Delete from database
       const { error: dbError } = await supabase
         .from('portfolio_items')
         .delete()
@@ -240,7 +294,6 @@ export default function DesignerDashboard() {
 
       if (dbError) throw dbError;
 
-      // Try deleting from storage (extract path from URL)
       try {
         const parts = item.media_url.split('/portfolio/');
         if (parts.length > 1) {
@@ -256,6 +309,41 @@ export default function DesignerDashboard() {
       alert(`Could not delete item: ${err.message}`);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // Update Request Status (Accept, Decline, Complete)
+  const handleUpdateStatus = async (requestId: string, newStatus: OutfitRequest['status']) => {
+    try {
+      setUpdatingRequestId(requestId);
+
+      const { error } = await supabase
+        .from('requests')
+        .update({ status: newStatus })
+        .eq('id', requestId);
+
+      if (error) throw error;
+
+      // Log analytics event
+      logEvent({
+        event_type: 'request_status_change',
+        user_id: user?.id,
+        designer_id: designerProfile?.id,
+        metadata: {
+          request_id: requestId,
+          new_status: newStatus,
+        },
+      });
+
+      // Update local state
+      setRequests((prev) =>
+        prev.map((r) => (r.id === requestId ? { ...r, status: newStatus } : r))
+      );
+    } catch (err: any) {
+      console.error('Failed to update request status:', err);
+      alert('Could not update status: ' + err.message);
+    } finally {
+      setUpdatingRequestId(null);
     }
   };
 
@@ -297,65 +385,117 @@ export default function DesignerDashboard() {
   if (authLoading) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-stone-600">
-          <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
-          <p className="text-sm font-medium">Loading your designer dashboard...</p>
-        </div>
+        <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
       </div>
     );
   }
 
   const availableAreas = STATE_AREAS[selectedState] || ['General / City Center', 'Other'];
 
+  // Calculations for stats
+  const pendingRequests = requests.filter((r) => r.status === 'pending');
+  const acceptedRequests = requests.filter((r) => r.status === 'accepted');
+  const completedRequests = requests.filter((r) => r.status === 'completed');
+
+  const filteredRequests = requests.filter((r) => {
+    if (requestFilter === 'all') return true;
+    return r.status === requestFilter;
+  });
+
+  const avgRating =
+    reviews.length > 0
+      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+      : 'New';
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
-      {/* Dashboard Top Header */}
-      <div className="bg-white rounded-2xl border border-stone-200 p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-100 text-brand-800">
-              Designer Studio
-            </span>
-            <span className="flex items-center gap-1 text-xs text-stone-500 font-medium">
-              <MapPin className="w-3.5 h-3.5 text-stone-400" />
-              {designerProfile?.area || 'Lagos'}, {designerProfile?.state || 'Nigeria'}
-            </span>
+      {/* Designer Studio Header & Key Performance Bar */}
+      <div className="bg-white rounded-3xl border border-stone-200/90 p-6 sm:p-8 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-stone-100">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+                Designer Studio
+              </span>
+              <span className="flex items-center gap-1 text-xs text-stone-500 font-medium bg-stone-100 px-3 py-1 rounded-full">
+                <MapPin className="w-3.5 h-3.5 text-brand-600" />
+                {designerProfile?.area || 'Lagos'}, {designerProfile?.state || 'Nigeria'}
+              </span>
+              {reviews.length > 0 && (
+                <span className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full">
+                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                  {avgRating} ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
+                </span>
+              )}
+            </div>
+
+            <h1 className="text-3xl sm:text-4xl font-black text-stone-900 tracking-tight">
+              {designerProfile?.business_name || profile?.full_name || 'My Tailor Brand'}
+            </h1>
+            <p className="text-xs sm:text-sm text-stone-500 max-w-xl">
+              Manage client requests, showcase new outfits, and monitor feedback and rank.
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-lagos-dark font-serif">
-            {designerProfile?.business_name || profile?.full_name || 'My Tailor Brand'}
-          </h1>
-          <p className="text-xs sm:text-sm text-stone-600">
-            Manage your fashion catalog, update your specialties, and showcase your best crafts.
-          </p>
+
+          <div className="flex items-center gap-3">
+            {designerProfile && (
+              <Link
+                href={`/designer/${designerProfile.id}`}
+                className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-stone-300 text-stone-700 bg-white hover:bg-stone-50 text-xs sm:text-sm font-bold transition-all shadow-sm"
+              >
+                <Eye className="w-4 h-4 text-brand-600" />
+                Public Profile
+              </Link>
+            )}
+
+            <button
+              onClick={() => setUploadModalOpen(true)}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-brand-600/20 transition-all hover:scale-[1.01]"
+            >
+              <Plus className="w-4 h-4" />
+              Upload Work
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {designerProfile && (
-            <Link
-              href={`/designer/${designerProfile.id}`}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-stone-300 text-stone-700 bg-white hover:bg-stone-50 text-xs sm:text-sm font-semibold transition-all shadow-sm"
-            >
-              <Eye className="w-4 h-4 text-brand-600" />
-              Preview Public Profile
-            </Link>
-          )}
-
-          <button
-            onClick={() => setUploadModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-semibold shadow-md shadow-brand-600/20 transition-all hover:scale-[1.01]"
-          >
-            <Plus className="w-4 h-4" />
-            Upload New Work
-          </button>
+        {/* Studio Stats Summary */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6">
+          <div className="p-4 rounded-2xl bg-stone-50 border border-stone-100 space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
+              Total Designs
+            </span>
+            <p className="text-2xl font-black text-stone-900">{items.length}</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-stone-50 border border-stone-100 space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
+              Pending Orders
+            </span>
+            <p className="text-2xl font-black text-amber-600">{pendingRequests.length}</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-stone-50 border border-stone-100 space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
+              Active Orders
+            </span>
+            <p className="text-2xl font-black text-emerald-600">{acceptedRequests.length}</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-stone-50 border border-stone-100 space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
+              Designer Rating
+            </span>
+            <p className="text-2xl font-black text-stone-900 flex items-center gap-1.5">
+              <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
+              {avgRating}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-stone-200 gap-8">
+      {/* Modern Navigation Tabs */}
+      <div className="flex border-b border-stone-200 gap-6 sm:gap-8 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('portfolio')}
-          className={`pb-3 text-sm font-bold transition-all relative ${
+          className={`pb-3 text-sm font-bold transition-all relative flex-shrink-0 ${
             activeTab === 'portfolio'
               ? 'text-brand-700 border-b-2 border-brand-600'
               : 'text-stone-500 hover:text-stone-800'
@@ -365,14 +505,41 @@ export default function DesignerDashboard() {
         </button>
 
         <button
+          onClick={() => setActiveTab('requests')}
+          className={`pb-3 text-sm font-bold transition-all relative flex-shrink-0 flex items-center gap-2 ${
+            activeTab === 'requests'
+              ? 'text-brand-700 border-b-2 border-brand-600'
+              : 'text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          <span>Client Requests ({requests.length})</span>
+          {pendingRequests.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
+              {pendingRequests.length} new
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('reviews')}
+          className={`pb-3 text-sm font-bold transition-all relative flex-shrink-0 ${
+            activeTab === 'reviews'
+              ? 'text-brand-700 border-b-2 border-brand-600'
+              : 'text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          Ratings &amp; Reviews ({reviews.length})
+        </button>
+
+        <button
           onClick={() => setActiveTab('profile')}
-          className={`pb-3 text-sm font-bold transition-all relative ${
+          className={`pb-3 text-sm font-bold transition-all relative flex-shrink-0 ${
             activeTab === 'profile'
               ? 'text-brand-700 border-b-2 border-brand-600'
               : 'text-stone-500 hover:text-stone-800'
           }`}
         >
-          Edit Brand Profile
+          Brand Settings
         </button>
       </div>
 
@@ -382,24 +549,24 @@ export default function DesignerDashboard() {
           {loadingItems ? (
             <div className="py-16 text-center text-stone-500 flex flex-col items-center gap-2">
               <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
-              <p className="text-sm">Loading your portfolio collection...</p>
+              <p className="text-sm font-semibold">Loading your portfolio collection...</p>
             </div>
           ) : items.length === 0 ? (
-            <div className="bg-white border-2 border-dashed border-stone-200 rounded-2xl p-12 text-center max-w-lg mx-auto space-y-4">
+            <div className="bg-white border-2 border-dashed border-stone-200 rounded-3xl p-12 text-center max-w-lg mx-auto space-y-4">
               <div className="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto">
                 <ImageIcon className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-lagos-dark font-serif">
+                <h3 className="text-lg font-bold text-stone-900">
                   Your portfolio is empty
                 </h3>
-                <p className="text-xs sm:text-sm text-stone-600 mt-1">
+                <p className="text-xs sm:text-sm text-stone-500 mt-1">
                   Upload photos and short clips of your recent outfits (Ankara, Senator suits, Owambe styles) so clients can see your craftsmanship.
                 </p>
               </div>
               <button
                 onClick={() => setUploadModalOpen(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm shadow-sm transition-all"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-sm transition-all"
               >
                 <Upload className="w-4 h-4" />
                 Upload First Item
@@ -428,7 +595,6 @@ export default function DesignerDashboard() {
                       />
                     )}
                     
-                    {/* Media type badge */}
                     <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                       {item.media_type === 'video' ? (
                         <>
@@ -447,7 +613,7 @@ export default function DesignerDashboard() {
                       {item.caption || 'Custom tailored creation'}
                     </p>
 
-                    <div className="pt-3 mt-3 border-t border-stone-100 flex items-center justify-between text-xs text-stone-400">
+                    <div className="pt-3 mt-3 border-t border-stone-100 flex items-center justify-between text-xs text-stone-400 font-medium">
                       <span>{new Date(item.created_at).toLocaleDateString()}</span>
                       
                       <button
@@ -471,16 +637,248 @@ export default function DesignerDashboard() {
         </div>
       )}
 
-      {/* TAB 2: EDIT PROFILE */}
+      {/* TAB 2: CLIENT REQUESTS */}
+      {activeTab === 'requests' && (
+        <div className="space-y-6">
+          {/* Status filter tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar text-xs">
+            {(['all', 'pending', 'accepted', 'completed', 'declined'] as const).map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setRequestFilter(filter)}
+                className={`px-3 py-1.5 rounded-xl font-bold capitalize transition-all ${
+                  requestFilter === filter
+                    ? 'bg-stone-900 text-white'
+                    : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50'
+                }`}
+              >
+                {filter} {filter === 'all' ? `(${requests.length})` : ''}
+              </button>
+            ))}
+          </div>
+
+          {loadingRequests ? (
+            <div className="py-16 text-center text-stone-500 flex flex-col items-center gap-2">
+              <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+              <p className="text-sm font-semibold">Loading client requests...</p>
+            </div>
+          ) : filteredRequests.length === 0 ? (
+            <div className="bg-white border-2 border-dashed border-stone-200 rounded-3xl p-12 text-center max-w-md mx-auto space-y-2">
+              <Inbox className="w-8 h-8 text-stone-300 mx-auto mb-2" />
+              <h3 className="font-bold text-base text-stone-900">
+                No {requestFilter !== 'all' ? requestFilter : ''} requests found
+              </h3>
+              <p className="text-xs text-stone-500">
+                When clients discover your portfolio and submit custom outfit requests, they will show up here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all space-y-4"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            req.status === 'accepted'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : req.status === 'pending'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : req.status === 'completed'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : 'bg-stone-100 text-stone-600 border border-stone-200'
+                          }`}
+                        >
+                          {req.status}
+                        </span>
+                        <span className="text-xs text-stone-400 font-medium">
+                          Received {new Date(req.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-stone-900 text-base">
+                        Client: {req.client?.full_name || 'Fashion Client'}
+                      </h3>
+                    </div>
+
+                    <div className="text-sm font-extrabold text-stone-900">
+                      ₦{req.budget_min.toLocaleString()}
+                      {req.budget_max ? ` - ₦${req.budget_max.toLocaleString()}` : ''}
+                    </div>
+                  </div>
+
+                  {/* Description & specs */}
+                  <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 space-y-2 text-xs text-stone-700">
+                    <p className="font-medium leading-relaxed">{req.style_description}</p>
+                    <div className="flex flex-wrap gap-4 text-stone-500 pt-1 font-medium">
+                      {req.fabric && (
+                        <span>Fabric: <strong className="text-stone-800">{req.fabric}</strong></span>
+                      )}
+                      {req.deadline && (
+                        <span>Needed By: <strong className="text-stone-800">{new Date(req.deadline).toLocaleDateString()}</strong></span>
+                      )}
+                    </div>
+                    {req.reference_image_url && (
+                      <div className="pt-2">
+                        <span className="font-semibold text-stone-500 block mb-1">Client Reference Image:</span>
+                        <img
+                          src={req.reference_image_url}
+                          alt="Reference Style"
+                          className="w-24 h-24 object-cover rounded-xl border border-stone-200"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <Link
+                      href={`/messages/${req.id}`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-brand-400" />
+                      Chat with Client
+                    </Link>
+
+                    <div className="flex items-center gap-2">
+                      {req.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateStatus(req.id, 'accepted')}
+                            disabled={updatingRequestId === req.id}
+                            className="inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            Accept Request
+                          </button>
+                          <button
+                            onClick={() => handleUpdateStatus(req.id, 'declined')}
+                            disabled={updatingRequestId === req.id}
+                            className="inline-flex items-center gap-1 px-3.5 py-2 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 text-xs font-bold transition-all disabled:opacity-50"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-red-500" />
+                            Decline
+                          </button>
+                        </>
+                      )}
+
+                      {req.status === 'accepted' && (
+                        <button
+                          onClick={() => handleUpdateStatus(req.id, 'completed')}
+                          disabled={updatingRequestId === req.id}
+                          className="inline-flex items-center gap-1 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Mark as Completed
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: RATINGS & REVIEWS */}
+      {activeTab === 'reviews' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row items-center gap-6 justify-between">
+            <div className="space-y-1">
+              <h3 className="text-xl font-bold text-stone-900">
+                Client Feedback &amp; Reputation
+              </h3>
+              <p className="text-xs text-stone-500">
+                High ratings boost your placement on the marketplace search and ranking system.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4 bg-amber-50 border border-amber-200 px-6 py-4 rounded-2xl">
+              <div className="text-center">
+                <p className="text-3xl font-black text-amber-900 flex items-center gap-1.5 justify-center">
+                  <Star className="w-6 h-6 fill-amber-500 text-amber-500" />
+                  {avgRating}
+                </p>
+                <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider mt-0.5">
+                  {reviews.length} {reviews.length === 1 ? 'Review' : 'Reviews'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {loadingReviews ? (
+            <div className="py-16 text-center text-stone-500 flex flex-col items-center gap-2">
+              <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+              <p className="text-sm font-semibold">Loading reviews...</p>
+            </div>
+          ) : reviews.length === 0 ? (
+            <div className="bg-white border-2 border-dashed border-stone-200 rounded-3xl p-12 text-center max-w-md mx-auto space-y-2">
+              <Star className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+              <h3 className="font-bold text-base text-stone-900">
+                No reviews yet
+              </h3>
+              <p className="text-xs text-stone-500">
+                As you complete outfit requests for clients, encourage them to leave feedback to build your reputation!
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {reviews.map((rev) => (
+                <div
+                  key={rev.id}
+                  className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-stone-900 text-sm">
+                        {rev.client?.full_name || 'Client'}
+                      </p>
+                      <span className="text-[10px] text-stone-400 font-medium">
+                        {new Date(rev.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`w-4 h-4 ${
+                            s <= rev.rating
+                              ? 'text-amber-500 fill-amber-500'
+                              : 'text-stone-200'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {rev.comment && (
+                    <p className="text-xs text-stone-700 leading-relaxed bg-stone-50 p-3 rounded-xl border border-stone-100">
+                      &ldquo;{rev.comment}&rdquo;
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: EDIT BRAND PROFILE */}
       {activeTab === 'profile' && (
-        <div className="max-w-2xl bg-white rounded-2xl border border-stone-200 p-6 sm:p-8 shadow-sm">
+        <div className="max-w-2xl bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-sm">
           <form onSubmit={handleSaveProfile} className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-lagos-dark font-serif">
+              <h2 className="text-xl font-bold text-stone-900">
                 Brand Profile Details
               </h2>
               <p className="text-xs text-stone-500 mt-0.5">
-                This information helps clients across Nigeria find you and reach out for custom orders.
+                This information helps clients across Nigeria discover your tailoring studio.
               </p>
             </div>
 
@@ -603,7 +1001,7 @@ export default function DesignerDashboard() {
             <button
               type="submit"
               disabled={savingProfile}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm shadow-md shadow-brand-600/20 transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all disabled:opacity-50"
             >
               {savingProfile ? (
                 <>
@@ -623,10 +1021,10 @@ export default function DesignerDashboard() {
 
       {/* UPLOAD MODAL */}
       {uploadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-xl border border-stone-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-stone-200">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h3 className="font-bold text-lg text-lagos-dark font-serif flex items-center gap-2">
+              <h3 className="font-bold text-lg text-stone-900 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-brand-600" />
                 Upload Portfolio Work
               </h3>
@@ -644,21 +1042,20 @@ export default function DesignerDashboard() {
             </div>
 
             {uploadError && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 <span>{uploadError}</span>
               </div>
             )}
 
             {uploadSuccess && (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
                 <span>{uploadSuccess}</span>
               </div>
             )}
 
             <form onSubmit={handleUploadSubmit} className="space-y-4">
-              {/* Media Picker */}
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
                   Choose Photo or Short Video <span className="text-red-500">*</span>
@@ -675,7 +1072,6 @@ export default function DesignerDashboard() {
                 </p>
               </div>
 
-              {/* Preview */}
               {previewUrl && (
                 <div className="aspect-[4/3] bg-stone-100 rounded-xl overflow-hidden relative border border-stone-200">
                   {uploadFile?.type.startsWith('video/') ? (
@@ -686,7 +1082,6 @@ export default function DesignerDashboard() {
                 </div>
               )}
 
-              {/* Caption */}
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
                   Caption / Style Description
@@ -696,7 +1091,7 @@ export default function DesignerDashboard() {
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
                   placeholder="e.g. 3-piece Royal Agbada with custom embroidery"
-                  className="w-full px-3 py-2 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -704,14 +1099,14 @@ export default function DesignerDashboard() {
                 <button
                   type="button"
                   onClick={() => setUploadModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 text-sm font-semibold"
+                  className="px-4 py-2.5 rounded-xl text-stone-600 hover:bg-stone-100 text-xs sm:text-sm font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isUploading || !uploadFile}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm shadow-sm transition-all disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all disabled:opacity-50"
                 >
                   {isUploading ? (
                     <>

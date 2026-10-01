@@ -21,6 +21,20 @@ export interface DesignerProfile {
   // Joined from profiles
   profiles?: Profile;
   portfolio_items?: PortfolioItem[];
+  reviews?: Review[];
+  avg_rating?: number;
+  review_count?: number;
+}
+
+export interface Review {
+  id: string;
+  designer_id: string;
+  client_id: string;
+  request_id?: string | null;
+  rating: number; // 1 to 5
+  comment: string | null;
+  created_at: string;
+  client?: Profile;
 }
 
 export interface PortfolioItem {

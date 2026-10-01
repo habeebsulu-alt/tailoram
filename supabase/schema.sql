@@ -295,3 +295,37 @@ create policy "Authenticated users can delete their uploaded files"
 -- ============================================================
 alter publication supabase_realtime add table public.messages;
 alter publication supabase_realtime add table public.requests;
+
+-- ============================================================
+-- REVIEWS & RATINGS SYSTEM
+-- ============================================================
+create table if not exists public.reviews (
+  id uuid primary key default gen_random_uuid(),
+  designer_id uuid not null references public.designer_profiles(id) on delete cascade,
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  request_id uuid references public.requests(id) on delete set null,
+  rating integer not null check (rating >= 1 and rating <= 5),
+  comment text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.reviews enable row level security;
+
+create policy "Reviews are viewable by everyone"
+  on public.reviews for select
+  using (true);
+
+create policy "Clients can submit reviews"
+  on public.reviews for insert
+  with check (auth.uid() = client_id);
+
+create policy "Clients can update their own reviews"
+  on public.reviews for update
+  using (auth.uid() = client_id);
+
+create policy "Clients can delete their own reviews"
+  on public.reviews for delete
+  using (auth.uid() = client_id);
+
+grant all on public.reviews to anon, authenticated;
+

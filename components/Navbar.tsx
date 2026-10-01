@@ -28,7 +28,7 @@ export default function Navbar() {
               <Scissors className="w-5 h-5 -rotate-45" />
             </div>
             <div className="flex flex-col">
-              <span className="font-extrabold text-xl tracking-tight text-lagos-dark font-serif">
+              <span className="font-black text-xl tracking-tight text-stone-900">
                 Tailoram
               </span>
               <span className="text-[10px] -mt-1 font-semibold uppercase tracking-widest text-brand-600">
@@ -67,13 +67,21 @@ export default function Navbar() {
                     )}
                   </>
                 ) : (
-                  <Link
-                    href="/"
-                    className="flex items-center gap-1.5 text-stone-700 hover:text-brand-600 font-medium text-sm transition-colors"
-                  >
-                    <ShoppingBag className="w-4 h-4 text-brand-600" />
-                    Find Tailors
-                  </Link>
+                  <>
+                    <Link
+                      href="/"
+                      className="flex items-center gap-1.5 text-stone-700 hover:text-brand-600 font-medium text-sm transition-colors"
+                    >
+                      <ShoppingBag className="w-4 h-4 text-brand-600" />
+                      Find Tailors
+                    </Link>
+                    <Link
+                      href="/requests"
+                      className="flex items-center gap-1.5 text-stone-700 hover:text-brand-600 font-medium text-sm transition-colors"
+                    >
+                      My Requests
+                    </Link>
+                  </>
                 )}
 
                 {/* Profile Badge & Logout */}
@@ -172,7 +180,16 @@ export default function Navbar() {
                     </Link>
                   )}
                 </>
-              ) : null}
+              ) : (
+                <Link
+                  href="/requests"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 py-2 text-sm font-medium text-stone-700 hover:text-brand-600"
+                >
+                  <ShoppingBag className="w-4 h-4 text-brand-600" />
+                  My Custom Requests
+                </Link>
+              )}
 
               <button
                 onClick={handleLogout}
