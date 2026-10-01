@@ -24,7 +24,20 @@ import {
   CheckCircle2,
   Share2,
   Play,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
+
+const CATEGORY_SEQUENCE = [
+  'agbada',
+  'aso_ebi',
+  'senator',
+  'ankara',
+  'adire',
+  'bridal',
+  'ready_to_wear',
+  'contemporary',
+];
 
 const STYLE_CATEGORIES = [
   { id: 'all', label: 'All Styles' },
@@ -81,7 +94,8 @@ export default function DesignerProfilePage() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMedia, setSelectedMedia] = useState<PortfolioItem | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   // Leave review modal state
@@ -90,6 +104,58 @@ export default function DesignerProfilePage() {
   const [newComment, setNewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState('');
+
+  // Sort portfolio by category sequence so "All Styles" groups in sequence:
+  // Agbada -> Aso Ebi -> Senator -> Ankara -> Adire -> Bridal -> RTW -> Contemporary
+  const orderedPortfolio = useMemo(() => {
+    return [...portfolio].sort((a, b) => {
+      const catA = getItemCategory(a, designer?.categories);
+      const catB = getItemCategory(b, designer?.categories);
+      const idxA = CATEGORY_SEQUENCE.indexOf(catA);
+      const idxB = CATEGORY_SEQUENCE.indexOf(catB);
+      const rankA = idxA === -1 ? 999 : idxA;
+      const rankB = idxB === -1 ? 999 : idxB;
+      if (rankA !== rankB) return rankA - rankB;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [portfolio, designer?.categories]);
+
+  // Display items based on current category selection, preserving category sequence
+  const displayItems = useMemo(() => {
+    if (selectedCategory === 'all') {
+      return orderedPortfolio;
+    }
+    return orderedPortfolio.filter(
+      (item) => getItemCategory(item, designer?.categories) === selectedCategory
+    );
+  }, [orderedPortfolio, selectedCategory, designer?.categories]);
+
+  const goToNext = () => {
+    if (displayItems.length === 0) return;
+    setSelectedIndex((prev) => (prev !== null ? (prev + 1) % displayItems.length : 0));
+  };
+
+  const goToPrev = () => {
+    if (displayItems.length === 0) return;
+    setSelectedIndex((prev) => (prev !== null ? (prev - 1 + displayItems.length) % displayItems.length : 0));
+  };
+
+  useEffect(() => {
+    if (selectedIndex === null) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') {
+        goToNext();
+      } else if (e.key === 'ArrowLeft') {
+        goToPrev();
+      } else if (e.key === 'Escape') {
+        setSelectedIndex(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIndex, displayItems]);
 
   useEffect(() => {
     async function loadData() {
@@ -414,38 +480,28 @@ export default function DesignerProfilePage() {
               This designer has not uploaded any photos yet. Check back soon!
             </p>
           </div>
+        ) : displayItems.length === 0 ? (
+          <div className="bg-stone-50 rounded-2xl p-8 text-center space-y-2 border border-stone-200">
+            <p className="text-sm font-semibold text-stone-700">No works found in this style category</p>
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className="text-xs font-bold text-brand-600 hover:underline"
+            >
+              View all styles ({portfolio.length})
+            </button>
+          </div>
         ) : (
-          (() => {
-            const displayItems = selectedCategory === 'all'
-              ? portfolio
-              : portfolio.filter(item => getItemCategory(item, designer.categories) === selectedCategory);
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {displayItems.map((item, idx) => {
+              const itemCat = getItemCategory(item, designer.categories);
+              const itemRating = (item.rating || designer.avg_rating || 5.0).toFixed(1);
 
-            if (displayItems.length === 0) {
               return (
-                <div className="bg-stone-50 rounded-2xl p-8 text-center space-y-2 border border-stone-200">
-                  <p className="text-sm font-semibold text-stone-700">No works found in this style category</p>
-                  <button
-                    onClick={() => setSelectedCategory('all')}
-                    className="text-xs font-bold text-brand-600 hover:underline"
-                  >
-                    View all styles ({portfolio.length})
-                  </button>
-                </div>
-              );
-            }
-
-            return (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {displayItems.map((item) => {
-                  const itemCat = getItemCategory(item, designer.categories);
-                  const itemRating = (item.rating || designer.avg_rating || 5.0).toFixed(1);
-
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => setSelectedMedia(item)}
-                      className="group cursor-pointer bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col justify-between"
-                    >
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedIndex(idx)}
+                  className="group cursor-pointer bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col justify-between"
+                >
                       <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
                         {/* Rating badge on preview */}
                         <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[11px] font-bold flex items-center gap-1 shadow-md z-10">
@@ -522,10 +578,8 @@ export default function DesignerProfilePage() {
                   );
                 })}
               </div>
-            );
-          })()
-        )}
-      </div>
+            )}
+          </div>
 
       {/* REVIEWS & RATINGS SECTION */}
       <div className="space-y-6 pt-6 border-t border-stone-200">
@@ -600,70 +654,165 @@ export default function DesignerProfilePage() {
         )}
       </div>
 
-      {/* Lightbox / Zoom Modal */}
-      {selectedMedia && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
-          onClick={() => setSelectedMedia(null)}
-        >
+      {/* Interactive Lightbox / Slider Modal */}
+      {selectedIndex !== null && displayItems[selectedIndex] && (() => {
+        const activeMedia = displayItems[selectedIndex];
+        const activeCat = getItemCategory(activeMedia, designer.categories);
+        const activeRating = (activeMedia.rating || designer.avg_rating || 5.0).toFixed(1);
+
+        return (
           <div
-            className="relative max-w-3xl w-full max-h-[90vh] bg-stone-900 rounded-2xl overflow-hidden flex flex-col shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+            onClick={() => setSelectedIndex(null)}
+            onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+            onTouchEnd={(e) => {
+              if (touchStartX !== null) {
+                const diff = touchStartX - e.changedTouches[0].clientX;
+                if (diff > 40) goToNext();
+                else if (diff < -40) goToPrev();
+                setTouchStartX(null);
+              }
+            }}
           >
-            <button
-              onClick={() => setSelectedMedia(null)}
-              className="absolute top-4 right-4 z-20 w-9 h-9 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+            <div
+              className="relative max-w-4xl w-full max-h-[95vh] bg-stone-900 rounded-2xl overflow-hidden flex flex-col shadow-2xl border border-stone-800"
+              onClick={(e) => e.stopPropagation()}
             >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="relative flex-1 max-h-[68vh] flex items-center justify-center bg-black">
-              {selectedMedia.media_type === 'video' ? (
-                <video
-                  src={selectedMedia.media_url}
-                  controls
-                  autoPlay
-                  className="max-h-[68vh] w-auto max-w-full"
-                />
-              ) : (
-                <img
-                  src={selectedMedia.media_url}
-                  alt={selectedMedia.caption || 'Outfit'}
-                  className="max-h-[68vh] w-auto max-w-full object-contain"
-                />
-              )}
-            </div>
-
-            <div className="p-4 sm:p-5 bg-stone-900 border-t border-stone-800 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1.5 min-w-0">
+              {/* Header Bar: Category, Counter & Close */}
+              <div className="px-4 py-3 bg-stone-950/85 backdrop-blur-md flex items-center justify-between border-b border-stone-800/80 z-30">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-md bg-stone-800 text-[11px] font-bold text-amber-400 flex items-center gap-1 border border-stone-700">
-                    <Star className="w-3 h-3 fill-amber-400" />
-                    {(selectedMedia.rating || designer.avg_rating || 5.0).toFixed(1)} Rating
+                  <span className="px-2.5 py-1 rounded-md bg-stone-800 text-xs font-bold text-amber-400 flex items-center gap-1 border border-stone-700">
+                    <Star className="w-3.5 h-3.5 fill-amber-400" />
+                    {activeRating}
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-stone-800 text-[11px] font-bold text-stone-300 border border-stone-700">
-                    {CATEGORY_NAMES[getItemCategory(selectedMedia, designer.categories)] || 'Bespoke'}
+                  <span className="px-2.5 py-1 rounded-md bg-stone-800 text-xs font-extrabold uppercase tracking-wider text-stone-200 border border-stone-700">
+                    {CATEGORY_NAMES[activeCat] || 'Bespoke'}
+                  </span>
+                  <span className="text-xs font-medium text-stone-400 hidden sm:inline">
+                    • Work {selectedIndex + 1} of {displayItems.length}
                   </span>
                 </div>
-                <p className="text-sm font-medium line-clamp-2">
-                  {selectedMedia.caption || 'Bespoke Tailoring Outfit'}
-                </p>
-                <p className="text-xs text-stone-400">
-                  By {designer.business_name} • {selectedMedia.media_type === 'video' ? 'Video Reel' : 'Photo'}
-                </p>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-stone-400 sm:hidden">
+                    {selectedIndex + 1}/{displayItems.length}
+                  </span>
+                  <button
+                    onClick={() => setSelectedIndex(null)}
+                    className="w-8 h-8 rounded-full bg-stone-800 hover:bg-stone-700 text-white flex items-center justify-center transition-colors"
+                    title="Close (Esc)"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              <Link
-                href={`/request/${designer.id}?inspoUrl=${encodeURIComponent(selectedMedia.media_url)}&styleTitle=${encodeURIComponent(selectedMedia.caption || CATEGORY_NAMES[getItemCategory(selectedMedia, designer.categories)] || 'Bespoke Style')}`}
-                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-sm shadow-lg shadow-amber-500/25 transition-all whitespace-nowrap flex-shrink-0"
-              >
-                <Sparkles className="w-4 h-4 fill-white" />
-                <span>Remake This / Use as Inspo</span>
-              </Link>
+              {/* Media Viewport with Floating Slider Arrows */}
+              <div className="relative flex-1 min-h-[45vh] max-h-[62vh] flex items-center justify-center bg-black overflow-hidden group select-none">
+                {displayItems.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goToPrev();
+                      }}
+                      className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-black/90 active:scale-95 text-white flex items-center justify-center backdrop-blur-md transition-all shadow-xl hover:scale-105"
+                      aria-label="Previous work"
+                      title="Previous work (Left Arrow)"
+                    >
+                      <ChevronLeft className="w-6 h-6 -ml-0.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goToNext();
+                      }}
+                      className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-black/90 active:scale-95 text-white flex items-center justify-center backdrop-blur-md transition-all shadow-xl hover:scale-105"
+                      aria-label="Next work"
+                      title="Next work (Right Arrow)"
+                    >
+                      <ChevronRight className="w-6 h-6 ml-0.5" />
+                    </button>
+                  </>
+                )}
+
+                {/* Media Content */}
+                <div key={activeMedia.id} className="w-full h-full flex items-center justify-center animate-in fade-in duration-200">
+                  {activeMedia.media_type === 'video' ? (
+                    <video
+                      src={activeMedia.media_url}
+                      controls
+                      autoPlay
+                      playsInline
+                      className="max-h-[62vh] w-auto max-w-full object-contain"
+                    />
+                  ) : (
+                    <img
+                      src={activeMedia.media_url}
+                      alt={activeMedia.caption || 'Outfit'}
+                      className="max-h-[62vh] w-auto max-w-full object-contain"
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Thumbnail Strip for fast scrubbing along category sequence */}
+              {displayItems.length > 1 && (
+                <div className="bg-stone-950 px-4 py-2 border-t border-stone-800/80 flex items-center gap-2 overflow-x-auto scrollbar-none">
+                  {displayItems.map((item, idx) => {
+                    const isCurrent = idx === selectedIndex;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedIndex(idx);
+                        }}
+                        className={`relative w-11 h-11 sm:w-12 sm:h-12 rounded-lg overflow-hidden flex-shrink-0 transition-all ${
+                          isCurrent
+                            ? 'ring-2 ring-amber-400 scale-105 opacity-100 shadow-md'
+                            : 'opacity-40 hover:opacity-80'
+                        }`}
+                        title={item.caption || `Work ${idx + 1}`}
+                      >
+                        {item.media_type === 'video' ? (
+                          <video src={item.media_url} muted className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={item.media_url} alt="" className="w-full h-full object-cover" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Bottom Info & "Use as Inspo" Action */}
+              <div className="p-4 sm:p-5 bg-stone-900 border-t border-stone-800 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1 min-w-0">
+                  <p className="text-sm font-semibold text-stone-100 line-clamp-2">
+                    {activeMedia.caption || `${CATEGORY_NAMES[activeCat]} Bespoke Design`}
+                  </p>
+                  <p className="text-xs text-stone-400">
+                    Tailored by {designer.business_name} • {activeMedia.media_type === 'video' ? 'Video Reel' : 'Photo'}
+                  </p>
+                </div>
+
+                <Link
+                  href={`/request/${designer.id}?inspoUrl=${encodeURIComponent(activeMedia.media_url)}&styleTitle=${encodeURIComponent(activeMedia.caption || CATEGORY_NAMES[activeCat] || 'Bespoke Style')}`}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-sm shadow-lg shadow-amber-500/25 transition-all whitespace-nowrap flex-shrink-0"
+                >
+                  <Sparkles className="w-4 h-4 fill-white" />
+                  <span>Remake This / Use as Inspo</span>
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Write Review Modal */}
       {reviewModalOpen && (
