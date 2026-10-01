@@ -8,7 +8,7 @@ interface EntrySplashProps {
 }
 
 const WORDS = [
-  'BESPOKE AG BADA',
+  'BESPOKE AGBADA',
   'OWAMBE COUTURE',
   'EXECUTIVE SENATOR',
   'VIBRANT ANKARA',
@@ -35,7 +35,7 @@ export default function EntrySplash({ onComplete }: EntrySplashProps) {
     // Lock body scroll while splash is active
     document.body.style.overflow = 'hidden';
 
-    // 1. Cycle through words
+    // 1. Cycle through words at a luxurious, deliberate pace (750ms each)
     let wordIdx = 0;
     const wordInterval = setInterval(() => {
       wordIdx += 1;
@@ -47,11 +47,11 @@ export default function EntrySplash({ onComplete }: EntrySplashProps) {
         setIsFinalPhrase(true);
         clearInterval(wordInterval);
       }
-    }, 420);
+    }, 750);
 
-    // 2. Progress bar animation
+    // 2. Progress bar animation over deliberate 5.75s duration
     const startTime = Date.now();
-    const duration = 2800; // Total display duration (2.8 seconds)
+    const duration = 5750; // Total display duration (5.75 seconds to savor the animation)
 
     const progressInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
@@ -152,10 +152,10 @@ export default function EntrySplash({ onComplete }: EntrySplashProps) {
           <div className="min-h-[90px] sm:min-h-[130px] flex items-center justify-center">
             <h1
               key={currentWordIndex}
-              className={`text-3xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight leading-none transition-all duration-300 ${
+              className={`text-3xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight leading-none animate-text-pop transition-all ${
                 isFinalPhrase
-                  ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-200 to-amber-400 scale-105 drop-shadow-[0_0_35px_rgba(251,191,36,0.35)]'
-                  : 'text-white scale-100'
+                  ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-200 to-amber-400 scale-105 drop-shadow-[0_0_40px_rgba(251,191,36,0.45)]'
+                  : 'text-white scale-100 opacity-95'
               }`}
             >
               {WORDS[currentWordIndex]}

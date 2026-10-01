@@ -39,3 +39,18 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1aa;
 }
+
+@keyframes textPop {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-text-pop {
+  animation: textPop 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
