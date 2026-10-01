@@ -10,6 +10,8 @@ import {
   NIGERIAN_STATES,
   STATE_AREAS,
   FASHION_CATEGORIES,
+  GENDER_FOCUS_OPTIONS,
+  getDesignerGender,
 } from '@/lib/types';
 import {
   Scissors,
@@ -32,6 +34,7 @@ import {
   ArrowUpDown,
   Navigation,
   Compass,
+  ShoppingBag,
 } from 'lucide-react';
 
 const NIGERIAN_HUBS = [
@@ -69,6 +72,7 @@ export default function HomePage() {
   const [selectedState, setSelectedState] = useState<string>('All States');
   const [selectedArea, setSelectedArea] = useState<string>('All Areas');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedGender, setSelectedGender] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'ranking' | 'rating' | 'reviews' | 'newest'>('ranking');
 
   // Geolocation & Around Me state
@@ -163,6 +167,13 @@ export default function HomePage() {
         }
       }
 
+      if (selectedGender !== 'all') {
+        const dGender = getDesignerGender(d);
+        if (dGender !== selectedGender) {
+          return false;
+        }
+      }
+
       return true;
     });
 
@@ -186,7 +197,7 @@ export default function HomePage() {
       }
       return 0;
     });
-  }, [designers, searchQuery, selectedState, selectedArea, selectedCategory, sortBy]);
+  }, [designers, searchQuery, selectedState, selectedArea, selectedCategory, selectedGender, sortBy]);
 
   // Day 1 Analytics: Log searches (debounced)
   useEffect(() => {
@@ -194,7 +205,8 @@ export default function HomePage() {
       searchQuery.trim() !== '' ||
       selectedState !== 'All States' ||
       selectedArea !== 'All Areas' ||
-      selectedCategory !== 'all';
+      selectedCategory !== 'all' ||
+      selectedGender !== 'all';
 
     if (!hasFilter) return;
 
@@ -207,6 +219,7 @@ export default function HomePage() {
           state: selectedState,
           area: selectedArea,
           category: selectedCategory,
+          gender: selectedGender,
           sort_by: sortBy,
           results_count: filteredAndRankedDesigners.length,
         },
@@ -214,13 +227,14 @@ export default function HomePage() {
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, selectedState, selectedArea, selectedCategory, sortBy, filteredAndRankedDesigners.length, user]);
+  }, [searchQuery, selectedState, selectedArea, selectedCategory, selectedGender, sortBy, filteredAndRankedDesigners.length, user]);
 
   const resetFilters = () => {
     setSearchQuery('');
     setSelectedState('All States');
     setSelectedArea('All Areas');
     setSelectedCategory('all');
+    setSelectedGender('all');
     setSortBy('ranking');
     setNearMeLocation(null);
   };
@@ -293,7 +307,8 @@ export default function HomePage() {
     searchQuery.trim() !== '' ||
     selectedState !== 'All States' ||
     selectedArea !== 'All Areas' ||
-    selectedCategory !== 'all';
+    selectedCategory !== 'all' ||
+    selectedGender !== 'all';
 
   return (
     <div className="space-y-12 pb-24">
@@ -322,12 +337,12 @@ export default function HomePage() {
             Browse real portfolios, read verified client reviews, compare rankings, and commission bespoke Agbada, Aso Ebi, Ankara styles, and Senator suits.
           </p>
 
-          {/* Action Choices: View Designers Around Me vs Explore All Designers */}
+          {/* Action Choices: View Designers Around Me vs Explore All Designers vs Explore the Shop */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
             <button
               onClick={handleFindAroundMe}
               disabled={geoLocating}
-              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base shadow-lg shadow-brand-600/25 hover:shadow-xl transition-all flex items-center justify-center gap-2.5 group"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base shadow-lg shadow-brand-600/25 hover:shadow-xl transition-all flex items-center justify-center gap-2.5 group"
             >
               {geoLocating ? (
                 <>
@@ -349,14 +364,25 @@ export default function HomePage() {
 
             <button
               onClick={handleExploreAll}
-              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-white hover:bg-stone-50 active:scale-[0.98] text-stone-900 font-extrabold text-sm sm:text-base border-2 border-stone-200 hover:border-stone-300 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 group"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-white hover:bg-stone-50 active:scale-[0.98] text-stone-900 font-extrabold text-sm sm:text-base border-2 border-stone-200 hover:border-stone-300 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 group"
             >
               <Compass className="w-4 h-4 text-amber-500 group-hover:rotate-45 transition-transform" />
               <span>Explore All Designers</span>
               <span className="text-[11px] bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full font-bold">
-                {designers.length} Studios
+                {designers.length}
               </span>
             </button>
+
+            <Link
+              href="/shop"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base shadow-lg shadow-amber-500/25 hover:shadow-xl transition-all flex items-center justify-center gap-2 group"
+            >
+              <ShoppingBag className="w-4 h-4 text-white" />
+              <span>Explore the Shop</span>
+              <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                RTW
+              </span>
+            </Link>
           </div>
 
           {/* Luxury Highlights Bar */}
@@ -448,6 +474,27 @@ export default function HomePage() {
               </select>
             </div>
 
+          </div>
+
+          {/* Gender Audience Chips */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar text-xs">
+            <span className="text-stone-400 font-bold uppercase tracking-wider text-[10px] flex-shrink-0">
+              Audience:
+            </span>
+            {GENDER_FOCUS_OPTIONS.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => setSelectedGender(g.id)}
+                className={`px-3 py-1.5 rounded-xl font-bold flex-shrink-0 transition-all flex items-center gap-1.5 ${
+                  selectedGender === g.id
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'bg-stone-100/80 text-stone-700 hover:bg-stone-200/80'
+                }`}
+              >
+                <span>{g.icon}</span>
+                <span>{g.label}</span>
+              </button>
+            ))}
           </div>
 
           {/* Quick Category Chips */}
@@ -586,6 +633,8 @@ export default function HomePage() {
               const latestItem = portfolioItems[0];
               const cleanPhone = designer.whatsapp?.replace(/[^0-9]/g, '');
               const isTopThree = index < 3 && designer.avg_rating >= 4.0;
+              const genderFocus = getDesignerGender(designer);
+              const genderBadge = GENDER_FOCUS_OPTIONS.find((g) => g.id === genderFocus);
 
               return (
                 <div
@@ -639,6 +688,17 @@ export default function HomePage() {
                         </span>
                       )}
 
+                      {/* Gender Wear Tag Badge on Media */}
+                      <span className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-xs border ${
+                        genderFocus === 'male'
+                          ? 'bg-blue-950/85 text-blue-200 border-blue-400/40'
+                          : genderFocus === 'female'
+                          ? 'bg-rose-950/85 text-rose-200 border-rose-400/40'
+                          : 'bg-purple-950/85 text-purple-200 border-purple-400/40'
+                      }`}>
+                        {genderBadge?.icon} {genderBadge?.tag}
+                      </span>
+
                       {/* Portfolio count */}
                       <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-black/65 backdrop-blur-sm text-white text-[10px] font-bold tracking-wide">
                         {portfolioItems.length} {portfolioItems.length === 1 ? 'Work' : 'Works'}
@@ -646,7 +706,26 @@ export default function HomePage() {
                     </div>
 
                     {/* Designer Details */}
-                    <div className="p-6 space-y-3.5">
+                    <div className="p-6 space-y-3">
+                      {/* Gender Wear Tag & Studio Store Badge */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${
+                          genderFocus === 'male'
+                            ? 'bg-blue-50 text-blue-800 border-blue-200'
+                            : genderFocus === 'female'
+                            ? 'bg-rose-50 text-rose-800 border-rose-200'
+                            : 'bg-purple-50 text-purple-800 border-purple-200'
+                        }`}>
+                          {genderBadge?.icon} {genderBadge?.tag}
+                        </span>
+                        {designer.has_store && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                            <ShoppingBag className="w-2.5 h-2.5 text-amber-600" />
+                            Studio Store
+                          </span>
+                        )}
+                      </div>
+
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <h3 className="text-xl font-black text-stone-900 group-hover:text-brand-600 transition-colors leading-tight">

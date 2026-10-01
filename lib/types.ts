@@ -19,6 +19,7 @@ export interface DesignerProfile {
   whatsapp: string | null;
   has_store?: boolean;
   store_name?: string | null;
+  gender_focus?: 'male' | 'female' | 'unisex' | null;
   created_at: string;
   // Joined from profiles
   profiles?: Profile;
@@ -27,6 +28,44 @@ export interface DesignerProfile {
   store_products?: StoreProduct[];
   avg_rating?: number;
   review_count?: number;
+}
+
+export const GENDER_FOCUS_OPTIONS = [
+  { id: 'all', label: 'All Designers', tag: 'All Fashion', icon: '✦' },
+  { id: 'male', label: "Men's Fashion", tag: "Men's Wear", icon: '♂' },
+  { id: 'female', label: "Women's Fashion", tag: "Women's Wear", icon: '♀' },
+  { id: 'unisex', label: 'Unisex & Mixed', tag: 'Men & Women', icon: '⚧' },
+] as const;
+
+export function getDesignerGender(designer: {
+  gender_focus?: 'male' | 'female' | 'unisex' | null;
+  categories?: string[];
+  business_name?: string;
+}): 'male' | 'female' | 'unisex' {
+  if (designer.gender_focus) return designer.gender_focus;
+
+  const cats = designer.categories || [];
+  const name = (designer.business_name || '').toLowerCase();
+
+  // Known top Nigerian brands
+  if (name.includes('kola kuddus') || name.includes('seyi vodi') || name.includes('vodi')) {
+    return 'male';
+  }
+  if (name.includes('veekee') || name.includes('deola sagoe') || name.includes('sagoe')) {
+    return 'female';
+  }
+  if (name.includes('atafo') || name.includes('bankole')) {
+    return 'unisex';
+  }
+
+  // Deduce by garment categories
+  const hasMale = cats.some((c) => ['agbada', 'senator', 'corporate'].includes(c));
+  const hasFemale = cats.some((c) => ['aso_ebi', 'bridal'].includes(c));
+
+  if (hasMale && hasFemale) return 'unisex';
+  if (hasMale) return 'male';
+  if (hasFemale) return 'female';
+  return 'unisex';
 }
 
 export interface StoreProduct {

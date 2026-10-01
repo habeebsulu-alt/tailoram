@@ -6,7 +6,14 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { logEvent } from '@/lib/analytics';
 import { useAuth } from '@/contexts/AuthContext';
-import { DesignerProfile, PortfolioItem, Review, StoreProduct } from '@/lib/types';
+import {
+  DesignerProfile,
+  PortfolioItem,
+  Review,
+  StoreProduct,
+  GENDER_FOCUS_OPTIONS,
+  getDesignerGender,
+} from '@/lib/types';
 import {
   Scissors,
   MapPin,
@@ -100,10 +107,11 @@ export default function DesignerProfilePage() {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  // Studio Store state
+  // Studio Store state & swipable preview modal
   const [storeProducts, setStoreProducts] = useState<StoreProduct[]>([]);
   const [profileTab, setProfileTab] = useState<'portfolio' | 'store'>('portfolio');
-  const [selectedStoreProduct, setSelectedStoreProduct] = useState<StoreProduct | null>(null);
+  const [selectedStoreIndex, setSelectedStoreIndex] = useState<number | null>(null);
+  const [storeTouchStartX, setStoreTouchStartX] = useState<number | null>(null);
 
   // Leave review modal state
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -147,22 +155,41 @@ export default function DesignerProfilePage() {
     setSelectedIndex((prev) => (prev !== null ? (prev - 1 + displayItems.length) % displayItems.length : 0));
   };
 
+  const goToNextStore = () => {
+    if (storeProducts.length === 0) return;
+    setSelectedStoreIndex((prev) => (prev !== null ? (prev + 1) % storeProducts.length : 0));
+  };
+
+  const goToPrevStore = () => {
+    if (storeProducts.length === 0) return;
+    setSelectedStoreIndex((prev) => (prev !== null ? (prev - 1 + storeProducts.length) % storeProducts.length : 0));
+  };
+
   useEffect(() => {
-    if (selectedIndex === null) return;
+    if (selectedIndex === null && selectedStoreIndex === null) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') {
-        goToNext();
-      } else if (e.key === 'ArrowLeft') {
-        goToPrev();
-      } else if (e.key === 'Escape') {
-        setSelectedIndex(null);
+      if (selectedStoreIndex !== null) {
+        if (e.key === 'ArrowRight') goToNextStore();
+        else if (e.key === 'ArrowLeft') goToPrevStore();
+        else if (e.key === 'Escape') setSelectedStoreIndex(null);
+        return;
+      }
+
+      if (selectedIndex !== null) {
+        if (e.key === 'ArrowRight') {
+          goToNext();
+        } else if (e.key === 'ArrowLeft') {
+          goToPrev();
+        } else if (e.key === 'Escape') {
+          setSelectedIndex(null);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIndex, displayItems]);
+  }, [selectedIndex, selectedStoreIndex, displayItems, storeProducts.length]);
 
   useEffect(() => {
     async function loadData() {
@@ -354,6 +381,22 @@ export default function DesignerProfilePage() {
                 <MapPin className="w-3.5 h-3.5 text-brand-600" />
                 {designer.area}, {designer.state}
               </span>
+
+              {(() => {
+                const gFocus = getDesignerGender(designer);
+                const gInfo = GENDER_FOCUS_OPTIONS.find((g) => g.id === gFocus);
+                return (
+                  <span className={`flex items-center gap-1 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
+                    gFocus === 'male'
+                      ? 'bg-blue-50 text-blue-800 border-blue-200'
+                      : gFocus === 'female'
+                      ? 'bg-rose-50 text-rose-800 border-rose-200'
+                      : 'bg-purple-50 text-purple-800 border-purple-200'
+                  }`}>
+                    {gInfo?.icon} {gInfo?.tag || 'Unisex'}
+                  </span>
+                );
+              })()}
 
               {avgRating ? (
                 <span className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full">
@@ -681,13 +724,14 @@ export default function DesignerProfilePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {storeProducts.map((product) => {
+              {storeProducts.map((product, pIdx) => {
                 const cleanPhone = designer.whatsapp?.replace(/[^0-9]/g, '');
 
                 return (
                   <div
                     key={product.id}
-                    className="group bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col justify-between"
+                    onClick={() => setSelectedStoreIndex(pIdx)}
+                    className="group cursor-pointer bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col justify-between"
                   >
                     <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
                       <img
@@ -699,6 +743,11 @@ export default function DesignerProfilePage() {
 
                       <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-emerald-600/90 text-white text-[10px] font-bold">
                         In Stock
+                      </span>
+
+                      <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-sm text-white text-[10px] font-bold flex items-center gap-1 group-hover:bg-amber-500 transition-colors">
+                        <ShoppingBag className="w-3 h-3 text-amber-300 group-hover:text-white" />
+                        <span>Swipe Preview</span>
                       </span>
                     </div>
 
@@ -733,6 +782,7 @@ export default function DesignerProfilePage() {
                             href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hello ${designer.business_name}, I want to buy "${product.title}" (₦${product.price.toLocaleString()}) from your Tailoram store.`)}`}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="p-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
                             title="Order via WhatsApp"
                           >
@@ -742,6 +792,7 @@ export default function DesignerProfilePage() {
 
                         <Link
                           href={`/request/${designer.id}?inspoUrl=${encodeURIComponent(product.image_url)}&styleTitle=${encodeURIComponent(product.title)}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="flex-1 text-center py-1.5 px-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-xs transition-all"
                         >
                           Buy / Order
@@ -983,6 +1034,179 @@ export default function DesignerProfilePage() {
                   <Sparkles className="w-4 h-4 fill-white" />
                   <span>Remake This / Use as Inspo</span>
                 </Link>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Interactive Swipable Store Product Modal */}
+      {selectedStoreIndex !== null && storeProducts[selectedStoreIndex] && (() => {
+        const activeProduct = storeProducts[selectedStoreIndex];
+        const cleanPhone = designer.whatsapp?.replace(/[^0-9]/g, '');
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+            onClick={() => setSelectedStoreIndex(null)}
+            onTouchStart={(e) => setStoreTouchStartX(e.touches[0].clientX)}
+            onTouchEnd={(e) => {
+              if (storeTouchStartX !== null) {
+                const diff = storeTouchStartX - e.changedTouches[0].clientX;
+                if (diff > 40) goToNextStore();
+                else if (diff < -40) goToPrevStore();
+                setStoreTouchStartX(null);
+              }
+            }}
+          >
+            <div
+              className="relative max-w-4xl w-full max-h-[95vh] bg-stone-900 rounded-2xl overflow-hidden flex flex-col shadow-2xl border border-stone-800"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header Bar */}
+              <div className="px-4 py-3 bg-stone-950/85 backdrop-blur-md flex items-center justify-between border-b border-stone-800/80 z-30">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-md bg-emerald-600/90 text-xs font-bold text-white flex items-center gap-1">
+                    ● In Stock
+                  </span>
+                  <span className="px-2.5 py-1 rounded-md bg-stone-800 text-xs font-black text-amber-400 border border-stone-700">
+                    ₦{activeProduct.price.toLocaleString()}
+                  </span>
+                  <span className="text-xs font-medium text-stone-400 hidden sm:inline">
+                    • Item {selectedStoreIndex + 1} of {storeProducts.length} (Swipe or use ← → arrows)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-stone-400 sm:hidden">
+                    {selectedStoreIndex + 1}/{storeProducts.length}
+                  </span>
+                  <button
+                    onClick={() => setSelectedStoreIndex(null)}
+                    className="w-8 h-8 rounded-full bg-stone-800 hover:bg-stone-700 text-white flex items-center justify-center transition-colors"
+                    title="Close (Esc)"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Media Viewport with Floating Slider Arrows */}
+              <div className="relative flex-1 min-h-[45vh] max-h-[58vh] flex items-center justify-center bg-black overflow-hidden group select-none">
+                {storeProducts.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goToPrevStore();
+                      }}
+                      className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-black/90 active:scale-95 text-white flex items-center justify-center backdrop-blur-md transition-all shadow-xl hover:scale-105"
+                      aria-label="Previous product"
+                      title="Previous product (Left Arrow)"
+                    >
+                      <ChevronLeft className="w-6 h-6 -ml-0.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goToNextStore();
+                      }}
+                      className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-black/90 active:scale-95 text-white flex items-center justify-center backdrop-blur-md transition-all shadow-xl hover:scale-105"
+                      aria-label="Next product"
+                      title="Next product (Right Arrow)"
+                    >
+                      <ChevronRight className="w-6 h-6 ml-0.5" />
+                    </button>
+                  </>
+                )}
+
+                {/* Product Image */}
+                <div key={activeProduct.id} className="w-full h-full flex items-center justify-center animate-in fade-in duration-200">
+                  <img
+                    src={activeProduct.image_url}
+                    alt={activeProduct.title}
+                    className="max-h-[58vh] w-auto max-w-full object-contain"
+                  />
+                </div>
+              </div>
+
+              {/* Thumbnail Strip for fast product scrubbing */}
+              {storeProducts.length > 1 && (
+                <div className="bg-stone-950 px-4 py-2 border-t border-stone-800/80 flex items-center gap-2 overflow-x-auto scrollbar-none">
+                  {storeProducts.map((p, idx) => {
+                    const isCurrent = idx === selectedStoreIndex;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedStoreIndex(idx);
+                        }}
+                        className={`relative w-11 h-11 sm:w-12 sm:h-12 rounded-lg overflow-hidden flex-shrink-0 transition-all ${
+                          isCurrent
+                            ? 'ring-2 ring-amber-400 scale-105 opacity-100 shadow-md'
+                            : 'opacity-40 hover:opacity-80'
+                        }`}
+                        title={p.title}
+                      >
+                        <img src={p.image_url} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Bottom Info & Buy / Inquire Actions */}
+              <div className="p-4 sm:p-5 bg-stone-900 border-t border-stone-800 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1.5 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-base sm:text-lg font-black text-amber-400">
+                      ₦{activeProduct.price.toLocaleString()}
+                    </p>
+                    <span className="text-xs text-stone-400">• {activeProduct.title}</span>
+                  </div>
+                  {activeProduct.description && (
+                    <p className="text-xs text-stone-300 line-clamp-2 max-w-xl">
+                      {activeProduct.description}
+                    </p>
+                  )}
+                  {activeProduct.sizes && activeProduct.sizes.length > 0 && (
+                    <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase">Available Sizes:</span>
+                      {activeProduct.sizes.map((s) => (
+                        <span key={s} className="px-1.5 py-0.5 rounded bg-stone-800 text-stone-200 text-[10px] font-bold">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {cleanPhone && (
+                    <a
+                      href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hello ${designer.business_name}, I want to buy "${activeProduct.title}" (₦${activeProduct.price.toLocaleString()}) from your Tailoram store.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition-all"
+                    >
+                      <Phone className="w-4 h-4" />
+                      <span>Order on WhatsApp</span>
+                    </a>
+                  )}
+
+                  <Link
+                    href={`/request/${designer.id}?inspoUrl=${encodeURIComponent(activeProduct.image_url)}&styleTitle=${encodeURIComponent(activeProduct.title)}`}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md shadow-brand-600/25 transition-all"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Order Bespoke Custom</span>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

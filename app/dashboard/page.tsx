@@ -108,6 +108,7 @@ export default function DesignerDashboard() {
   const [area, setArea] = useState('Ikeja');
   const [whatsapp, setWhatsapp] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
+  const [genderFocus, setGenderFocus] = useState<'male' | 'female' | 'unisex'>('unisex');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState('');
   const [profileError, setProfileError] = useState('');
@@ -126,6 +127,7 @@ export default function DesignerDashboard() {
       setCategories(designerProfile.categories || ['native_wear']);
       setHasStore(Boolean(designerProfile.has_store));
       setStoreName(designerProfile.store_name || '');
+      setGenderFocus((designerProfile.gender_focus as any) || 'unisex');
     }
   }, [designerProfile]);
 
@@ -437,6 +439,7 @@ export default function DesignerDashboard() {
           area: area,
           whatsapp: whatsapp.trim() || null,
           categories: categories,
+          gender_focus: genderFocus,
         })
         .eq('id', designerProfile.id);
 
@@ -1275,6 +1278,64 @@ export default function DesignerDashboard() {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-stone-700 mb-2">
+                Target Audience / Gender Wear Specialty <span className="text-red-500">*</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setGenderFocus('male')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col gap-1 ${
+                    genderFocus === 'male'
+                      ? 'border-brand-600 bg-brand-50/60 ring-2 ring-brand-500/20'
+                      : 'border-stone-200 bg-white hover:bg-stone-50'
+                  }`}
+                >
+                  <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                    <span>♂</span> Men&apos;s Fashion
+                  </span>
+                  <span className="text-[11px] text-stone-500 leading-snug">
+                    Agbada, Senator suits, Kaftans &amp; native wear
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setGenderFocus('female')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col gap-1 ${
+                    genderFocus === 'female'
+                      ? 'border-brand-600 bg-brand-50/60 ring-2 ring-brand-500/20'
+                      : 'border-stone-200 bg-white hover:bg-stone-50'
+                  }`}
+                >
+                  <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                    <span>♀</span> Women&apos;s Fashion
+                  </span>
+                  <span className="text-[11px] text-stone-500 leading-snug">
+                    Aso Ebi, Owambe lace gowns, Ankara &amp; Bridal
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setGenderFocus('unisex')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col gap-1 ${
+                    genderFocus === 'unisex'
+                      ? 'border-brand-600 bg-brand-50/60 ring-2 ring-brand-500/20'
+                      : 'border-stone-200 bg-white hover:bg-stone-50'
+                  }`}
+                >
+                  <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                    <span>⚧</span> Both Men &amp; Women
+                  </span>
+                  <span className="text-[11px] text-stone-500 leading-snug">
+                    Mixed bespoke collections &amp; native wear
+                  </span>
+                </button>
               </div>
             </div>
 

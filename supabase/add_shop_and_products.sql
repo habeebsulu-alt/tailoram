@@ -17,9 +17,15 @@ create table if not exists public.store_products (
   created_at timestamptz not null default now()
 );
 
--- 2. Add store columns to designer_profiles
+-- 2. Add store and gender columns to designer_profiles
 alter table public.designer_profiles add column if not exists has_store boolean default true;
 alter table public.designer_profiles add column if not exists store_name text;
+alter table public.designer_profiles add column if not exists gender_focus text default 'unisex';
+
+-- Update gender focus for demo studios
+update public.designer_profiles set gender_focus = 'male' where business_name ilike '%Kola Kuddus%' or business_name ilike '%Seyi Vodi%';
+update public.designer_profiles set gender_focus = 'female' where business_name ilike '%Veekee%' or business_name ilike '%Deola Sagoe%';
+update public.designer_profiles set gender_focus = 'unisex' where business_name ilike '%Atafo%' or business_name ilike '%Bankole%';
 
 -- 3. Row Level Security policies
 alter table public.store_products enable row level security;
