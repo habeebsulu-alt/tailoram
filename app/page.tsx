@@ -422,8 +422,11 @@ export default function HomePage() {
                   className="bg-white rounded-3xl border border-stone-200/90 overflow-hidden shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group"
                 >
                   
-                  {/* Media Header Showcase */}
-                  <div>
+                  {/* Clickable Media & Profile Card - Links to Designer Profile */}
+                  <Link
+                    href={`/designer/${designer.id}`}
+                    className="block cursor-pointer flex-1"
+                  >
                     <div className="relative aspect-[16/11] bg-stone-100 overflow-hidden">
                       {latestItem ? (
                         latestItem.media_type === 'video' ? (
@@ -456,7 +459,7 @@ export default function HomePage() {
 
                       {!isTopThree && (
                         <span className="absolute top-3 left-3 px-3 py-1 rounded-full bg-white/95 backdrop-blur-sm text-stone-800 text-[11px] font-bold flex items-center gap-1 shadow-xs">
-                          <MapPin className="w-3 h-3 text-brand-600" />
+                          <MapPin className="w-3.5 h-3.5 text-brand-600" />
                           {designer.area}, {designer.state}
                         </span>
                       )}
@@ -520,7 +523,7 @@ export default function HomePage() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </Link>
 
                   {/* Action Bar */}
                   <div className="p-6 pt-0 border-t border-stone-100 mt-2 flex items-center gap-2">
