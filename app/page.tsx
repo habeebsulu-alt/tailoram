@@ -36,6 +36,8 @@ import {
   Compass,
   ShoppingBag,
   Users,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 const NIGERIAN_HUBS = [
@@ -45,6 +47,33 @@ const NIGERIAN_HUBS = [
   { state: 'Oyo (Ibadan)', name: 'Ibadan', desc: 'Bodija, Ring Road, Jericho', lat: 7.3775, lng: 3.9470 },
   { state: 'Kano', name: 'Kano', desc: 'Nassarawa GRA, Bompai, City Center', lat: 12.0022, lng: 8.5920 },
   { state: 'Enugu', name: 'Enugu', desc: 'Independence Layout, New Haven, GRA', lat: 6.4584, lng: 7.5464 },
+];
+
+const HERO_SLIDES = [
+  {
+    image: 'https://images.unsplash.com/photo-1572495532056-8583af1cbae0?auto=format&fit=crop&w=1920&q=85',
+    title: 'Agbada & Senator Couture',
+    tag: 'Royal Embroidery',
+    location: 'Lagos & Abuja Masters',
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=1920&q=85',
+    title: 'Owambe & Corset Lace',
+    tag: 'Bespoke Aso Ebi',
+    location: 'Celebration Glamour',
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=1920&q=85',
+    title: 'Sharp Executive RTW',
+    tag: 'Contemporary Cuts',
+    location: 'Ready-to-Wear Studios',
+  },
+  {
+    image: 'https://images.unsplash.com/photo-1550614000-4895a10e1bfd?auto=format&fit=crop&w=1920&q=85',
+    title: 'Heritage Adire & Ankara',
+    tag: 'Artisan Textile Craft',
+    location: 'Indigenous Heritage',
+  },
 ];
 
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -72,6 +101,26 @@ function hashString(str: string, seed: number = 42): number {
 
 export default function HomePage() {
   const { user } = useAuth();
+
+  // Hero Background Slider state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isSliderPaused, setIsSliderPaused] = useState(false);
+
+  useEffect(() => {
+    if (isSliderPaused) return;
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+    }, 6500);
+    return () => clearInterval(interval);
+  }, [isSliderPaused]);
+
+  const handleNextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+  };
+
+  const handlePrevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
+  };
 
   // Designers state
   const [designers, setDesigners] = useState<DesignerProfile[]>([]);
@@ -330,27 +379,54 @@ export default function HomePage() {
   return (
     <div className="space-y-12 pb-24">
       
-      {/* Luxury Editorial Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-stone-50 via-white to-stone-50/50 border-b border-stone-200/80 pt-16 pb-16 px-4 sm:px-6 lg:px-8">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-100/40 via-brand-50/20 to-transparent pointer-events-none" />
+      {/* Luxury Editorial Hero Section with Ambient Background Slider */}
+      <section
+        className="relative overflow-hidden bg-stone-950 text-white border-b border-stone-800/80 pt-16 pb-16 px-4 sm:px-6 lg:px-8 transition-colors duration-700"
+        onMouseEnter={() => setIsSliderPaused(true)}
+        onMouseLeave={() => setIsSliderPaused(false)}
+      >
+        {/* Background Slides with Smooth Crossfade and Ken Burns Effect */}
+        <div className="absolute inset-0 pointer-events-none select-none overflow-hidden">
+          {HERO_SLIDES.map((slide, idx) => (
+            <div
+              key={idx}
+              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+                idx === currentSlide ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              <img
+                src={slide.image}
+                alt={slide.title}
+                className={`w-full h-full object-cover object-center transform transition-transform duration-[7000ms] ease-out ${
+                  idx === currentSlide ? 'scale-105' : 'scale-100'
+                }`}
+              />
+            </div>
+          ))}
+
+          {/* Deep luxury gradient overlays to ensure 100% text legibility */}
+          <div className="absolute inset-0 bg-stone-950/75 sm:bg-stone-950/70" />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-stone-950/80" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/20 via-transparent to-transparent pointer-events-none" />
+        </div>
 
         <div className="max-w-4xl mx-auto text-center space-y-6 relative z-10">
           
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-stone-200 text-stone-800 text-xs font-bold tracking-wide shadow-sm">
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-bold tracking-wide shadow-sm">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             Nigeria&apos;s Bespoke Fashion Network
-            <span className="text-stone-300">•</span>
-            <span className="text-brand-600 font-extrabold">All 36 States</span>
+            <span className="text-white/40">•</span>
+            <span className="text-amber-300 font-extrabold">All 36 States</span>
           </div>
 
-          <h1 className="text-4xl sm:text-6xl font-black text-stone-950 tracking-tight leading-[1.1]">
+          <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-[1.1] drop-shadow-md">
             Find &amp; Commission the Finest <br className="hidden sm:inline" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 via-amber-600 to-amber-700">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-brand-300 to-amber-400">
               Bespoke Tailors in Nigeria
             </span>
           </h1>
 
-          <p className="text-base sm:text-lg text-stone-600 max-w-2xl mx-auto leading-relaxed font-normal">
+          <p className="text-base sm:text-lg text-stone-200 max-w-2xl mx-auto leading-relaxed font-medium drop-shadow-sm">
             Browse real portfolios, read verified client reviews, compare rankings, and commission bespoke Agbada, Aso Ebi, Ankara styles, and Senator suits.
           </p>
 
@@ -359,7 +435,7 @@ export default function HomePage() {
             <button
               onClick={handleFindAroundMe}
               disabled={geoLocating}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base shadow-lg shadow-brand-600/25 hover:shadow-xl transition-all flex items-center justify-center gap-2.5 group"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base shadow-xl shadow-brand-900/40 hover:shadow-2xl transition-all flex items-center justify-center gap-2.5 group"
             >
               {geoLocating ? (
                 <>
@@ -381,39 +457,80 @@ export default function HomePage() {
 
             <button
               onClick={handleExploreAll}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-white hover:bg-stone-50 active:scale-[0.98] text-stone-900 font-extrabold text-sm sm:text-base border-2 border-stone-200 hover:border-stone-300 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 group"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base border border-white/30 backdrop-blur-md shadow-lg transition-all flex items-center justify-center gap-2 group"
             >
-              <Compass className="w-4 h-4 text-amber-500 group-hover:rotate-45 transition-transform" />
+              <Compass className="w-4 h-4 text-amber-400 group-hover:rotate-45 transition-transform" />
               <span>Explore All Designers</span>
-              <span className="text-[11px] bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-[11px] bg-white/20 text-white px-2 py-0.5 rounded-full font-bold">
                 {designers.length}
               </span>
             </button>
 
             <Link
               href="/shop"
-              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base shadow-lg shadow-amber-500/25 hover:shadow-xl transition-all flex items-center justify-center gap-2 group"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-stone-950 font-black text-sm sm:text-base shadow-xl shadow-amber-500/25 hover:shadow-2xl transition-all flex items-center justify-center gap-2 group"
             >
-              <ShoppingBag className="w-4 h-4 text-white" />
+              <ShoppingBag className="w-4 h-4 text-stone-950" />
               <span>Explore the Shop</span>
-              <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-[11px] bg-stone-950/20 px-2 py-0.5 rounded-full font-bold">
                 RTW
               </span>
             </Link>
           </div>
 
+          {/* Interactive Slide Ticker & Switcher */}
+          <div className="flex items-center justify-center gap-2.5 sm:gap-4 pt-1">
+            <button
+              onClick={handlePrevSlide}
+              aria-label="Previous couture style"
+              className="p-1.5 sm:p-2 rounded-full bg-white/10 hover:bg-white/25 border border-white/20 text-white/80 hover:text-white backdrop-blur-md transition-all active:scale-95"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-white/90 font-medium shadow-sm">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span className="font-extrabold text-amber-300">{HERO_SLIDES[currentSlide].tag}</span>
+              <span className="text-white/40">•</span>
+              <span className="text-stone-200 hidden sm:inline">{HERO_SLIDES[currentSlide].title}</span>
+              <span className="text-white/40 hidden sm:inline">•</span>
+              <span className="text-stone-300 text-[11px]">{HERO_SLIDES[currentSlide].location}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {HERO_SLIDES.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentSlide(idx)}
+                  aria-label={`Go to couture style ${idx + 1}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    idx === currentSlide ? 'w-6 bg-amber-400' : 'w-2 bg-white/30 hover:bg-white/60'
+                  }`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={handleNextSlide}
+              aria-label="Next couture style"
+              className="p-1.5 sm:p-2 rounded-full bg-white/10 hover:bg-white/25 border border-white/20 text-white/80 hover:text-white backdrop-blur-md transition-all active:scale-95"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
           {/* Luxury Highlights Bar */}
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 pt-3 text-xs font-bold text-stone-600">
-            <div className="flex items-center gap-1.5 bg-white/80 backdrop-blur-sm px-3.5 py-1.5 rounded-xl border border-stone-200/80 shadow-xs">
-              <Trophy className="w-4 h-4 text-amber-500" />
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 pt-2 text-xs font-bold text-stone-200">
+            <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/15 shadow-xs">
+              <Trophy className="w-4 h-4 text-amber-400" />
               <span>Ranked by Verified Client Feedback</span>
             </div>
-            <div className="flex items-center gap-1.5 bg-white/80 backdrop-blur-sm px-3.5 py-1.5 rounded-xl border border-stone-200/80 shadow-xs">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/15 shadow-xs">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               <span>Direct In-App Tailor Chat</span>
             </div>
-            <div className="flex items-center gap-1.5 bg-white/80 backdrop-blur-sm px-3.5 py-1.5 rounded-xl border border-stone-200/80 shadow-xs">
-              <Sparkles className="w-4 h-4 text-brand-600" />
+            <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/15 shadow-xs">
+              <Sparkles className="w-4 h-4 text-brand-300" />
               <span>Zero Placement Fee (100% Free)</span>
             </div>
           </div>
