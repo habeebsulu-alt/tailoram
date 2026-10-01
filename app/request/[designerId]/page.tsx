@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState, useRef, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -18,12 +18,18 @@ import {
   Upload,
   Calendar,
   Scissors,
+  Sparkles,
+  X,
 } from 'lucide-react';
 
-export default function RequestPage() {
+function RequestForm() {
   const params = useParams();
   const designerId = params?.designerId as string;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inspoUrl = searchParams.get('inspoUrl');
+  const styleTitle = searchParams.get('styleTitle');
+
   const { user, profile, loading: authLoading } = useAuth();
 
   const [designer, setDesigner] = useState<DesignerProfile | null>(null);
@@ -36,12 +42,27 @@ export default function RequestPage() {
   const [budgetMax, setBudgetMax] = useState('');
   const [deadline, setDeadline] = useState('');
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(inspoUrl || null);
+  const [inspoPhotoUrl, setInspoPhotoUrl] = useState<string | null>(inspoUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Pre-fill inspiration if provided
+  useEffect(() => {
+    if (inspoUrl) {
+      setInspoPhotoUrl(inspoUrl);
+      setPreviewUrl(inspoUrl);
+      setStyleDescription((prev) => {
+        if (prev.trim()) return prev;
+        return styleTitle
+          ? `Hello! I would like to remake this "${styleTitle}" design from your portfolio showcase. Please let me know your timeline and requirement to tailor it for me.`
+          : `Hello! I would like to remake this bespoke outfit from your portfolio showcase. Please let me know your timeline and requirement to tailor it for me.`;
+      });
+    }
+  }, [inspoUrl, styleTitle]);
 
   // Load designer info
   useEffect(() => {
@@ -69,16 +90,27 @@ export default function RequestPage() {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push(`/login?redirect=/request/${designerId}`);
+      const redirectUrl = inspoUrl 
+        ? `/request/${designerId}?inspoUrl=${encodeURIComponent(inspoUrl)}&styleTitle=${encodeURIComponent(styleTitle || '')}`
+        : `/request/${designerId}`;
+      router.push(`/login?redirect=${encodeURIComponent(redirectUrl)}`);
     }
-  }, [user, authLoading, router, designerId]);
+  }, [user, authLoading, router, designerId, inspoUrl, styleTitle]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setReferenceFile(file);
       setPreviewUrl(URL.createObjectURL(file));
+      setInspoPhotoUrl(null); // Overridden with custom file
     }
+  };
+
+  const handleClearInspo = () => {
+    setInspoPhotoUrl(null);
+    setPreviewUrl(null);
+    setReferenceFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,8 +143,9 @@ export default function RequestPage() {
     try {
       setSubmitting(true);
 
-      // Upload reference image if provided
-      let referenceImageUrl: string | null = null;
+      // Upload reference image if provided as file, or use inspo photo url
+      let referenceImageUrl: string | null = inspoPhotoUrl || null;
+
       if (referenceFile) {
         const compressed = await compressImage(referenceFile, 1200, 1200, 0.8);
         const fileExt = compressed.name.split('.').pop() || 'webp';
@@ -161,6 +194,7 @@ export default function RequestPage() {
           budget_max: maxBudget,
           has_reference_image: !!referenceImageUrl,
           has_deadline: !!deadline,
+          used_inspo: !!inspoPhotoUrl,
         },
       });
 
@@ -174,6 +208,7 @@ export default function RequestPage() {
       setDeadline('');
       setReferenceFile(null);
       setPreviewUrl(null);
+      setInspoPhotoUrl(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
 
     } catch (err: any) {
@@ -229,14 +264,50 @@ export default function RequestPage() {
         </div>
       </div>
 
+      {/* Selected Inspiration Card (if coming from "Use as Inspo") */}
+      {inspoPhotoUrl && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border border-amber-200/90 flex items-center gap-4 shadow-sm animate-in fade-in duration-300">
+          <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-stone-100 flex-shrink-0 border border-amber-300 shadow-xs">
+            <img src={inspoPhotoUrl} alt="Inspiration Outfit" className="w-full h-full object-cover" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-md">
+                <Sparkles className="w-3 h-3 fill-amber-700 text-amber-700" />
+                Style Inspiration Selected
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm font-bold text-stone-900 truncate mt-1">
+              {styleTitle || 'Showcase Garment'}
+            </p>
+            <p className="text-[11px] sm:text-xs text-stone-600">
+              Attached as the reference photo for this remake order.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleClearInspo}
+            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-amber-100/80 transition-colors"
+            title="Remove inspiration reference"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Main request form */}
       <div className="bg-white rounded-2xl border border-stone-200 p-6 sm:p-8 shadow-sm space-y-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight flex items-center gap-2">
             Send Custom Request
+            {inspoPhotoUrl && (
+              <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">
+                Remake Inspo
+              </span>
+            )}
           </h1>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            Describe exactly what you want made. The designer will review and accept or suggest changes.
+            Describe exactly what you want made. {designer.business_name} will review your specifications and accept or negotiate terms.
           </p>
         </div>
 
@@ -249,16 +320,10 @@ export default function RequestPage() {
             </div>
             <div className="flex gap-2">
               <Link
-                href={`/designer/${designer.id}`}
-                className="text-xs font-bold text-emerald-700 underline"
+                href="/requests"
+                className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors"
               >
-                View designer profile →
-              </Link>
-              <Link
-                href="/"
-                className="text-xs font-bold text-emerald-700 underline"
-              >
-                Browse more designers →
+                Track in My Requests →
               </Link>
             </div>
           </div>
@@ -266,9 +331,9 @@ export default function RequestPage() {
 
         {/* Error */}
         {errorMessage && (
-          <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-500" />
-            <span>{errorMessage}</span>
+          <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <p>{errorMessage}</p>
           </div>
         )}
 
@@ -278,22 +343,22 @@ export default function RequestPage() {
             {/* Style Description */}
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1">
-                What do you want made? <span className="text-red-500">*</span>
+                Outfit Description &amp; Custom Details <span className="text-red-500">*</span>
               </label>
               <textarea
                 required
                 rows={4}
                 value={styleDescription}
                 onChange={(e) => setStyleDescription(e.target.value)}
-                placeholder="E.g. I need a 3-piece Agbada for my wedding — royal blue with gold embroidery on the top. Fitted trousers style, not too loose. Matching cap (fila)."
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                placeholder="Describe your design (e.g. 3-piece emerald green Agbada with golden chest embroidery, fitted sleeves, matching fila cap and tailored trousers)..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
 
             {/* Fabric */}
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1">
-                Preferred Fabric (Optional)
+                Fabric / Material Preference <span className="text-stone-400">(Optional)</span>
               </label>
               <input
                 type="text"
@@ -354,21 +419,42 @@ export default function RequestPage() {
 
             {/* Reference Image */}
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1">
-                Reference Photo <span className="text-stone-400">(Optional — show the designer a style you like)</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-stone-700">
+                  Reference Photo {inspoPhotoUrl ? <span className="text-amber-600 font-bold">(Inspo attached)</span> : <span className="text-stone-400">(Optional)</span>}
+                </label>
+                {previewUrl && (
+                  <button
+                    type="button"
+                    onClick={handleClearInspo}
+                    className="text-[11px] text-red-500 hover:underline font-semibold"
+                  >
+                    Clear reference
+                  </button>
+                )}
+              </div>
+
+              {previewUrl ? (
+                <div className="space-y-2">
+                  <div className="relative aspect-[4/3] max-w-xs bg-stone-100 rounded-xl overflow-hidden border border-stone-200">
+                    <img src={previewUrl} alt="Reference" className="w-full h-full object-cover" />
+                    <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-white text-[10px] font-bold">
+                      {inspoPhotoUrl ? 'Portfolio Inspo' : 'Uploaded Photo'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500">
+                    To upload a different image instead, choose a file below:
+                  </p>
+                </div>
+              ) : null}
+
               <input
                 type="file"
                 ref={fileInputRef}
                 accept="image/jpeg,image/png,image/webp"
                 onChange={handleFileChange}
-                className="w-full text-xs text-stone-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer"
+                className="mt-2 w-full text-xs text-stone-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer"
               />
-              {previewUrl && (
-                <div className="mt-3 aspect-[4/3] max-w-xs bg-stone-100 rounded-xl overflow-hidden border border-stone-200">
-                  <img src={previewUrl} alt="Reference" className="w-full h-full object-cover" />
-                </div>
-              )}
             </div>
 
             {/* Submit */}
@@ -393,5 +479,19 @@ export default function RequestPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function RequestPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[70vh] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+        </div>
+      }
+    >
+      <RequestForm />
+    </Suspense>
   );
 }

@@ -43,6 +43,8 @@ export interface PortfolioItem {
   media_url: string;
   media_type: 'image' | 'video';
   caption: string | null;
+  category?: string | null;
+  rating?: number | null;
   created_at: string;
 }
 
@@ -257,3 +259,16 @@ export const FASHION_CATEGORIES = [
   { id: 'ready_to_wear', label: 'Ready-to-Wear (RTW)' },
   { id: 'children_wear', label: 'Children Fashion' },
 ] as const;
+
+export const PORTFOLIO_STYLE_CATEGORIES = [
+  { id: 'all', label: 'All Styles' },
+  { id: 'agbada', label: 'Agbada & Senegalese' },
+  { id: 'aso_ebi', label: 'Aso Ebi & Owambe' },
+  { id: 'senator', label: 'Senator & Kaftan' },
+  { id: 'ankara', label: 'Ankara Prints' },
+  { id: 'adire', label: 'Adire & Heritage' },
+  { id: 'bridal', label: 'Bridal & Traditional' },
+  { id: 'ready_to_wear', label: 'Ready-to-Wear (RTW)' },
+  { id: 'casual', label: 'Contemporary / Casual' },
+] as const;
+

@@ -67,6 +67,7 @@ export default function DesignerDashboard() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('agbada');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
@@ -270,6 +271,7 @@ export default function DesignerDashboard() {
           media_url: publicUrl,
           media_type: mediaType,
           caption: caption.trim() || null,
+          category: uploadCategory,
         },
       ]);
 
@@ -1137,6 +1139,26 @@ export default function DesignerDashboard() {
                   )}
                 </div>
               )}
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  Style Category <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={uploadCategory}
+                  onChange={(e) => setUploadCategory(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                >
+                  <option value="agbada">Agbada &amp; Senegalese</option>
+                  <option value="aso_ebi">Aso Ebi &amp; Owambe</option>
+                  <option value="senator">Senator &amp; Kaftan</option>
+                  <option value="ankara">Ankara Prints</option>
+                  <option value="adire">Adire &amp; Heritage</option>
+                  <option value="bridal">Bridal &amp; Traditional</option>
+                  <option value="ready_to_wear">Ready-to-Wear (RTW)</option>
+                  <option value="contemporary">Contemporary / Casual</option>
+                </select>
+              </div>
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">

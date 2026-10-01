@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -26,6 +26,52 @@ import {
   Play,
 } from 'lucide-react';
 
+const STYLE_CATEGORIES = [
+  { id: 'all', label: 'All Styles' },
+  { id: 'agbada', label: 'Agbada' },
+  { id: 'aso_ebi', label: 'Aso Ebi' },
+  { id: 'senator', label: 'Senator & Kaftan' },
+  { id: 'ankara', label: 'Ankara Prints' },
+  { id: 'adire', label: 'Adire & Heritage' },
+  { id: 'bridal', label: 'Bridal' },
+  { id: 'ready_to_wear', label: 'Ready-to-Wear' },
+  { id: 'contemporary', label: 'Contemporary' },
+];
+
+function getItemCategory(item: PortfolioItem, designerCategories?: string[]): string {
+  if (item.category && item.category !== 'all') return item.category;
+  const text = (item.caption || '').toLowerCase();
+  if (text.includes('agbada') || text.includes('senegalese') || text.includes('boubou') || text.includes('baban riga')) return 'agbada';
+  if (text.includes('aso ebi') || text.includes('asoebi') || text.includes('lace') || text.includes('gele') || text.includes('corset') || text.includes('owambe')) return 'aso_ebi';
+  if (text.includes('senator') || text.includes('kaftan') || text.includes('caftan') || text.includes('native') || text.includes('jalabiya')) return 'senator';
+  if (text.includes('ankara') || text.includes('wax') || text.includes('kitenge') || text.includes('kente')) return 'ankara';
+  if (text.includes('adire') || text.includes('tie-dye') || text.includes('indigo') || text.includes('batik')) return 'adire';
+  if (text.includes('bridal') || text.includes('wedding') || text.includes('george') || text.includes('bride')) return 'bridal';
+  if (text.includes('rtw') || text.includes('ready-to-wear')) return 'ready_to_wear';
+  
+  if (designerCategories && designerCategories.length > 0) {
+    const first = designerCategories[0].toLowerCase();
+    if (first.includes('agbada')) return 'agbada';
+    if (first.includes('aso_ebi') || first.includes('aso ebi')) return 'aso_ebi';
+    if (first.includes('senator')) return 'senator';
+    if (first.includes('ankara')) return 'ankara';
+    if (first.includes('bridal')) return 'bridal';
+  }
+  return 'contemporary';
+}
+
+const CATEGORY_NAMES: Record<string, string> = {
+  agbada: 'Agbada',
+  aso_ebi: 'Aso Ebi',
+  senator: 'Senator & Kaftan',
+  ankara: 'Ankara Prints',
+  adire: 'Adire',
+  bridal: 'Bridal',
+  ready_to_wear: 'Ready-to-Wear',
+  contemporary: 'Contemporary',
+  all: 'Bespoke',
+};
+
 export default function DesignerProfilePage() {
   const params = useParams();
   const designerId = params?.id as string;
@@ -36,6 +82,7 @@ export default function DesignerProfilePage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState<PortfolioItem | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   // Leave review modal state
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -306,7 +353,7 @@ export default function DesignerProfilePage() {
 
       {/* Portfolio Gallery Section */}
       <div className="space-y-6">
-        <div className="flex items-center justify-between border-b border-stone-200 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-200 pb-4 gap-3">
           <div>
             <h2 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
               Portfolio &amp; Showcase
@@ -315,7 +362,47 @@ export default function DesignerProfilePage() {
               {portfolio.length} bespoke garments and tailoring works
             </p>
           </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-stone-500 font-medium">
+              Found a design you like? Click <strong className="text-amber-700 font-bold">Use as Inspo</strong> to remake it!
+            </span>
+          </div>
         </div>
+
+        {/* Style Category Filter Tabs */}
+        {portfolio.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {STYLE_CATEGORIES.filter((cat) => {
+              if (cat.id === 'all') return true;
+              return portfolio.some(item => getItemCategory(item, designer.categories) === cat.id);
+            }).map((cat) => {
+              const count = cat.id === 'all' 
+                ? portfolio.length 
+                : portfolio.filter(item => getItemCategory(item, designer.categories) === cat.id).length;
+              const isActive = selectedCategory === cat.id;
+
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-stone-900 text-white shadow-sm'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200 hover:text-stone-900'
+                  }`}
+                >
+                  <span>{cat.label}</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-600'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {portfolio.length === 0 ? (
           <div className="bg-white border-2 border-dashed border-stone-200 rounded-3xl p-12 text-center max-w-md mx-auto space-y-2">
@@ -328,62 +415,115 @@ export default function DesignerProfilePage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {portfolio.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => setSelectedMedia(item)}
-                className="group cursor-pointer bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col"
-              >
-                <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
-                  {item.media_type === 'video' ? (
-                    <div className="relative w-full h-full">
-                      <video
-                        src={item.media_url}
-                        muted
-                        playsInline
-                        autoPlay
-                        loop
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-85 group-hover:opacity-100 transition-opacity">
-                        <div className="w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm text-stone-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                          <Play className="w-5 h-5 fill-stone-900 text-stone-900 ml-0.5" />
+          (() => {
+            const displayItems = selectedCategory === 'all'
+              ? portfolio
+              : portfolio.filter(item => getItemCategory(item, designer.categories) === selectedCategory);
+
+            if (displayItems.length === 0) {
+              return (
+                <div className="bg-stone-50 rounded-2xl p-8 text-center space-y-2 border border-stone-200">
+                  <p className="text-sm font-semibold text-stone-700">No works found in this style category</p>
+                  <button
+                    onClick={() => setSelectedCategory('all')}
+                    className="text-xs font-bold text-brand-600 hover:underline"
+                  >
+                    View all styles ({portfolio.length})
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {displayItems.map((item) => {
+                  const itemCat = getItemCategory(item, designer.categories);
+                  const itemRating = (item.rating || designer.avg_rating || 5.0).toFixed(1);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => setSelectedMedia(item)}
+                      className="group cursor-pointer bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col justify-between"
+                    >
+                      <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
+                        {/* Rating badge on preview */}
+                        <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[11px] font-bold flex items-center gap-1 shadow-md z-10">
+                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                          <span>{itemRating}</span>
+                        </div>
+
+                        {/* Media type badge */}
+                        <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 z-10">
+                          {item.media_type === 'video' ? (
+                            <>
+                              <Video className="w-3 h-3 text-brand-400" /> Reel
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon className="w-3 h-3" /> Photo
+                            </>
+                          )}
+                        </span>
+
+                        {/* Category badge */}
+                        <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md bg-stone-900/85 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider z-10">
+                          {CATEGORY_NAMES[itemCat] || 'Bespoke'}
+                        </span>
+
+                        {item.media_type === 'video' ? (
+                          <div className="relative w-full h-full">
+                            <video
+                              src={item.media_url}
+                              muted
+                              playsInline
+                              autoPlay
+                              loop
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-85 group-hover:opacity-100 transition-opacity">
+                              <div className="w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm text-stone-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                <Play className="w-5 h-5 fill-stone-900 text-stone-900 ml-0.5" />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <img
+                            src={item.media_url}
+                            alt={item.caption || 'Tailor Outfit'}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
+                          />
+                        )}
+                      </div>
+
+                      <div className="p-3.5 bg-white flex flex-col justify-between flex-1 gap-2.5">
+                        <p className="text-xs sm:text-sm text-stone-800 font-medium line-clamp-2">
+                          {item.caption || `${CATEGORY_NAMES[itemCat]} tailored by ${designer.business_name}`}
+                        </p>
+
+                        <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-stone-400">
+                            {CATEGORY_NAMES[itemCat]}
+                          </span>
+
+                          <Link
+                            href={`/request/${designer.id}?inspoUrl=${encodeURIComponent(item.media_url)}&styleTitle=${encodeURIComponent(item.caption || CATEGORY_NAMES[itemCat] || 'Bespoke Style')}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-[11px] shadow-sm shadow-amber-500/20 transition-all"
+                            title="Remake this style with bespoke tailoring"
+                          >
+                            <Sparkles className="w-3 h-3 fill-white" />
+                            <span>Use as Inspo</span>
+                          </Link>
                         </div>
                       </div>
                     </div>
-                  ) : (
-                    <img
-                      src={item.media_url}
-                      alt={item.caption || 'Tailor Outfit'}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                    />
-                  )}
-
-                  <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                    {item.media_type === 'video' ? (
-                      <>
-                        <Video className="w-3 h-3 text-brand-400" /> Video Reel
-                      </>
-                    ) : (
-                      <>
-                        <ImageIcon className="w-3 h-3" /> Photo
-                      </>
-                    )}
-                  </span>
-                </div>
-
-                {item.caption && (
-                  <div className="p-3.5 bg-white">
-                    <p className="text-xs sm:text-sm text-stone-800 font-medium line-clamp-2">
-                      {item.caption}
-                    </p>
-                  </div>
-                )}
+                  );
+                })}
               </div>
-            ))}
-          </div>
+            );
+          })()
         )}
       </div>
 
@@ -467,7 +607,7 @@ export default function DesignerProfilePage() {
           onClick={() => setSelectedMedia(null)}
         >
           <div
-            className="relative max-w-3xl w-full max-h-[90vh] bg-stone-900 rounded-2xl overflow-hidden flex flex-col"
+            className="relative max-w-3xl w-full max-h-[90vh] bg-stone-900 rounded-2xl overflow-hidden flex flex-col shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -477,31 +617,50 @@ export default function DesignerProfilePage() {
               <X className="w-5 h-5" />
             </button>
 
-            <div className="relative flex-1 max-h-[75vh] flex items-center justify-center bg-black">
+            <div className="relative flex-1 max-h-[68vh] flex items-center justify-center bg-black">
               {selectedMedia.media_type === 'video' ? (
                 <video
                   src={selectedMedia.media_url}
                   controls
                   autoPlay
-                  className="max-h-[75vh] w-auto max-w-full"
+                  className="max-h-[68vh] w-auto max-w-full"
                 />
               ) : (
                 <img
                   src={selectedMedia.media_url}
                   alt={selectedMedia.caption || 'Outfit'}
-                  className="max-h-[75vh] w-auto max-w-full object-contain"
+                  className="max-h-[68vh] w-auto max-w-full object-contain"
                 />
               )}
             </div>
 
-            {selectedMedia.caption && (
-              <div className="p-4 bg-stone-900 border-t border-stone-800 text-white">
-                <p className="text-sm font-medium">{selectedMedia.caption}</p>
-                <p className="text-xs text-stone-400 mt-1">
-                  Posted on {new Date(selectedMedia.created_at).toLocaleDateString()}
+            <div className="p-4 sm:p-5 bg-stone-900 border-t border-stone-800 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1.5 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-stone-800 text-[11px] font-bold text-amber-400 flex items-center gap-1 border border-stone-700">
+                    <Star className="w-3 h-3 fill-amber-400" />
+                    {(selectedMedia.rating || designer.avg_rating || 5.0).toFixed(1)} Rating
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-stone-800 text-[11px] font-bold text-stone-300 border border-stone-700">
+                    {CATEGORY_NAMES[getItemCategory(selectedMedia, designer.categories)] || 'Bespoke'}
+                  </span>
+                </div>
+                <p className="text-sm font-medium line-clamp-2">
+                  {selectedMedia.caption || 'Bespoke Tailoring Outfit'}
+                </p>
+                <p className="text-xs text-stone-400">
+                  By {designer.business_name} • {selectedMedia.media_type === 'video' ? 'Video Reel' : 'Photo'}
                 </p>
               </div>
-            )}
+
+              <Link
+                href={`/request/${designer.id}?inspoUrl=${encodeURIComponent(selectedMedia.media_url)}&styleTitle=${encodeURIComponent(selectedMedia.caption || CATEGORY_NAMES[getItemCategory(selectedMedia, designer.categories)] || 'Bespoke Style')}`}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-sm shadow-lg shadow-amber-500/25 transition-all whitespace-nowrap flex-shrink-0"
+              >
+                <Sparkles className="w-4 h-4 fill-white" />
+                <span>Remake This / Use as Inspo</span>
+              </Link>
+            </div>
           </div>
         </div>
       )}
