@@ -432,6 +432,10 @@ export default function HomePage() {
                         latestItem.media_type === 'video' ? (
                           <video
                             src={latestItem.media_url}
+                            muted
+                            playsInline
+                            autoPlay
+                            loop
                             className="w-full h-full object-cover"
                           />
                         ) : (

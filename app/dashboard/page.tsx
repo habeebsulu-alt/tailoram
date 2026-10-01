@@ -63,6 +63,7 @@ export default function DesignerDashboard() {
 
   // Upload modal & form state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadMediaType, setUploadMediaType] = useState<'image' | 'video'>('image');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
@@ -196,7 +197,20 @@ export default function DesignerDashboard() {
     setUploadError('');
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      const isVideo = file.type.startsWith('video/');
+
+      // Check max file sizes (40MB for video, 15MB for photo)
+      if (isVideo && file.size > 40 * 1024 * 1024) {
+        setUploadError('Video file exceeds 40MB limit. Please choose a shorter clip for fast Nigerian mobile playback.');
+        return;
+      }
+      if (!isVideo && file.size > 15 * 1024 * 1024) {
+        setUploadError('Photo file is too large (max 15MB).');
+        return;
+      }
+
       setUploadFile(file);
+      setUploadMediaType(isVideo ? 'video' : 'image');
       setPreviewUrl(URL.createObjectURL(file));
     }
   };
@@ -205,7 +219,7 @@ export default function DesignerDashboard() {
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadFile) {
-      setUploadError('Please select a photo or short video to upload.');
+      setUploadError('Please select an outfit photo or short video clip to upload.');
       return;
     }
     if (!designerProfile?.id) {
@@ -218,7 +232,7 @@ export default function DesignerDashboard() {
       setUploadError('');
       setUploadSuccess('');
 
-      const isVideo = uploadFile.type.startsWith('video/');
+      const isVideo = uploadFile.type.startsWith('video/') || uploadMediaType === 'video';
       const mediaType = isVideo ? 'video' : 'image';
 
       let finalFile: File = uploadFile;
@@ -234,6 +248,7 @@ export default function DesignerDashboard() {
         .upload(fileName, finalFile, {
           cacheControl: '3600',
           upsert: true,
+          contentType: isVideo ? uploadFile.type || 'video/mp4' : 'image/webp',
         });
 
       if (storageError) {
@@ -1056,26 +1071,67 @@ export default function DesignerDashboard() {
             )}
 
             <form onSubmit={handleUploadSubmit} className="space-y-4">
+              
+              {/* Media Type Switcher */}
+              <div className="flex rounded-xl bg-stone-100 p-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadMediaType('image');
+                    setUploadError('');
+                  }}
+                  className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    uploadMediaType === 'image'
+                      ? 'bg-white text-stone-900 shadow-xs'
+                      : 'text-stone-500 hover:text-stone-800'
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-brand-600" />
+                  Outfit Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadMediaType('video');
+                    setUploadError('');
+                  }}
+                  className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    uploadMediaType === 'video'
+                      ? 'bg-white text-stone-900 shadow-xs'
+                      : 'text-stone-500 hover:text-stone-800'
+                  }`}
+                >
+                  <Video className="w-3.5 h-3.5 text-brand-600" />
+                  Video Reel Clip
+                </button>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  Choose Photo or Short Video <span className="text-red-500">*</span>
+                  {uploadMediaType === 'video' ? 'Select Video Reel (.mp4, .mov)' : 'Select Photo (.jpg, .png, .webp)'} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="file"
                   ref={fileInputRef}
-                  accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
+                  accept={
+                    uploadMediaType === 'video'
+                      ? 'video/mp4,video/quicktime,video/webm'
+                      : 'image/jpeg,image/png,image/webp'
+                  }
                   onChange={handleFileChange}
                   className="w-full text-xs text-stone-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer"
                 />
                 <p className="text-[11px] text-stone-400 mt-1">
-                  Photos are automatically compressed to WebP for fast Nigerian mobile loading.
+                  {uploadMediaType === 'video'
+                    ? 'Upload short clips (up to 40MB) showing outfit movement, 360° views, and embroidery shine.'
+                    : 'Photos are automatically compressed to WebP for fast Nigerian mobile loading.'}
                 </p>
               </div>
 
               {previewUrl && (
-                <div className="aspect-[4/3] bg-stone-100 rounded-xl overflow-hidden relative border border-stone-200">
-                  {uploadFile?.type.startsWith('video/') ? (
-                    <video src={previewUrl} controls className="w-full h-full object-cover" />
+                <div className="aspect-[4/3] bg-stone-900 rounded-2xl overflow-hidden relative border border-stone-200">
+                  {uploadFile?.type.startsWith('video/') || uploadMediaType === 'video' ? (
+                    <video src={previewUrl} controls playsInline className="w-full h-full object-cover" />
                   ) : (
                     <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
                   )}

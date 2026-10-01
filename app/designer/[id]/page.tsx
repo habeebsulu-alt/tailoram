@@ -23,6 +23,7 @@ import {
   Star,
   CheckCircle2,
   Share2,
+  Play,
 } from 'lucide-react';
 
 export default function DesignerProfilePage() {
@@ -336,10 +337,21 @@ export default function DesignerProfilePage() {
               >
                 <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
                   {item.media_type === 'video' ? (
-                    <video
-                      src={item.media_url}
-                      className="w-full h-full object-cover"
-                    />
+                    <div className="relative w-full h-full">
+                      <video
+                        src={item.media_url}
+                        muted
+                        playsInline
+                        autoPlay
+                        loop
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-85 group-hover:opacity-100 transition-opacity">
+                        <div className="w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm text-stone-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                          <Play className="w-5 h-5 fill-stone-900 text-stone-900 ml-0.5" />
+                        </div>
+                      </div>
+                    </div>
                   ) : (
                     <img
                       src={item.media_url}
@@ -352,7 +364,7 @@ export default function DesignerProfilePage() {
                   <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                     {item.media_type === 'video' ? (
                       <>
-                        <Video className="w-3 h-3" /> Video
+                        <Video className="w-3 h-3 text-brand-400" /> Video Reel
                       </>
                     ) : (
                       <>

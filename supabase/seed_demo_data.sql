@@ -110,20 +110,33 @@ delete from public.portfolio_items where designer_id in (
 
 insert into public.portfolio_items (designer_id, media_url, media_type, caption)
 values
-  ('33333333-3333-3333-3333-333333333301', 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=800&q=80', 'image', '3-Piece Royal Blue Agbada with custom golden thread neckline embroidery'),
-  ('33333333-3333-3333-3333-333333333301', 'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&w=800&q=80', 'image', 'Crisp White Senator Suit with minimalist chest trim and slim fit trousers'),
-  ('33333333-3333-3333-3333-333333333301', 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80', 'image', 'Bespoke Executive Tuxedo in Italian wool for Lagos black-tie gala'),
-  ('33333333-3333-3333-3333-333333333302', 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=800&q=80', 'image', 'Emerald Green Corset Aso Ebi with beaded French lace and dramatic sleeves'),
-  ('33333333-3333-3333-3333-333333333302', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80', 'image', 'Luxury Rose Gold Wedding Reception gown with hand-placed pearls'),
-  ('33333333-3333-3333-3333-333333333302', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80', 'image', 'Contemporary Ankara gown tailored with mesh illusions for dinner party'),
-  ('33333333-3333-3333-3333-333333333303', 'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&w=800&q=80', 'image', 'Navy Blue Senator suit in double-ply cashmere with hidden zip closure'),
-  ('33333333-3333-3333-3333-333333333303', 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=800&q=80', 'image', 'Monochrome Charcoal Grey Agbada with geometric collar stitch'),
-  ('33333333-3333-3333-3333-333333333304', 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=80', 'image', 'Hand-dyed Indigo Adire Eleko 2-piece lounge set with relaxed cut'),
-  ('33333333-3333-3333-3333-333333333304', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=800&q=80', 'image', 'Tiered Ankara Maxi dress with puff sleeves and smocked waist'),
-  ('33333333-3333-3333-3333-333333333305', 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80', 'image', 'Regal Babban Riga in bronze Shadda with silver metallic threadwork'),
-  ('33333333-3333-3333-3333-333333333305', 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80', 'image', 'Modern Senegalese Boubou with detailed neckline stone embellishments'),
-  ('33333333-3333-3333-3333-333333333306', 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&w=800&q=80', 'image', 'Custom Crimson George traditional wedding ensemble with beaded wrap'),
-  ('33333333-3333-3333-3333-333333333306', 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=800&q=80', 'image', 'Champagne Gold Mermaid Aso Ebi gown with intricate train detailing');
+  -- Dele Couture (Lagos) - Royal Agbada & Senator Suits
+  ('33333333-3333-3333-3333-333333333301', 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=800&q=80', 'image', 'Grand Royal Blue Agbada with golden thread embroidery'),
+  ('33333333-3333-3333-3333-333333333301', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=800&q=80', 'image', 'Crisp White Senator Suit with tailored chest detail on Black African gentleman'),
+  ('33333333-3333-3333-3333-333333333301', 'https://images.unsplash.com/photo-1621784563330-caee0b138a00?auto=format&fit=crop&w=800&q=80', 'image', 'Midnight Black Bespoke Tuxedo on Black African model'),
+
+  -- Krown & Kente (Abuja) - Owambe Aso Ebi & Bridal Glam + Video Reel
+  ('33333333-3333-3333-3333-333333333302', 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=800&q=80', 'image', 'Emerald Green Beaded Corset Aso Ebi with French lace for Owambe wedding'),
+  ('33333333-3333-3333-3333-333333333302', 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=800&q=80', 'image', 'Luxury Rose Gold Wedding Aso Ebi with matching Gele on Black African woman'),
+  ('33333333-3333-3333-3333-333333333302', 'https://images.unsplash.com/photo-1589156280159-27698a70f29e?auto=format&fit=crop&w=800&q=80', 'image', 'Contemporary Ankara gown with matching headwrap on Black model'),
+  ('33333333-3333-3333-3333-333333333302', 'https://assets.mixkit.co/videos/preview/mixkit-african-woman-in-a-yellow-dress-dancing-40748-large.mp4', 'video', 'Movement showcase: Yellow Flowing Reception Gown video clip'),
+
+  -- Emeka Bespoke (Port Harcourt) - Cashmere Senator & Native Craft
+  ('33333333-3333-3333-3333-333333333303', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=800&q=80', 'image', 'Navy Blue Double-ply Cashmere Senator Wear on Black model'),
+  ('33333333-3333-3333-3333-333333333303', 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=800&q=80', 'image', 'Charcoal Grey Hand-Stitched Agbada with geometric embroidery'),
+
+  -- Alara Adire (Ibadan) - Yoruba Adire Eleko & Wax Prints
+  ('33333333-3333-3333-3333-333333333304', 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=80', 'image', 'Hand-dyed Indigo Adire Eleko 2-piece lounge set'),
+  ('33333333-3333-3333-3333-333333333304', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=800&q=80', 'image', 'Tiered Ankara Maxi dress on Black African fashion model'),
+
+  -- Zainab Royal Kaftan (Kano) - Northern Shadda Babban Riga
+  ('33333333-3333-3333-3333-333333333305', 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80', 'image', 'Regal Bronze Shadda Babban Riga with silver embroidery on Black African model'),
+  ('33333333-3333-3333-3333-333333333305', 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=800&q=80', 'image', 'Modern Senegalese Boubou with embellished neckline on Black African woman'),
+
+  -- Chidinma Bridal (Enugu) - Igbo Traditional George & Owambe + Video Reel
+  ('33333333-3333-3333-3333-333333333306', 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&w=800&q=80', 'image', 'Custom Crimson George traditional wedding ensemble on Black bride'),
+  ('33333333-3333-3333-3333-333333333306', 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=800&q=80', 'image', 'Champagne Gold Mermaid Aso Ebi gown with beaded lace train'),
+  ('33333333-3333-3333-3333-333333333306', 'https://assets.mixkit.co/videos/preview/mixkit-young-black-woman-modeling-in-a-studio-41153-large.mp4', 'video', 'Bridal runway test: Modeling bespoke gown silhouette');
 
 -- ============================================================
 -- 4. SEED REQUESTS
