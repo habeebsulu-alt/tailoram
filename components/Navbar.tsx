@@ -46,6 +46,17 @@ export default function Navbar() {
               Browse Designers
             </Link>
 
+            <Link
+              href="/shop"
+              className="flex items-center gap-1.5 text-stone-700 hover:text-brand-600 font-bold text-sm transition-colors"
+            >
+              <ShoppingBag className="w-4 h-4 text-amber-600" />
+              <span>Shop / RTW</span>
+              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">
+                New
+              </span>
+            </Link>
+
             {user ? (
               <div className="flex items-center gap-4">
                 {profile?.role === 'designer' ? (
@@ -144,6 +155,20 @@ export default function Navbar() {
             className="block py-2 text-base font-medium text-stone-800 hover:text-brand-600"
           >
             Browse Designers
+          </Link>
+
+          <Link
+            href="/shop"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center justify-between py-2 text-base font-bold text-stone-800 hover:text-brand-600"
+          >
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="w-4 h-4 text-amber-600" />
+              <span>Shop / Ready-to-Wear</span>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+              New
+            </span>
           </Link>
 
           {user ? (

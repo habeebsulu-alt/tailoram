@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { logEvent } from '@/lib/analytics';
 import { useAuth } from '@/contexts/AuthContext';
-import { DesignerProfile, PortfolioItem, Review } from '@/lib/types';
+import { DesignerProfile, PortfolioItem, Review, StoreProduct } from '@/lib/types';
 import {
   Scissors,
   MapPin,
@@ -26,6 +26,8 @@ import {
   Play,
   ChevronLeft,
   ChevronRight,
+  ShoppingBag,
+  Tag,
 } from 'lucide-react';
 
 const CATEGORY_SEQUENCE = [
@@ -97,6 +99,11 @@ export default function DesignerProfilePage() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  // Studio Store state
+  const [storeProducts, setStoreProducts] = useState<StoreProduct[]>([]);
+  const [profileTab, setProfileTab] = useState<'portfolio' | 'store'>('portfolio');
+  const [selectedStoreProduct, setSelectedStoreProduct] = useState<StoreProduct | null>(null);
 
   // Leave review modal state
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -200,7 +207,22 @@ export default function DesignerProfilePage() {
           console.warn('Reviews table might not be initialized yet');
         }
 
-        // 4. Log Analytics: profile_view event from Day 1
+        // 4. Fetch store products if store enabled
+        try {
+          const { data: sData } = await supabase
+            .from('store_products')
+            .select('*')
+            .eq('designer_id', designerId)
+            .order('created_at', { ascending: false });
+
+          if (sData) {
+            setStoreProducts(sData as StoreProduct[]);
+          }
+        } catch (storeErr) {
+          console.warn('Store products not yet initialized');
+        }
+
+        // 5. Log Analytics: profile_view event from Day 1
         logEvent({
           event_type: 'profile_view',
           user_id: user?.id || null,
@@ -403,6 +425,16 @@ export default function DesignerProfilePage() {
               </a>
             )}
 
+            {storeProducts.length > 0 && (
+              <button
+                onClick={() => setProfileTab('store')}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-950 font-bold text-xs transition-all shadow-2xs"
+              >
+                <ShoppingBag className="w-4 h-4 text-amber-600" />
+                <span>Visit Studio Store ({storeProducts.length} RTW Items)</span>
+              </button>
+            )}
+
             {user && profile?.role === 'client' && (
               <button
                 onClick={() => setReviewModalOpen(true)}
@@ -417,8 +449,48 @@ export default function DesignerProfilePage() {
         </div>
       </div>
 
-      {/* Portfolio Gallery Section */}
-      <div className="space-y-6">
+      {/* Studio View Mode Switcher: Portfolio vs Store */}
+      {storeProducts.length > 0 && (
+        <div className="flex items-center gap-3 border-b border-stone-200 pb-2">
+          <button
+            onClick={() => setProfileTab('portfolio')}
+            className={`px-5 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-2 transition-all ${
+              profileTab === 'portfolio'
+                ? 'bg-stone-900 text-white shadow-sm'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200 hover:text-stone-900'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-brand-400" />
+            <span>Portfolio &amp; Showcase</span>
+            <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
+              profileTab === 'portfolio' ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-700'
+            }`}>
+              {portfolio.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setProfileTab('store')}
+            className={`px-5 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-2 transition-all ${
+              profileTab === 'store'
+                ? 'bg-amber-500 text-white shadow-sm'
+                : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4 text-amber-700" />
+            <span>Studio Store &amp; Ready-to-Wear</span>
+            <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
+              profileTab === 'store' ? 'bg-white/20 text-white' : 'bg-amber-200 text-amber-900'
+            }`}>
+              {storeProducts.length}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* TAB 1: PORTFOLIO GALLERY SECTION */}
+      {profileTab === 'portfolio' && (
+        <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-200 pb-4 gap-3">
           <div>
             <h2 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
@@ -580,6 +652,109 @@ export default function DesignerProfilePage() {
               </div>
             )}
           </div>
+        )}
+
+      {/* TAB 2: STUDIO STORE / READY-TO-WEAR SECTION */}
+      {profileTab === 'store' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-200 pb-4 gap-3">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-amber-600" />
+                {designer.store_name || `${designer.business_name} RTW Collection`}
+              </h2>
+              <p className="text-xs sm:text-sm text-stone-500">
+                Ready-to-wear bespoke garments and curated fabrics ready for immediate commission
+              </p>
+            </div>
+          </div>
+
+          {storeProducts.length === 0 ? (
+            <div className="bg-white border-2 border-dashed border-stone-200 rounded-3xl p-12 text-center max-w-md mx-auto space-y-2">
+              <ShoppingBag className="w-8 h-8 text-stone-400 mx-auto" />
+              <h3 className="font-bold text-base text-stone-900">
+                Store is being stocked
+              </h3>
+              <p className="text-xs text-stone-500">
+                {designer.business_name} has not listed ready-to-wear items yet. You can still commission custom bespoke outfits via the request button!
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {storeProducts.map((product) => {
+                const cleanPhone = designer.whatsapp?.replace(/[^0-9]/g, '');
+
+                return (
+                  <div
+                    key={product.id}
+                    className="group bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col justify-between"
+                  >
+                    <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
+                      <img
+                        src={product.image_url}
+                        alt={product.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+
+                      <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-emerald-600/90 text-white text-[10px] font-bold">
+                        In Stock
+                      </span>
+                    </div>
+
+                    <div className="p-3.5 bg-white flex flex-col justify-between flex-1 gap-2.5">
+                      <div className="space-y-1">
+                        <p className="text-base font-black text-stone-900">
+                          ₦{product.price.toLocaleString()}
+                        </p>
+                        <p className="text-xs sm:text-sm text-stone-800 font-bold line-clamp-1">
+                          {product.title}
+                        </p>
+                        {product.description && (
+                          <p className="text-[11px] text-stone-500 line-clamp-2">
+                            {product.description}
+                          </p>
+                        )}
+                      </div>
+
+                      {product.sizes && product.sizes.length > 0 && (
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {product.sizes.map((s) => (
+                            <span key={s} className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 text-[10px] font-bold">
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-stone-100 flex items-center justify-between gap-1.5">
+                        {cleanPhone && (
+                          <a
+                            href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hello ${designer.business_name}, I want to buy "${product.title}" (₦${product.price.toLocaleString()}) from your Tailoram store.`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                            title="Order via WhatsApp"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+
+                        <Link
+                          href={`/request/${designer.id}?inspoUrl=${encodeURIComponent(product.image_url)}&styleTitle=${encodeURIComponent(product.title)}`}
+                          className="flex-1 text-center py-1.5 px-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-xs transition-all"
+                        >
+                          Buy / Order
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* REVIEWS & RATINGS SECTION */}
       <div className="space-y-6 pt-6 border-t border-stone-200">

@@ -17,14 +17,40 @@ export interface DesignerProfile {
   area: string;
   categories: string[];
   whatsapp: string | null;
+  has_store?: boolean;
+  store_name?: string | null;
   created_at: string;
   // Joined from profiles
   profiles?: Profile;
   portfolio_items?: PortfolioItem[];
   reviews?: Review[];
+  store_products?: StoreProduct[];
   avg_rating?: number;
   review_count?: number;
 }
+
+export interface StoreProduct {
+  id: string;
+  designer_id: string;
+  title: string;
+  description?: string | null;
+  price: number;
+  image_url: string;
+  category: string;
+  sizes?: string[] | null;
+  in_stock: boolean;
+  created_at: string;
+  designer?: DesignerProfile;
+}
+
+export const STORE_CATEGORIES = [
+  { id: 'all', label: 'All Products' },
+  { id: 'ready_to_wear', label: 'Ready-to-Wear (RTW)' },
+  { id: 'agbada_senator', label: 'Agbada & Senator Suits' },
+  { id: 'aso_ebi_dresses', label: 'Aso Ebi & Gowns' },
+  { id: 'fabrics', label: 'Fabrics & Aso-Oke' },
+  { id: 'accessories', label: 'Fila Caps & Accessories' },
+] as const;
 
 export interface Review {
   id: string;
