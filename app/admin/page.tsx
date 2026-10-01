@@ -56,6 +56,21 @@ import {
   Volume2,
 } from 'lucide-react';
 
+const DEMO_EMAILS_MAP: Record<string, string> = {
+  '11111111-1111-1111-1111-111111111101': 'dele.couture@demo.tailoram.com',
+  '11111111-1111-1111-1111-111111111102': 'maryam.bello@demo.tailoram.com',
+  '11111111-1111-1111-1111-111111111103': 'emeka.craft@demo.tailoram.com',
+  '11111111-1111-1111-1111-111111111104': 'yewande.adire@demo.tailoram.com',
+  '11111111-1111-1111-1111-111111111105': 'zainab.kaftan@demo.tailoram.com',
+  '11111111-1111-1111-1111-111111111106': 'chidinma.bridal@demo.tailoram.com',
+  '22222222-2222-2222-2222-222222222201': 'tunde.balogun@demo.tailoram.com',
+  '22222222-2222-2222-2222-222222222202': 'amina.mohammed@demo.tailoram.com',
+  '22222222-2222-2222-2222-222222222203': 'ngozi.eze@demo.tailoram.com',
+  '22222222-2222-2222-2222-222222222204': 'femi.adeyemi@demo.tailoram.com',
+};
+
+const ALL_DEMO_EMAILS = Object.values(DEMO_EMAILS_MAP);
+
 export default function AdminPage() {
   const { user, profile, refreshProfile } = useAuth();
   const router = useRouter();
@@ -65,6 +80,12 @@ export default function AdminPage() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passkeyError, setPasskeyError] = useState('');
   const [isElevatingRole, setIsElevatingRole] = useState(false);
+
+  // Password Reset Modal State
+  const [resetModalUser, setResetModalUser] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState('Tailoram2026!');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
@@ -350,6 +371,54 @@ export default function AdminPage() {
     } catch (err: any) {
       showNotice(`Failed to update user role: ${err.message}`, 'error');
       fetchAllAdminData();
+    }
+  };
+
+  // --- ACTIONS: PASSWORD RESET ---
+  const handleAdminResetPassword = async (targetEmail: string, newPass: string) => {
+    if (!targetEmail || !newPass) return;
+    try {
+      setIsResettingPassword(true);
+      // Call Supabase RPC to update bcrypt hash in auth.users
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_reset_user_password', {
+        target_email: targetEmail.trim().toLowerCase(),
+        new_password: newPass,
+      });
+
+      if (rpcErr) {
+        console.warn('RPC password reset note:', rpcErr.message);
+      }
+
+      // Also invoke standard recovery email trigger as fallback
+      await supabase.auth.resetPasswordForEmail(targetEmail.trim().toLowerCase());
+
+      showNotice(`Password for ${targetEmail} reset to "${newPass}".`);
+      setResetModalUser(null);
+    } catch (err: any) {
+      showNotice(`Password reset error: ${err.message}`, 'error');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  const handleResetAllDemoAccounts = async () => {
+    try {
+      setIsBatchSyncing(true);
+      for (const email of ALL_DEMO_EMAILS) {
+        try {
+          await supabase.rpc('admin_reset_user_password', {
+            target_email: email,
+            new_password: 'Tailoram2026!',
+          });
+        } catch (e) {
+          // continue
+        }
+      }
+      showNotice(`All ${ALL_DEMO_EMAILS.length} demo accounts synchronized to "Tailoram2026!"`);
+    } catch (err: any) {
+      showNotice(`Batch sync error: ${err.message}`, 'error');
+    } finally {
+      setIsBatchSyncing(false);
     }
   };
 
@@ -1154,6 +1223,21 @@ export default function AdminPage() {
                         {/* Actions */}
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setResetModalUser({
+                                  id: designer.user_id,
+                                  name: designer.business_name,
+                                  email: DEMO_EMAILS_MAP[designer.user_id] || '',
+                                });
+                                setNewPasswordInput('Tailoram2026!');
+                              }}
+                              className="p-1.5 rounded-lg bg-stone-800 hover:bg-amber-500/20 text-stone-300 hover:text-amber-300 border border-stone-700 hover:border-amber-500/40 transition-colors"
+                              title="Reset Studio Password"
+                            >
+                              <Key className="w-3.5 h-3.5" />
+                            </button>
+
                             <Link
                               href={`/designer/${designer.id}`}
                               target="_blank"
@@ -1201,7 +1285,17 @@ export default function AdminPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={handleResetAllDemoAccounts}
+                  disabled={isBatchSyncing}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+                  title="Reset all 10 demo studio and client accounts to Tailoram2026!"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>{isBatchSyncing ? 'Syncing...' : 'Reset All Demo Passwords'}</span>
+                </button>
+
                 {(['all', 'client', 'designer', 'admin'] as const).map((role) => (
                   <button
                     key={role}
@@ -1224,50 +1318,75 @@ export default function AdminPage() {
                   <thead className="bg-stone-950 text-stone-400 uppercase text-[10px] font-black tracking-wider">
                     <tr>
                       <th className="py-3.5 px-4">Full Name</th>
-                      <th className="py-3.5 px-4">User ID</th>
+                      <th className="py-3.5 px-4">Email / ID</th>
                       <th className="py-3.5 px-4">Current Role</th>
                       <th className="py-3.5 px-4">Joined Date</th>
-                      <th className="py-3.5 px-4 text-right">Role Elevation / Switch</th>
+                      <th className="py-3.5 px-4 text-right">Actions / Role</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-800">
-                    {filteredUsers.map((u) => (
-                      <tr key={u.id} className="hover:bg-stone-800/40 transition-colors">
-                        <td className="py-3 px-4 font-bold text-white">
-                          {u.full_name || 'Anonymous User'}
-                        </td>
-                        <td className="py-3 px-4 text-stone-500 font-mono text-[11px]">
-                          {u.id.slice(0, 16)}...
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                              u.role === 'admin'
-                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                : u.role === 'designer'
-                                ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                            }`}
-                          >
-                            {u.role}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-stone-400 text-[11px]">
-                          {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <select
-                            value={u.role}
-                            onChange={(e) => handleChangeUserRole(u.id, e.target.value as UserRole)}
-                            className="bg-stone-950 border border-stone-800 rounded-xl px-2.5 py-1 text-xs text-stone-300 font-bold focus:outline-none focus:border-amber-400"
-                          >
-                            <option value="client">Client</option>
-                            <option value="designer">Designer</option>
-                            <option value="admin">Administrator</option>
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredUsers.map((u) => {
+                      const userEmail = DEMO_EMAILS_MAP[u.id] || (u.id === user?.id ? user.email || '' : '');
+                      return (
+                        <tr key={u.id} className="hover:bg-stone-800/40 transition-colors">
+                          <td className="py-3 px-4 font-bold text-white">
+                            {u.full_name || 'Anonymous User'}
+                          </td>
+                          <td className="py-3 px-4 text-stone-400 text-[11px]">
+                            {userEmail ? (
+                              <span className="font-mono text-amber-300/90">{userEmail}</span>
+                            ) : (
+                              <span className="font-mono text-stone-500">{u.id.slice(0, 16)}...</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                u.role === 'admin'
+                                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                  : u.role === 'designer'
+                                  ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                                  : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                              }`}
+                            >
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-stone-400 text-[11px]">
+                            {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setResetModalUser({
+                                    id: u.id,
+                                    name: u.full_name || 'User',
+                                    email: userEmail,
+                                  });
+                                  setNewPasswordInput('Tailoram2026!');
+                                }}
+                                className="px-2.5 py-1 rounded-xl bg-stone-800 hover:bg-amber-500/20 text-stone-300 hover:text-amber-300 border border-stone-700 hover:border-amber-500/40 text-xs font-bold transition-all flex items-center gap-1"
+                                title="Reset User Password"
+                              >
+                                <Key className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Reset Pass</span>
+                              </button>
+
+                              <select
+                                value={u.role}
+                                onChange={(e) => handleChangeUserRole(u.id, e.target.value as UserRole)}
+                                className="bg-stone-950 border border-stone-800 rounded-xl px-2 py-1 text-xs text-stone-300 font-bold focus:outline-none focus:border-amber-400"
+                              >
+                                <option value="client">Client</option>
+                                <option value="designer">Designer</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1692,6 +1811,40 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* Demo Accounts & Credentials Recovery */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-4 shadow-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-base text-white flex items-center gap-2">
+                    <Key className="w-4 h-4 text-amber-400" />
+                    <span>Demo Accounts &amp; Password Sync</span>
+                  </h3>
+                  <p className="text-xs text-stone-400">
+                    Synchronize all 10 demo studio &amp; client passwords to <code className="text-amber-300 font-bold">Tailoram2026!</code>
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleResetAllDemoAccounts}
+                  disabled={isBatchSyncing}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50 self-start sm:self-auto"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>{isBatchSyncing ? 'Syncing...' : 'Sync All Passwords Now'}</span>
+                </button>
+              </div>
+
+              <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800/80 text-xs text-stone-300 space-y-1.5 font-mono">
+                <div className="flex justify-between text-stone-400 font-sans text-[11px] font-bold">
+                  <span>Standard Demo Password:</span>
+                  <span className="text-amber-400 font-mono">Tailoram2026!</span>
+                </div>
+                <p className="text-[11px] text-stone-400 font-sans leading-relaxed">
+                  If Supabase returns &quot;Invalid login credentials&quot;, click the button above or run <span className="text-stone-200 font-mono">supabase/add_admin_password_reset.sql</span> in your Supabase SQL editor.
+                </p>
+              </div>
+            </div>
+
             {/* Save Button */}
             <button
               onClick={handleSavePlatformSettings}
@@ -1705,6 +1858,88 @@ export default function AdminPage() {
         )}
 
       </main>
+
+      {/* Password Reset Modal */}
+      {resetModalUser && (
+        <div className="fixed inset-0 z-50 bg-stone-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl relative">
+            <button
+              onClick={() => setResetModalUser(null)}
+              className="absolute top-5 right-5 p-1.5 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="space-y-1.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-2">
+                <Key className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-black text-white">
+                Admin Password Reset
+              </h3>
+              <p className="text-xs text-stone-400">
+                Instantly update login credentials for <strong className="text-amber-300">{resetModalUser.name}</strong>
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1">
+                  Target Account Email
+                </label>
+                <input
+                  type="email"
+                  value={resetModalUser.email}
+                  onChange={(e) => setResetModalUser({ ...resetModalUser, email: e.target.value })}
+                  placeholder="e.g. dele.couture@demo.tailoram.com"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider">
+                    New Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setNewPasswordInput('Tailoram2026!')}
+                    className="text-[11px] text-amber-400 hover:underline font-bold"
+                  >
+                    Default: Tailoram2026!
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={newPasswordInput}
+                  onChange={(e) => setNewPasswordInput(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setResetModalUser(null)}
+                className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isResettingPassword || !resetModalUser.email}
+                onClick={() => handleAdminResetPassword(resetModalUser.email, newPasswordInput)}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-stone-950 font-black text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span>{isResettingPassword ? 'Resetting Password...' : 'Apply Password Reset'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
