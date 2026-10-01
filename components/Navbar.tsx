@@ -1,15 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Scissors, Menu, X, User, LogOut, LayoutDashboard, ShoppingBag } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { Scissors, Menu, X, User, LogOut, LayoutDashboard, ShoppingBag, ShieldCheck, Sparkles } from 'lucide-react';
 
 export default function Navbar() {
   const { user, profile, designerProfile, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
+
+  const [announcement, setAnnouncement] = useState<{ enabled: boolean; message: string } | null>(null);
+  const [announcementDismissed, setAnnouncementDismissed] = useState(false);
+
+  useEffect(() => {
+    async function loadAnnouncement() {
+      try {
+        const { data } = await supabase
+          .from('platform_settings')
+          .select('value')
+          .eq('key', 'announcement')
+          .maybeSingle();
+
+        if (data?.value?.enabled && data.value.message) {
+          setAnnouncement(data.value);
+        }
+      } catch (err) {
+        // Silently skip if table not initialized
+      }
+    }
+    loadAnnouncement();
+  }, []);
 
   const handleLogout = async () => {
     await signOut();
@@ -18,7 +41,23 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-stone-200">
+    <>
+      {announcement?.enabled && !announcementDismissed && (
+        <div className="bg-stone-950 text-amber-300 px-4 py-2 text-xs font-semibold border-b border-amber-500/20 flex items-center justify-between z-50 relative">
+          <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 flex-1 text-center">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+            <span>{announcement.message}</span>
+          </div>
+          <button
+            onClick={() => setAnnouncementDismissed(true)}
+            className="text-stone-400 hover:text-white p-1 transition-colors"
+            aria-label="Dismiss announcement"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-stone-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           
@@ -95,6 +134,16 @@ export default function Navbar() {
                   </>
                 )}
 
+                {profile?.role === 'admin' && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-bold text-xs shadow-sm transition-colors"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Admin</span>
+                  </Link>
+                )}
+
                 {/* Profile Badge & Logout */}
                 <div className="flex items-center gap-3 pl-3 border-l border-stone-200">
                   <div className="text-right">
@@ -102,7 +151,11 @@ export default function Navbar() {
                       {profile?.full_name || user.email}
                     </p>
                     <span className="inline-block text-[10px] uppercase font-bold tracking-wider text-brand-700 bg-brand-100 px-1.5 py-0.5 rounded-full">
-                      {profile?.role === 'designer' ? 'Tailor / Designer' : 'Client'}
+                      {profile?.role === 'designer'
+                        ? 'Tailor / Designer'
+                        : profile?.role === 'admin'
+                        ? 'Administrator'
+                        : 'Client'}
                     </span>
                   </div>
 
@@ -179,10 +232,25 @@ export default function Navbar() {
                     {profile?.full_name || user.email}
                   </p>
                   <p className="text-xs text-brand-700 capitalize font-medium">
-                    {profile?.role === 'designer' ? 'Fashion Designer' : 'Client'}
+                    {profile?.role === 'designer'
+                      ? 'Fashion Designer'
+                      : profile?.role === 'admin'
+                      ? 'Administrator'
+                      : 'Client'}
                   </p>
                 </div>
               </div>
+
+              {profile?.role === 'admin' && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 py-2 px-3 rounded-xl bg-amber-500/10 text-amber-900 text-sm font-bold border border-amber-500/20"
+                >
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                  <span>Admin Command Center</span>
+                </Link>
+              )}
 
               {profile?.role === 'designer' ? (
                 <>
@@ -245,5 +313,6 @@ export default function Navbar() {
         </div>
       )}
     </nav>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-export type UserRole = 'designer' | 'client';
+export type UserRole = 'designer' | 'client' | 'admin';
 
 export interface Profile {
   id: string;
@@ -20,6 +20,8 @@ export interface DesignerProfile {
   has_store?: boolean;
   store_name?: string | null;
   gender_focus?: 'male' | 'female' | 'unisex' | null;
+  is_verified?: boolean;
+  is_featured?: boolean;
   created_at: string;
   // Joined from profiles
   profiles?: Profile;
@@ -100,6 +102,7 @@ export interface Review {
   comment: string | null;
   created_at: string;
   client?: Profile;
+  designer?: DesignerProfile | { business_name?: string };
 }
 
 export interface PortfolioItem {

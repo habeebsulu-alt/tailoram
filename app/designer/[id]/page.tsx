@@ -410,9 +410,29 @@ export default function DesignerProfilePage() {
               )}
             </div>
 
-            <h1 className="text-3xl sm:text-5xl font-black text-stone-900 tracking-tight leading-tight">
-              {designer.business_name}
-            </h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-3xl sm:text-5xl font-black text-stone-900 tracking-tight leading-tight">
+                {designer.business_name}
+              </h1>
+              {designer.is_verified && (
+                <span
+                  title="Tailoram Verified Studio"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-black shadow-xs"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Verified Studio</span>
+                </span>
+              )}
+              {designer.is_featured && (
+                <span
+                  title="Featured Showcase Studio"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-black shadow-xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Featured</span>
+                </span>
+              )}
+            </div>
 
             {designer.profiles?.full_name && (
               <p className="text-xs text-stone-500 font-medium -mt-2">

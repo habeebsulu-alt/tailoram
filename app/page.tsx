@@ -889,9 +889,29 @@ export default function HomePage() {
 
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <h3 className="text-xl font-black text-stone-900 group-hover:text-brand-600 transition-colors leading-tight">
-                            {designer.business_name}
-                          </h3>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h3 className="text-xl font-black text-stone-900 group-hover:text-brand-600 transition-colors leading-tight">
+                              {designer.business_name}
+                            </h3>
+                            {designer.is_verified && (
+                              <span
+                                title="Tailoram Verified Studio"
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black"
+                              >
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Verified</span>
+                              </span>
+                            )}
+                            {designer.is_featured && (
+                              <span
+                                title="Featured Showcase"
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black"
+                              >
+                                <Sparkles className="w-3 h-3 text-amber-500" />
+                                <span>Featured</span>
+                              </span>
+                            )}
+                          </div>
                           {designer.profiles?.full_name && (
                             <p className="text-xs text-stone-400 font-medium">
                               Tailor: {designer.profiles.full_name}
