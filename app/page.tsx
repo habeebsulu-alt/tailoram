@@ -35,6 +35,7 @@ import {
   Navigation,
   Compass,
   ShoppingBag,
+  Users,
 } from 'lucide-react';
 
 const NIGERIAN_HUBS = [
@@ -60,6 +61,15 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * c;
 }
 
+function hashString(str: string, seed: number = 42): number {
+  let hash = seed;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
+
 export default function HomePage() {
   const { user } = useAuth();
 
@@ -73,7 +83,8 @@ export default function HomePage() {
   const [selectedArea, setSelectedArea] = useState<string>('All Areas');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedGender, setSelectedGender] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'ranking' | 'rating' | 'reviews' | 'newest'>('ranking');
+  const [sortBy, setSortBy] = useState<'all' | 'ranking' | 'rating' | 'reviews' | 'newest'>('ranking');
+  const [randomSeed, setRandomSeed] = useState(() => Math.floor(Math.random() * 100000));
 
   // Geolocation & Around Me state
   const [geoLocating, setGeoLocating] = useState(false);
@@ -177,8 +188,14 @@ export default function HomePage() {
       return true;
     });
 
-    // 2. Sort by Ranking System
+    // 2. Sort by Ranking System or Random Discovery
     return filtered.sort((a: any, b: any) => {
+      if (sortBy === 'all') {
+        // Random discovery shuffle using deterministic hash with randomSeed
+        const hashA = hashString(a.id, randomSeed);
+        const hashB = hashString(b.id, randomSeed);
+        return hashA - hashB;
+      }
       if (sortBy === 'ranking') {
         // Top ranked based on score, then review count
         if (b.ranking_score !== a.ranking_score) {
@@ -197,7 +214,7 @@ export default function HomePage() {
       }
       return 0;
     });
-  }, [designers, searchQuery, selectedState, selectedArea, selectedCategory, selectedGender, sortBy]);
+  }, [designers, searchQuery, selectedState, selectedArea, selectedCategory, selectedGender, sortBy, randomSeed]);
 
   // Day 1 Analytics: Log searches (debounced)
   useEffect(() => {
@@ -408,8 +425,8 @@ export default function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-7 shadow-sm space-y-5">
           
-          {/* Main search and location inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Main search, gender, location and ranking inputs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             
             {/* Text Search */}
             <div className="relative">
@@ -421,6 +438,21 @@ export default function HomePage() {
                 placeholder="Search designer, style, or garment..."
                 className="w-full pl-9 pr-3.5 py-2.5 rounded-2xl border border-stone-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-stone-50/50 placeholder:text-stone-400"
               />
+            </div>
+
+            {/* Gender / Audience Dropdown */}
+            <div className="relative">
+              <Users className="w-4 h-4 absolute left-3.5 top-3.5 text-stone-400" />
+              <select
+                value={selectedGender}
+                onChange={(e) => setSelectedGender(e.target.value)}
+                className="w-full pl-9 pr-3.5 py-2.5 rounded-2xl border border-stone-200 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-stone-700 font-medium"
+              >
+                <option value="all">All Genders &amp; Wear</option>
+                <option value="male">♂ Men&apos;s Wear</option>
+                <option value="female">♀ Women&apos;s Wear</option>
+                <option value="unisex">⚧ Unisex &amp; Mixed</option>
+              </select>
             </div>
 
             {/* State Filter */}
@@ -464,9 +496,15 @@ export default function HomePage() {
               <ArrowUpDown className="w-4 h-4 absolute left-3.5 top-3.5 text-stone-400" />
               <select
                 value={sortBy}
-                onChange={(e: any) => setSortBy(e.target.value)}
+                onChange={(e: any) => {
+                  if (e.target.value === 'all') {
+                    setRandomSeed(Math.floor(Math.random() * 100000));
+                  }
+                  setSortBy(e.target.value);
+                }}
                 className="w-full pl-9 pr-3.5 py-2.5 rounded-2xl border border-stone-200 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-bold text-stone-800"
               >
+                <option value="all">🎲 All Designers (Discover / Random)</option>
                 <option value="ranking">🏆 Highest Ranking (Top Rated)</option>
                 <option value="rating">⭐ Highest Average Stars</option>
                 <option value="reviews">🔥 Most Client Reviews</option>
@@ -596,7 +634,13 @@ export default function HomePage() {
               Tailor Rankings &amp; Directory
             </h2>
             <p className="text-xs sm:text-sm text-stone-500">
-              Showing {filteredAndRankedDesigners.length} designers sorted by {sortBy === 'ranking' ? 'top ranking' : sortBy}
+              Showing {filteredAndRankedDesigners.length} designers sorted by {
+                sortBy === 'all'
+                  ? 'random discovery'
+                  : sortBy === 'ranking'
+                  ? 'top ranking'
+                  : sortBy
+              }
             </p>
           </div>
         </div>
