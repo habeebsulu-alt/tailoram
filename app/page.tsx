@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import EntrySplash from '@/components/EntrySplash';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { logEvent } from '@/lib/analytics';
@@ -377,7 +378,9 @@ export default function HomePage() {
     selectedGender !== 'all';
 
   return (
-    <div className="space-y-12 pb-24">
+    <>
+      <EntrySplash />
+      <div className="space-y-12 pb-24">
       
       {/* Luxury Editorial Hero Section with Ambient Background Slider */}
       <section
@@ -1068,5 +1071,6 @@ export default function HomePage() {
       )}
 
     </div>
+    </>
   );
 }
