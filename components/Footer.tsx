@@ -1,5 +1,4 @@
 import React from 'react';
-import Link from 'next/link';
 import { Scissors, Heart } from 'lucide-react';
 
 export default function Footer() {
@@ -53,13 +52,7 @@ export default function Footer() {
         </div>
 
         <div className="pt-6 border-t border-stone-800 text-xs text-stone-500 flex flex-col sm:flex-row items-center justify-between gap-2 text-center">
-          <div className="flex items-center gap-2">
-            <p>© {new Date().getFullYear()} Tailoram. Built for Nigerian Fashion Excellence.</p>
-            <span className="text-stone-700">•</span>
-            <Link href="/admin" className="text-stone-500 hover:text-amber-400 font-medium transition-colors">
-              Admin Portal
-            </Link>
-          </div>
+          <p>© {new Date().getFullYear()} Tailoram. Built for Nigerian Fashion Excellence.</p>
           <p className="flex items-center gap-1">
             Made with <Heart className="w-3 h-3 text-red-500 fill-red-500 inline" /> for Nigerian fashion creators
           </p>
