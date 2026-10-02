@@ -7,6 +7,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { OutfitRequest, Review } from '@/lib/types';
 import {
+  getLocalRequestOverrides,
+  calculatePaymentBreakdown,
+  respondToQuote,
+  PaymentResult,
+} from '@/lib/payments';
+import PaymentModal from '@/components/PaymentModal';
+import OrderReviewModal from '@/components/OrderReviewModal';
+import {
   Scissors,
   MessageSquare,
   Clock,
@@ -20,6 +28,9 @@ import {
   Loader2,
   ChevronRight,
   Sparkles,
+  CreditCard,
+  Check,
+  Package,
 } from 'lucide-react';
 
 export default function ClientRequestsPage() {
@@ -29,14 +40,15 @@ export default function ClientRequestsPage() {
   const [requests, setRequests] = useState<OutfitRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Review modal state
+  // Modals state
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentType, setPaymentType] = useState<'deposit' | 'balance'>('deposit');
+  const [selectedPaymentRequest, setSelectedPaymentRequest] = useState<OutfitRequest | null>(null);
+
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [targetRequest, setTargetRequest] = useState<OutfitRequest | null>(null);
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
-  const [submittingReview, setSubmittingReview] = useState(false);
-  const [reviewSuccess, setReviewSuccess] = useState('');
+  const [targetReviewRequest, setTargetReviewRequest] = useState<OutfitRequest | null>(null);
   const [reviewedRequestIds, setReviewedRequestIds] = useState<string[]>([]);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const fetchRequests = async (clientId: string) => {
     try {
@@ -47,10 +59,31 @@ export default function ClientRequestsPage() {
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setRequests((data as OutfitRequest[]) || []);
+      if (error) {
+        console.warn('Could not load requests from Supabase:', error.message);
+      }
+
+      const overrides = getLocalRequestOverrides();
+      const rawList = (data as OutfitRequest[]) || [];
+
+      // Merge with local overrides for demo resilience
+      const mergedList = rawList.map((req) => {
+        const local = overrides[req.id] || {};
+        return { ...req, ...local };
+      });
+
+      setRequests(mergedList);
 
       // Check which requests already have reviews
+      const reviewedIds: string[] = [];
+      if (typeof window !== 'undefined') {
+        mergedList.forEach((r) => {
+          if (localStorage.getItem(`tailoram_request_review_${r.id}_${clientId}`)) {
+            reviewedIds.push(r.id);
+          }
+        });
+      }
+
       try {
         const { data: revData } = await supabase
           .from('reviews')
@@ -58,11 +91,15 @@ export default function ClientRequestsPage() {
           .eq('client_id', clientId);
 
         if (revData) {
-          setReviewedRequestIds(revData.map((r) => r.request_id).filter(Boolean));
+          revData.forEach((r) => {
+            if (r.request_id && !reviewedIds.includes(r.request_id)) {
+              reviewedIds.push(r.request_id);
+            }
+          });
         }
-      } catch (err) {
-        // Table might not exist yet if SQL was not run
-      }
+      } catch (err) {}
+
+      setReviewedRequestIds(reviewedIds);
     } catch (err) {
       console.error('Failed to load requests:', err);
     } finally {
@@ -80,43 +117,62 @@ export default function ClientRequestsPage() {
     }
   }, [user, authLoading, router]);
 
-  const handleOpenReview = (req: OutfitRequest) => {
-    setTargetRequest(req);
-    setRating(5);
-    setComment('');
-    setReviewSuccess('');
-    setReviewModalOpen(true);
+  const handleOpenPayment = (req: OutfitRequest, type: 'deposit' | 'balance') => {
+    setSelectedPaymentRequest(req);
+    setPaymentType(type);
+    setPaymentModalOpen(true);
   };
 
-  const handleSubmitReview = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !targetRequest) return;
-
+  const handleAcceptQuoteAndPay = async (req: OutfitRequest) => {
+    if (!user) return;
     try {
-      setSubmittingReview(true);
-      const { error } = await supabase.from('reviews').insert([
-        {
-          designer_id: targetRequest.designer_id,
-          client_id: user.id,
-          request_id: targetRequest.id,
-          rating: rating,
-          comment: comment.trim() || null,
-        },
-      ]);
+      setActionLoadingId(req.id);
+      await respondToQuote({
+        requestId: req.id,
+        clientUserId: user.id,
+        accept: true,
+      });
 
-      if (error) throw error;
+      // Update state
+      setRequests((prev) =>
+        prev.map((r) => (r.id === req.id ? { ...r, status: 'accepted' } : r))
+      );
 
-      setReviewSuccess('Thank you for your rating! Your feedback helps rank top tailors.');
-      setReviewedRequestIds([...reviewedRequestIds, targetRequest.id]);
-      setTimeout(() => {
-        setReviewModalOpen(false);
-      }, 1500);
-    } catch (err: any) {
-      console.error('Failed to submit review:', err);
-      alert(err.message || 'Could not submit review. Please ensure the reviews table is active in Supabase.');
+      // Open deposit modal immediately
+      setSelectedPaymentRequest({ ...req, status: 'accepted' });
+      setPaymentType('deposit');
+      setPaymentModalOpen(true);
+    } catch (err) {
+      console.error('Failed to accept quote:', err);
     } finally {
-      setSubmittingReview(false);
+      setActionLoadingId(null);
     }
+  };
+
+  const handleDeclineQuote = async (req: OutfitRequest) => {
+    if (!user) return;
+    if (!confirm('Are you sure you want to decline this quote?')) return;
+    try {
+      setActionLoadingId(req.id);
+      await respondToQuote({
+        requestId: req.id,
+        clientUserId: user.id,
+        accept: false,
+      });
+
+      setRequests((prev) =>
+        prev.map((r) => (r.id === req.id ? { ...r, status: 'declined' } : r))
+      );
+    } catch (err) {
+      console.error('Failed to decline quote:', err);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleOpenReview = (req: OutfitRequest) => {
+    setTargetReviewRequest(req);
+    setReviewModalOpen(true);
   };
 
   if (authLoading || loading) {
@@ -140,7 +196,7 @@ export default function ClientRequestsPage() {
             My Custom Outfit Requests
           </h1>
           <p className="text-xs sm:text-sm text-stone-500">
-            Track your bespoke tailoring orders, chat with designers, and rate finished creations.
+            Track quotes, pay 40% commitment deposits, oversee production, and settle final 60% balances.
           </p>
         </div>
       </div>
@@ -171,25 +227,34 @@ export default function ClientRequestsPage() {
         <div className="space-y-4">
           {requests.map((req) => {
             const hasReviewed = reviewedRequestIds.includes(req.id);
+            const breakdown = calculatePaymentBreakdown(req.quoted_price || req.budget_min);
+            const isProcessingThis = actionLoadingId === req.id;
+
             return (
               <div
                 key={req.id}
                 className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-6"
               >
-                <div className="space-y-2.5 flex-1 min-w-0">
+                <div className="space-y-3 flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        req.status === 'accepted'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : req.status === 'pending'
-                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                          : req.status === 'completed'
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        req.status === 'completed'
                           ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                          : 'bg-stone-100 text-stone-600 border border-stone-200'
+                          : req.status === 'ready_for_balance'
+                          ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                          : req.status === 'deposit_paid' || req.status === 'in_progress'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : req.status === 'accepted'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : req.status === 'quoted'
+                          ? 'bg-amber-50 text-amber-800 border border-amber-300'
+                          : req.status === 'declined'
+                          ? 'bg-red-50 text-red-700 border border-red-200'
+                          : 'bg-stone-100 text-stone-700 border border-stone-200'
                       }`}
                     >
-                      {req.status}
+                      {req.status.replace(/_/g, ' ')}
                     </span>
 
                     <span className="text-xs text-stone-400 font-medium">
@@ -199,11 +264,11 @@ export default function ClientRequestsPage() {
 
                   <div>
                     <h3 className="font-bold text-stone-900 text-base sm:text-lg">
-                      {req.designer?.business_name || 'Designer'}
+                      {req.designer?.business_name || 'Designer Atelier'}
                     </h3>
                     <p className="text-xs text-stone-500 flex items-center gap-1 font-medium">
                       <MapPin className="w-3.5 h-3.5 text-brand-600" />
-                      {req.designer?.area}, {req.designer?.state}
+                      {req.designer?.area || 'Lagos'}, {req.designer?.state || 'Nigeria'}
                     </p>
                   </div>
 
@@ -211,10 +276,49 @@ export default function ClientRequestsPage() {
                     {req.style_description}
                   </p>
 
+                  {/* QUOTE CALLOUT CARD */}
+                  {req.status === 'quoted' && req.quoted_price && (
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-stone-800 space-y-1.5 animate-fadeIn">
+                      <div className="flex items-center justify-between font-black text-amber-900">
+                        <span className="flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                          Official Quote Received: ₦{req.quoted_price.toLocaleString()}
+                        </span>
+                        {req.quote_deadline && (
+                          <span className="text-[11px] font-bold text-amber-800">
+                            Est. {new Date(req.quote_deadline).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-stone-600 text-[11px]">
+                        Deposit to begin (40%): <strong>₦{(req.deposit_amount || breakdown.depositAmount).toLocaleString()}</strong> • Balance upon completion (60%): <strong>₦{(req.balance_amount || breakdown.balanceAmount).toLocaleString()}</strong>
+                      </p>
+                    </div>
+                  )}
+
+                  {/* READY FOR BALANCE CALLOUT */}
+                  {req.status === 'ready_for_balance' && (
+                    <div className="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-xs text-purple-900 space-y-1 animate-fadeIn">
+                      <div className="flex items-center justify-between font-black">
+                        <span className="flex items-center gap-1">
+                          <Package className="w-4 h-4 text-purple-600" />
+                          Tailoring Complete! Balance Due
+                        </span>
+                        <span>₦{(req.balance_amount || breakdown.balanceAmount).toLocaleString()}</span>
+                      </div>
+                      <p className="text-purple-700 text-[11px]">
+                        Your outfit is finished. Settle the 60% balance to finalize your commission and arrange delivery.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-4 text-xs text-stone-600 pt-1 font-medium">
                     <span>
-                      Budget: <strong className="text-stone-900">₦{req.budget_min.toLocaleString()}</strong>
-                      {req.budget_max ? ` - ₦${req.budget_max.toLocaleString()}` : ''}
+                      {req.quoted_price ? (
+                        <>Quoted Price: <strong className="text-stone-900 font-bold">₦{req.quoted_price.toLocaleString()}</strong></>
+                      ) : (
+                        <>Budget: <strong className="text-stone-900 font-bold">₦{req.budget_min.toLocaleString()}{req.budget_max ? ` - ₦${req.budget_max.toLocaleString()}` : ''}</strong></>
+                      )}
                     </span>
                     {req.fabric && (
                       <span>Fabric: <strong className="text-stone-900">{req.fabric}</strong></span>
@@ -226,29 +330,80 @@ export default function ClientRequestsPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex flex-row md:flex-col items-center gap-2.5 flex-shrink-0">
-                  <Link
-                    href={`/messages/${req.id}`}
-                    className="flex-1 md:w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm"
-                  >
-                    <MessageSquare className="w-4 h-4 text-brand-400" />
-                    Chat with Tailor
-                  </Link>
+                <div className="flex flex-row md:flex-col items-stretch gap-2 flex-shrink-0 min-w-[170px]">
+                  
+                  {/* Quoted: Accept & Pay Deposit */}
+                  {req.status === 'quoted' && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={isProcessingThis}
+                        onClick={() => handleAcceptQuoteAndPay(req)}
+                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Accept &amp; Pay Deposit</span>
+                      </button>
 
-                  {req.status === 'completed' && !hasReviewed && (
+                      <button
+                        type="button"
+                        disabled={isProcessingThis}
+                        onClick={() => handleDeclineQuote(req)}
+                        className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 font-semibold text-xs transition-colors cursor-pointer"
+                      >
+                        <XCircle className="w-3.5 h-3.5 text-red-500" />
+                        <span>Decline Quote</span>
+                      </button>
+                    </>
+                  )}
+
+                  {/* Accepted: Pay Deposit */}
+                  {req.status === 'accepted' && (
                     <button
-                      onClick={() => handleOpenReview(req)}
-                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-sm"
+                      type="button"
+                      onClick={() => handleOpenPayment(req, 'deposit')}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-brand-600/20 transition-all cursor-pointer"
                     >
-                      <Star className="w-4 h-4 fill-white" />
-                      Rate &amp; Review
+                      <CreditCard className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Pay 40% Deposit</span>
                     </button>
                   )}
 
-                  {hasReviewed && (
-                    <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                  {/* Ready for Balance: Pay Remaining 60% */}
+                  {req.status === 'ready_for_balance' && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenPayment(req, 'balance')}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-purple-600/25 transition-all cursor-pointer"
+                    >
+                      <CreditCard className="w-3.5 h-3.5 text-purple-200" />
+                      <span>Pay 60% Balance</span>
+                    </button>
+                  )}
+
+                  <Link
+                    href={`/messages/${req.id}`}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-brand-400" />
+                    <span>Chat Consultation</span>
+                  </Link>
+
+                  {/* Completed: Rate Atelier */}
+                  {req.status === 'completed' && !hasReviewed && (
+                    <button
+                      onClick={() => handleOpenReview(req)}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs transition-all shadow-sm cursor-pointer"
+                    >
+                      <Star className="w-3.5 h-3.5 fill-stone-950" />
+                      <span>Rate Atelier</span>
+                    </button>
+                  )}
+
+                  {hasReviewed && req.status === 'completed' && (
+                    <span className="text-[11px] font-bold text-emerald-600 flex items-center justify-center gap-1 py-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      Reviewed
+                      Review Published
                     </span>
                   )}
                 </div>
@@ -259,94 +414,35 @@ export default function ClientRequestsPage() {
         </div>
       )}
 
-      {/* Review Modal */}
-      {reviewModalOpen && targetRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-stone-200">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h3 className="font-bold text-lg text-stone-900 flex items-center gap-2">
-                <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
-                Rate {targetRequest.designer?.business_name}
-              </h3>
-              <button
-                onClick={() => setReviewModalOpen(false)}
-                className="text-stone-400 hover:text-stone-600 font-bold"
-              >
-                ✕
-              </button>
-            </div>
+      {/* Payment Modal */}
+      {selectedPaymentRequest && user && (
+        <PaymentModal
+          isOpen={paymentModalOpen}
+          onClose={() => setPaymentModalOpen(false)}
+          request={selectedPaymentRequest}
+          type={paymentType}
+          customerEmail={user.email || 'client@tailoram.com'}
+          customerName={profile?.full_name || 'Client'}
+          onPaymentSuccess={(result: PaymentResult) => {
+            if (user) fetchRequests(user.id);
+          }}
+        />
+      )}
 
-            {reviewSuccess ? (
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                <span>{reviewSuccess}</span>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmitReview} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">
-                    How was your experience? (Rating)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        type="button"
-                        key={star}
-                        onClick={() => setRating(star)}
-                        className="p-1 hover:scale-110 transition-transform focus:outline-none"
-                      >
-                        <Star
-                          className={`w-7 h-7 ${
-                            star <= rating
-                              ? 'text-amber-500 fill-amber-500'
-                              : 'text-stone-300'
-                          }`}
-                        />
-                      </button>
-                    ))}
-                    <span className="text-xs font-bold text-stone-700 ml-2">
-                      {rating} / 5 Stars
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1">
-                    Your Review / Feedback
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Share how the fitting went, fabric quality, timeliness, and customer service..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setReviewModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 text-xs sm:text-sm font-semibold"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingReview}
-                    className="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm transition-all shadow-md shadow-brand-600/20 disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    {submittingReview ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      'Submit Review'
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
+      {/* Order Review Modal */}
+      {targetReviewRequest && user && (
+        <OrderReviewModal
+          isOpen={reviewModalOpen}
+          onClose={() => setReviewModalOpen(false)}
+          request={targetReviewRequest}
+          reviewerId={user.id}
+          revieweeId={targetReviewRequest.designer_id}
+          revieweeName={targetReviewRequest.designer?.business_name || 'Atelier'}
+          isClientReviewingDesigner={true}
+          onReviewSubmitted={() => {
+            if (user) fetchRequests(user.id);
+          }}
+        />
       )}
 
     </div>

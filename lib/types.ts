@@ -107,6 +107,8 @@ export interface Review {
   id: string;
   designer_id: string;
   client_id: string;
+  reviewer_id?: string | null;
+  reviewee_id?: string | null;
   request_id?: string | null;
   rating: number; // 1 to 5
   comment: string | null;
@@ -126,7 +128,16 @@ export interface PortfolioItem {
   created_at: string;
 }
 
-export type RequestStatus = 'pending' | 'accepted' | 'declined' | 'completed';
+export type RequestStatus =
+  | 'pending'
+  | 'quoted'
+  | 'accepted'
+  | 'declined'
+  | 'deposit_paid'
+  | 'in_progress'
+  | 'ready_for_balance'
+  | 'completed'
+  | 'cancelled';
 
 export interface OutfitRequest {
   id: string;
@@ -139,10 +150,28 @@ export interface OutfitRequest {
   deadline: string | null;
   reference_image_url: string | null;
   status: RequestStatus;
+  // Quote and payment fields
+  quoted_price?: number | null;
+  quote_deadline?: string | null;
+  deposit_amount?: number | null;
+  deposit_paid_at?: string | null;
+  balance_amount?: number | null;
+  balance_paid_at?: string | null;
   created_at: string;
   // Joined relations
   designer?: DesignerProfile;
   client?: Profile;
+}
+
+export interface Payment {
+  id: string;
+  request_id: string;
+  type: 'deposit' | 'balance';
+  amount: number;
+  status: 'stub_success' | 'success' | 'failed' | 'pending';
+  gateway_reference?: string | null;
+  metadata?: Record<string, any>;
+  created_at: string;
 }
 
 export interface Message {

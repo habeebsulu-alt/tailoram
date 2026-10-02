@@ -19,6 +19,13 @@ import {
 } from '@/lib/types';
 import { fetchManualRatings, computeEffectiveRating, ManualRatingData } from '@/lib/ratingsManager';
 import {
+  markOrderReadyForBalance,
+  getLocalRequestOverrides,
+  calculatePaymentBreakdown,
+} from '@/lib/payments';
+import QuoteModal from '@/components/QuoteModal';
+import OrderReviewModal from '@/components/OrderReviewModal';
+import {
   Scissors,
   Upload,
   Plus,
@@ -52,6 +59,7 @@ import {
   Edit3,
   Pencil,
   RefreshCw,
+  FileText,
 } from 'lucide-react';
 
 export default function DesignerDashboard() {
@@ -91,8 +99,15 @@ export default function DesignerDashboard() {
   // Requests state
   const [requests, setRequests] = useState<OutfitRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
-  const [requestFilter, setRequestFilter] = useState<'all' | 'pending' | 'accepted' | 'completed' | 'declined'>('all');
+  const [requestFilter, setRequestFilter] = useState<'all' | 'pending' | 'production' | 'quoted' | 'completed' | 'declined'>('all');
   const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
+
+  // Workflow modals
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [targetQuoteRequest, setTargetQuoteRequest] = useState<OutfitRequest | null>(null);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [targetReviewRequest, setTargetReviewRequest] = useState<OutfitRequest | null>(null);
+  const [reviewedClientIds, setReviewedClientIds] = useState<string[]>([]);
 
   // Reviews state
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -246,7 +261,23 @@ export default function DesignerDashboard() {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        setRequests(data as OutfitRequest[]);
+        const overrides = getLocalRequestOverrides();
+        const merged = (data as OutfitRequest[]).map((r) => ({
+          ...r,
+          ...(overrides[r.id] || {}),
+        }));
+        setRequests(merged);
+
+        // Check if designer has reviewed each completed request
+        const reviewedIds: string[] = [];
+        if (typeof window !== 'undefined' && user) {
+          merged.forEach((r) => {
+            if (localStorage.getItem(`tailoram_request_review_${r.id}_${user.id}`)) {
+              reviewedIds.push(r.id);
+            }
+          });
+        }
+        setReviewedClientIds(reviewedIds);
       }
     } catch (err) {
       console.error('Failed to load requests:', err);
@@ -886,6 +917,26 @@ export default function DesignerDashboard() {
     }
   };
 
+  // Designer marks order ready for balance payment
+  const handleMarkReadyForBalanceFromDashboard = async (requestId: string) => {
+    if (!user) return;
+    try {
+      setUpdatingRequestId(requestId);
+      await markOrderReadyForBalance({
+        requestId,
+        designerUserId: user.id,
+      });
+      setRequests((prev) =>
+        prev.map((r) => (r.id === requestId ? { ...r, status: 'ready_for_balance' } : r))
+      );
+    } catch (err: any) {
+      console.error('Failed to mark ready for balance:', err);
+      alert('Could not update status: ' + err.message);
+    } finally {
+      setUpdatingRequestId(null);
+    }
+  };
+
   // Save Profile Updates
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1198,12 +1249,17 @@ export default function DesignerDashboard() {
   const availableAreas = STATE_AREAS[selectedState] || ['General / City Center', 'Other'];
 
   // Calculations for stats
-  const pendingRequests = requests.filter((r) => r.status === 'pending');
-  const acceptedRequests = requests.filter((r) => r.status === 'accepted');
+  const pendingRequests = requests.filter((r) => r.status === 'pending' || r.status === 'quoted');
+  const activeProductionRequests = requests.filter((r) =>
+    ['deposit_paid', 'in_progress', 'ready_for_balance', 'accepted'].includes(r.status)
+  );
   const completedRequests = requests.filter((r) => r.status === 'completed');
 
   const filteredRequests = requests.filter((r) => {
     if (requestFilter === 'all') return true;
+    if (requestFilter === 'production') {
+      return ['deposit_paid', 'in_progress', 'ready_for_balance', 'accepted'].includes(r.status);
+    }
     return r.status === requestFilter;
   });
 
@@ -1441,7 +1497,7 @@ export default function DesignerDashboard() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
               Active Orders
             </span>
-            <p className="text-2xl font-black text-emerald-600">{acceptedRequests.length}</p>
+            <p className="text-2xl font-black text-emerald-600">{activeProductionRequests.length}</p>
           </div>
           <div className="p-4 rounded-2xl bg-stone-50 border border-stone-100 space-y-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
@@ -1713,17 +1769,24 @@ export default function DesignerDashboard() {
         <div className="space-y-6">
           {/* Status filter tabs */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar text-xs">
-            {(['all', 'pending', 'accepted', 'completed', 'declined'] as const).map((filter) => (
+            {[
+              { id: 'all', label: `All (${requests.length})` },
+              { id: 'pending', label: `New Inquiries (${pendingRequests.length})` },
+              { id: 'production', label: `In Production (${activeProductionRequests.length})` },
+              { id: 'quoted', label: `Quoted (${requests.filter((r) => r.status === 'quoted').length})` },
+              { id: 'completed', label: `Completed (${completedRequests.length})` },
+              { id: 'declined', label: `Declined (${requests.filter((r) => r.status === 'declined').length})` },
+            ].map((tab) => (
               <button
-                key={filter}
-                onClick={() => setRequestFilter(filter)}
-                className={`px-3 py-1.5 rounded-xl font-bold capitalize transition-all ${
-                  requestFilter === filter
-                    ? 'bg-stone-900 text-white'
+                key={tab.id}
+                onClick={() => setRequestFilter(tab.id as any)}
+                className={`px-3.5 py-2 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  requestFilter === tab.id
+                    ? 'bg-stone-900 text-white shadow-sm'
                     : 'bg-white border border-stone-200 text-stone-600 hover:bg-stone-50'
                 }`}
               >
-                {filter} {filter === 'all' ? `(${requests.length})` : ''}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -1745,112 +1808,207 @@ export default function DesignerDashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredRequests.map((req) => (
-                <div
-                  key={req.id}
-                  className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all space-y-4"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            req.status === 'accepted'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : req.status === 'pending'
-                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                              : req.status === 'completed'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : 'bg-stone-100 text-stone-600 border border-stone-200'
-                          }`}
-                        >
-                          {req.status}
-                        </span>
-                        <span className="text-xs text-stone-400 font-medium">
-                          Received {new Date(req.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <h3 className="font-bold text-stone-900 text-base">
-                        Client: {req.client?.full_name || 'Fashion Client'}
-                      </h3>
-                    </div>
+              {filteredRequests.map((req) => {
+                const breakdown = calculatePaymentBreakdown(req.quoted_price || req.budget_min);
+                const hasReviewedClient = reviewedClientIds.includes(req.id);
+                const isUpdatingThis = updatingRequestId === req.id;
 
-                    <div className="text-sm font-extrabold text-stone-900">
-                      ₦{req.budget_min.toLocaleString()}
-                      {req.budget_max ? ` - ₦${req.budget_max.toLocaleString()}` : ''}
-                    </div>
-                  </div>
-
-                  {/* Description & specs */}
-                  <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 space-y-2 text-xs text-stone-700">
-                    <p className="font-medium leading-relaxed">{req.style_description}</p>
-                    <div className="flex flex-wrap gap-4 text-stone-500 pt-1 font-medium">
-                      {req.fabric && (
-                        <span>Fabric: <strong className="text-stone-800">{req.fabric}</strong></span>
-                      )}
-                      {req.deadline && (
-                        <span>Needed By: <strong className="text-stone-800">{new Date(req.deadline).toLocaleDateString()}</strong></span>
-                      )}
-                    </div>
-                    {req.reference_image_url && (
-                      <div className="pt-2">
-                        <span className="font-semibold text-stone-500 block mb-1">Client Reference Image:</span>
-                        <img
-                          src={req.reference_image_url}
-                          alt="Reference Style"
-                          className="w-24 h-24 object-cover rounded-xl border border-stone-200"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions Bar */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                    <Link
-                      href={`/messages/${req.id}`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 text-brand-400" />
-                      Chat with Client
-                    </Link>
-
-                    <div className="flex items-center gap-2">
-                      {req.status === 'pending' && (
-                        <>
-                          <button
-                            onClick={() => handleUpdateStatus(req.id, 'accepted')}
-                            disabled={updatingRequestId === req.id}
-                            className="inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                return (
+                  <div
+                    key={req.id}
+                    className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all space-y-4"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              req.status === 'completed'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : req.status === 'ready_for_balance'
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                : req.status === 'deposit_paid' || req.status === 'in_progress'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : req.status === 'accepted'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : req.status === 'quoted'
+                                ? 'bg-amber-50 text-amber-800 border border-amber-300'
+                                : req.status === 'declined'
+                                ? 'bg-red-50 text-red-700 border border-red-200'
+                                : 'bg-stone-100 text-stone-700 border border-stone-200'
+                            }`}
                           >
-                            <Check className="w-3.5 h-3.5" />
-                            Accept Request
-                          </button>
-                          <button
-                            onClick={() => handleUpdateStatus(req.id, 'declined')}
-                            disabled={updatingRequestId === req.id}
-                            className="inline-flex items-center gap-1 px-3.5 py-2 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 text-xs font-bold transition-all disabled:opacity-50"
-                          >
-                            <XCircle className="w-3.5 h-3.5 text-red-500" />
-                            Decline
-                          </button>
-                        </>
+                            {req.status.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-xs text-stone-400 font-medium">
+                            Received {new Date(req.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <h3 className="font-bold text-stone-900 text-base">
+                          Client: {req.client?.full_name || 'Fashion Client'}
+                        </h3>
+                      </div>
+
+                      <div className="text-right">
+                        {req.quoted_price ? (
+                          <div className="text-sm font-black text-amber-700">
+                            Quoted: ₦{req.quoted_price.toLocaleString()}
+                          </div>
+                        ) : (
+                          <div className="text-sm font-extrabold text-stone-900">
+                            Budget: ₦{req.budget_min.toLocaleString()}
+                            {req.budget_max ? ` - ₦${req.budget_max.toLocaleString()}` : ''}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Description & specs */}
+                    <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 space-y-2 text-xs text-stone-700">
+                      <p className="font-medium leading-relaxed">{req.style_description}</p>
+                      
+                      {/* Quote financial breakdown if exists */}
+                      {req.quoted_price && (
+                        <div className="p-2.5 rounded-lg bg-white border border-amber-200/80 text-[11px] text-stone-700 flex flex-wrap gap-4 font-semibold">
+                          <span>Deposit (40%): <strong className="text-emerald-700 font-bold">₦{(req.deposit_amount || breakdown.depositAmount).toLocaleString()}</strong></span>
+                          <span>Balance (60%): <strong className="text-purple-700 font-bold">₦{(req.balance_amount || breakdown.balanceAmount).toLocaleString()}</strong></span>
+                          {req.quote_deadline && (
+                            <span>Target Date: <strong className="text-stone-900">{new Date(req.quote_deadline).toLocaleDateString()}</strong></span>
+                          )}
+                        </div>
                       )}
 
-                      {req.status === 'accepted' && (
-                        <button
-                          onClick={() => handleUpdateStatus(req.id, 'completed')}
-                          disabled={updatingRequestId === req.id}
-                          className="inline-flex items-center gap-1 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Mark as Completed
-                        </button>
+                      <div className="flex flex-wrap gap-4 text-stone-500 pt-1 font-medium">
+                        {req.fabric && (
+                          <span>Fabric: <strong className="text-stone-800">{req.fabric}</strong></span>
+                        )}
+                        {req.deadline && (
+                          <span>Needed By: <strong className="text-stone-800">{new Date(req.deadline).toLocaleDateString()}</strong></span>
+                        )}
+                      </div>
+
+                      {req.reference_image_url && (
+                        <div className="pt-1">
+                          <span className="font-semibold text-stone-500 block mb-1">Client Inspo:</span>
+                          <img
+                            src={req.reference_image_url}
+                            alt="Reference Style"
+                            className="w-20 h-20 object-cover rounded-xl border border-stone-200"
+                          />
+                        </div>
                       )}
                     </div>
-                  </div>
 
-                </div>
-              ))}
+                    {/* Actions Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                      <Link
+                        href={`/messages/${req.id}`}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-brand-400" />
+                        Chat Consultation
+                      </Link>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Pending: Send Quote / Accept / Decline */}
+                        {req.status === 'pending' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTargetQuoteRequest(req);
+                                setQuoteModalOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 active:scale-95 text-white text-xs font-black transition-all shadow-md shadow-brand-600/20 cursor-pointer"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-amber-300" />
+                              <span>Send Quote</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateStatus(req.id, 'accepted')}
+                              disabled={isUpdatingThis}
+                              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-bold transition-all disabled:opacity-50"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              Accept Direct
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateStatus(req.id, 'declined')}
+                              disabled={isUpdatingThis}
+                              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-stone-200 hover:bg-stone-100 text-stone-600 text-xs font-bold transition-all disabled:opacity-50"
+                            >
+                              <XCircle className="w-3.5 h-3.5 text-red-500" />
+                              Decline
+                            </button>
+                          </>
+                        )}
+
+                        {/* Quoted: Awaiting Client */}
+                        {req.status === 'quoted' && (
+                          <span className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">
+                            Quote Sent (₦{req.quoted_price?.toLocaleString()}) • Waiting for Client
+                          </span>
+                        )}
+
+                        {/* Accepted: Awaiting Deposit */}
+                        {req.status === 'accepted' && (
+                          <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                            Quote Accepted • Waiting for 40% Deposit Payment
+                          </span>
+                        )}
+
+                        {/* Deposit Paid / In Progress: Mark Ready for Balance */}
+                        {(req.status === 'deposit_paid' || req.status === 'in_progress') && (
+                          <button
+                            type="button"
+                            disabled={isUpdatingThis}
+                            onClick={() => handleMarkReadyForBalanceFromDashboard(req.id)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-black shadow-md shadow-purple-600/25 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Mark Ready for Balance</span>
+                          </button>
+                        )}
+
+                        {/* Ready for Balance: Waiting for final payment */}
+                        {req.status === 'ready_for_balance' && (
+                          <span className="text-xs font-bold text-purple-800 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-purple-600" />
+                            Ready • Waiting for Client 60% Balance (₦{(req.balance_amount || breakdown.balanceAmount).toLocaleString()})
+                          </span>
+                        )}
+
+                        {/* Completed: Review Client */}
+                        {req.status === 'completed' && !hasReviewedClient && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTargetReviewRequest(req);
+                              setReviewModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 text-xs font-black shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+                          >
+                            <Star className="w-3.5 h-3.5 fill-stone-950" />
+                            <span>Review Client</span>
+                          </button>
+                        )}
+
+                        {req.status === 'completed' && hasReviewedClient && (
+                          <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Client Reviewed
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -3166,6 +3324,41 @@ export default function DesignerDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Quote Submission Modal */}
+      {targetQuoteRequest && user && (
+        <QuoteModal
+          isOpen={quoteModalOpen}
+          onClose={() => {
+            setQuoteModalOpen(false);
+            setTargetQuoteRequest(null);
+          }}
+          request={targetQuoteRequest}
+          designerUserId={user.id}
+          onQuoteSubmitted={() => {
+            if (designerProfile?.id) loadRequests(designerProfile.id);
+          }}
+        />
+      )}
+
+      {/* Bidirectional Review Modal for Designer to Client */}
+      {targetReviewRequest && user && (
+        <OrderReviewModal
+          isOpen={reviewModalOpen}
+          onClose={() => {
+            setReviewModalOpen(false);
+            setTargetReviewRequest(null);
+          }}
+          request={targetReviewRequest}
+          reviewerId={user.id}
+          revieweeId={targetReviewRequest.client_id}
+          revieweeName={targetReviewRequest.client?.full_name || 'Client'}
+          isClientReviewingDesigner={false}
+          onReviewSubmitted={() => {
+            if (designerProfile?.id) loadRequests(designerProfile.id);
+          }}
+        />
       )}
 
     </div>
