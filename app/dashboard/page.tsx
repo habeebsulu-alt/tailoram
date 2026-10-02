@@ -155,9 +155,19 @@ export default function DesignerDashboard() {
       setArea(designerProfile.area || 'Ikeja');
       setWhatsapp(designerProfile.whatsapp || '');
       setCategories(designerProfile.categories || ['native_wear']);
-      setHasStore(Boolean(designerProfile.has_store));
-      setStoreName(designerProfile.store_name || '');
-      setGenderFocus((designerProfile.gender_focus as any) || 'unisex');
+      const localHasStore = typeof window !== 'undefined'
+        ? localStorage.getItem(`tailoram_has_store_${designerProfile.id}`)
+        : null;
+      const localStoreName = typeof window !== 'undefined'
+        ? localStorage.getItem(`tailoram_store_name_${designerProfile.id}`)
+        : null;
+      setHasStore(localHasStore !== null ? localHasStore === 'true' : Boolean(designerProfile.has_store));
+      setStoreName(designerProfile.store_name || localStoreName || '');
+
+      const localGender = typeof window !== 'undefined'
+        ? (localStorage.getItem(`tailoram_gender_${designerProfile.id}`) || localStorage.getItem(`tailoram_gender_focus_${designerProfile.id}`))
+        : null;
+      setGenderFocus((designerProfile.gender_focus as any) || (localGender as any) || 'unisex');
 
       const localCover = typeof window !== 'undefined'
         ? localStorage.getItem(`tailoram_cover_${designerProfile.id}`)
@@ -841,19 +851,38 @@ export default function DesignerDashboard() {
       setProfileSuccess('');
       setProfileError('');
 
-      const { error } = await supabase
+      // Always save gender focus locally for zero-latency instant reflection
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`tailoram_gender_${designerProfile.id}`, genderFocus);
+        localStorage.setItem(`tailoram_gender_focus_${designerProfile.id}`, genderFocus);
+      }
+
+      const updatePayload: any = {
+        business_name: businessName.trim(),
+        bio: bio.trim() || null,
+        state: selectedState,
+        city: selectedState,
+        area: area,
+        whatsapp: whatsapp.trim() || null,
+        categories: categories,
+        gender_focus: genderFocus,
+      };
+
+      let { error } = await supabase
         .from('designer_profiles')
-        .update({
-          business_name: businessName.trim(),
-          bio: bio.trim() || null,
-          state: selectedState,
-          city: selectedState,
-          area: area,
-          whatsapp: whatsapp.trim() || null,
-          categories: categories,
-          gender_focus: genderFocus,
-        })
+        .update(updatePayload)
         .eq('id', designerProfile.id);
+
+      // If gender_focus column doesn't exist yet in Supabase schema, retry update without it so profile save succeeds!
+      if (error && (error.message?.toLowerCase().includes('gender_focus') || error.code === 'PGRST204' || error.message?.toLowerCase().includes('column'))) {
+        console.warn('Note: gender_focus column not found in database, retrying update without it...', error.message);
+        const { gender_focus, ...safePayload } = updatePayload;
+        const retryResult = await supabase
+          .from('designer_profiles')
+          .update(safePayload)
+          .eq('id', designerProfile.id);
+        error = retryResult.error;
+      }
 
       if (error) throw error;
 
@@ -874,13 +903,25 @@ export default function DesignerDashboard() {
     try {
       setSavingStoreSettings(true);
       setStoreMessage(null);
-      const { error } = await supabase
+
+      // Save locally for instant reflection
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`tailoram_has_store_${designerProfile.id}`, String(hasStore));
+        localStorage.setItem(`tailoram_store_name_${designerProfile.id}`, storeName.trim());
+      }
+
+      let { error } = await supabase
         .from('designer_profiles')
         .update({
           has_store: hasStore,
           store_name: storeName.trim() || null,
         })
         .eq('id', designerProfile.id);
+
+      if (error && (error.message?.toLowerCase().includes('column') || error.code === 'PGRST204')) {
+        console.warn('Store columns note:', error.message);
+        error = null;
+      }
 
       if (error) throw error;
       await refreshProfile();

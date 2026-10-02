@@ -44,11 +44,17 @@ export const GENDER_FOCUS_OPTIONS = [
 ] as const;
 
 export function getDesignerGender(designer: {
+  id?: string;
   gender_focus?: 'male' | 'female' | 'unisex' | null;
   categories?: string[];
   business_name?: string;
 }): 'male' | 'female' | 'unisex' {
   if (designer.gender_focus) return designer.gender_focus;
+
+  if (designer.id && typeof window !== 'undefined') {
+    const local = localStorage.getItem(`tailoram_gender_${designer.id}`) || localStorage.getItem(`tailoram_gender_focus_${designer.id}`);
+    if (local === 'male' || local === 'female' || local === 'unisex') return local;
+  }
 
   const cats = designer.categories || [];
   const name = (designer.business_name || '').toLowerCase();

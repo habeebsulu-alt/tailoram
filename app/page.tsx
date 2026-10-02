@@ -608,12 +608,17 @@ export default function HomePage() {
               ? localStorage.getItem(`tailoram_cover_url_${d.id}`)
               : null;
 
+            const localGender = typeof window !== 'undefined'
+              ? (localStorage.getItem(`tailoram_gender_${d.id}`) || localStorage.getItem(`tailoram_gender_focus_${d.id}`))
+              : null;
+
             return {
               ...d,
               portfolio_items: filteredItems,
               profile_image_url: d.profile_image_url || localAvatar || null,
               cover_image_id: d.cover_image_id || localCover || null,
               cover_image_url: d.cover_image_url || localCoverUrl || null,
+              gender_focus: d.gender_focus || localGender || null,
               avg_rating: avgRating,
               review_count: reviewCount,
               // Ranking score: weighted by rating and log-scaled volume of reviews
