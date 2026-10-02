@@ -21,6 +21,7 @@ import { fetchManualRatings, computeEffectiveRating, ManualRatingData } from '@/
 import {
   markOrderReadyForBalance,
   getLocalRequestOverrides,
+  getLocalCreatedRequests,
   calculatePaymentBreakdown,
 } from '@/lib/payments';
 import QuoteModal from '@/components/QuoteModal';
@@ -260,25 +261,32 @@ export default function DesignerDashboard() {
         .eq('designer_id', designerId)
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        const overrides = getLocalRequestOverrides();
-        const merged = (data as OutfitRequest[]).map((r) => ({
-          ...r,
-          ...(overrides[r.id] || {}),
-        }));
-        setRequests(merged);
-
-        // Check if designer has reviewed each completed request
-        const reviewedIds: string[] = [];
-        if (typeof window !== 'undefined' && user) {
-          merged.forEach((r) => {
-            if (localStorage.getItem(`tailoram_request_review_${r.id}_${user.id}`)) {
-              reviewedIds.push(r.id);
-            }
-          });
-        }
-        setReviewedClientIds(reviewedIds);
+      if (error) {
+        console.warn('Could not load requests from Supabase:', error.message);
       }
+
+      const overrides = getLocalRequestOverrides();
+      const rawList = (data as OutfitRequest[]) || [];
+      const localCreated = getLocalCreatedRequests().filter((r) => r.designer_id === designerId);
+      const existingIds = new Set(rawList.map((r) => r.id));
+      const combined = [...rawList, ...localCreated.filter((r) => !existingIds.has(r.id))];
+
+      const merged = combined.map((r) => ({
+        ...r,
+        ...(overrides[r.id] || {}),
+      }));
+      setRequests(merged);
+
+      // Check if designer has reviewed each completed request
+      const reviewedIds: string[] = [];
+      if (typeof window !== 'undefined' && user) {
+        merged.forEach((r) => {
+          if (localStorage.getItem(`tailoram_request_review_${r.id}_${user.id}`)) {
+            reviewedIds.push(r.id);
+          }
+        });
+      }
+      setReviewedClientIds(reviewedIds);
     } catch (err) {
       console.error('Failed to load requests:', err);
     } finally {

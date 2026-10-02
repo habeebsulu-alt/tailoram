@@ -77,6 +77,34 @@ export interface PaymentResult {
  */
 const LOCAL_STORAGE_PAYMENTS_KEY = 'tailoram_payments';
 const LOCAL_STORAGE_REQUESTS_OVERRIDES_KEY = 'tailoram_requests_overrides';
+const LOCAL_STORAGE_CREATED_REQUESTS_KEY = 'tailoram_local_created_requests';
+
+/**
+ * Get locally stored bespoke requests (for demo users / offline fallback)
+ */
+export function getLocalCreatedRequests(): OutfitRequest[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_STORAGE_CREATED_REQUESTS_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Save a newly created bespoke request locally
+ */
+export function saveLocalCreatedRequest(req: OutfitRequest) {
+  if (typeof window === 'undefined') return;
+  try {
+    const list = getLocalCreatedRequests();
+    const filtered = list.filter((item) => item.id !== req.id);
+    filtered.unshift(req);
+    localStorage.setItem(LOCAL_STORAGE_CREATED_REQUESTS_KEY, JSON.stringify(filtered));
+  } catch (err) {
+    console.warn('Could not save local created request:', err);
+  }
+}
 
 /**
  * Helper to calculate deposit and balance amounts from a quoted total

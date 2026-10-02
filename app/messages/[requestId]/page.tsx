@@ -10,6 +10,7 @@ import {
   respondToQuote,
   markOrderReadyForBalance,
   getLocalRequestOverrides,
+  getLocalCreatedRequests,
   calculatePaymentBreakdown,
   PaymentResult,
   DEPOSIT_PERCENTAGE,
@@ -110,8 +111,10 @@ export default function MessageChatPage() {
 
       const overrides = getLocalRequestOverrides();
       const localOverride = overrides[requestId] || {};
-      const mergedReq = reqData
-        ? ({ ...reqData, ...localOverride } as OutfitRequest)
+      const localCreated = getLocalCreatedRequests().find((r) => r.id === requestId);
+      const baseReq = reqData || localCreated;
+      const mergedReq = baseReq
+        ? ({ ...baseReq, ...localOverride } as OutfitRequest)
         : null;
 
       if (mergedReq) {

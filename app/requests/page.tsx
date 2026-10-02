@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { OutfitRequest, Review } from '@/lib/types';
 import {
   getLocalRequestOverrides,
+  getLocalCreatedRequests,
   calculatePaymentBreakdown,
   respondToQuote,
   PaymentResult,
@@ -66,8 +67,13 @@ export default function ClientRequestsPage() {
       const overrides = getLocalRequestOverrides();
       const rawList = (data as OutfitRequest[]) || [];
 
+      // Include locally created requests for this client
+      const localCreated = getLocalCreatedRequests().filter((r) => r.client_id === clientId);
+      const existingIds = new Set(rawList.map((r) => r.id));
+      const combined = [...rawList, ...localCreated.filter((r) => !existingIds.has(r.id))];
+
       // Merge with local overrides for demo resilience
-      const mergedList = rawList.map((req) => {
+      const mergedList = combined.map((req) => {
         const local = overrides[req.id] || {};
         return { ...req, ...local };
       });
