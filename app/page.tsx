@@ -826,10 +826,10 @@ export default function HomePage() {
             );
           })}
 
-          {/* Softened ambient overlays: reduces dark shade so designer creations are vivid & visible while text remains 100% readable */}
-          <div className="absolute inset-0 bg-stone-950/40 sm:bg-stone-950/35" />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/25 to-stone-950/55" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/25 via-transparent to-transparent pointer-events-none" />
+          {/* Rich luxury editorial overlay: balanced opacity for subtle background elegance with superior text focus */}
+          <div className="absolute inset-0 bg-stone-950/60 sm:bg-stone-950/55" />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/95 via-stone-950/45 to-stone-950/70" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/15 via-transparent to-transparent pointer-events-none" />
         </div>
 
         <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
