@@ -120,6 +120,11 @@ export default function DesignerDashboard() {
   const [updateSuccess, setUpdateSuccess] = useState('');
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Cover image / Starting homepage badge state
+  const [coverItemId, setCoverItemId] = useState<string | null>(null);
+  const [coverSuccessMessage, setCoverSuccessMessage] = useState<string | null>(null);
+  const [editIsCover, setEditIsCover] = useState(false);
+
   // Avatar / Profile picture upload state
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarSuccess, setAvatarSuccess] = useState('');
@@ -153,6 +158,11 @@ export default function DesignerDashboard() {
       setHasStore(Boolean(designerProfile.has_store));
       setStoreName(designerProfile.store_name || '');
       setGenderFocus((designerProfile.gender_focus as any) || 'unisex');
+
+      const localCover = typeof window !== 'undefined'
+        ? localStorage.getItem(`tailoram_cover_${designerProfile.id}`)
+        : null;
+      setCoverItemId((designerProfile as any).cover_image_id || localCover || null);
     }
   }, [designerProfile]);
 
@@ -592,8 +602,46 @@ export default function DesignerDashboard() {
     setEditCategory((item as any).category || 'agbada');
     setEditReplacementFile(null);
     setEditPreviewUrl(null);
+    setEditIsCover(item.id === coverItemId);
     setUpdateError('');
     setUpdateSuccess('');
+  };
+
+  // Set portfolio item as the homepage starting badge / cover image
+  const handleSetCoverItem = async (item: PortfolioItem) => {
+    if (!designerProfile?.id) return;
+    try {
+      setCoverItemId(item.id);
+
+      // 1. Immediately store in localStorage for zero-latency reflection
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`tailoram_cover_${designerProfile.id}`, item.id);
+        localStorage.setItem(`tailoram_cover_url_${designerProfile.id}`, item.media_url);
+      }
+
+      // 2. Persist in Supabase designer_profiles via RPC & direct update
+      try {
+        await supabase.rpc('set_designer_cover_image', {
+          target_designer_id: designerProfile.id,
+          new_cover_image_id: item.id,
+          new_cover_image_url: item.media_url,
+        });
+      } catch (rpcErr) {
+        // Fallback to direct supabase update
+        await supabase
+          .from('designer_profiles')
+          .update({
+            cover_image_id: item.id,
+            cover_image_url: item.media_url,
+          })
+          .eq('id', designerProfile.id);
+      }
+
+      setCoverSuccessMessage('⭐ Homepage Cover Updated! This image will now start your studio card on the homepage.');
+      setTimeout(() => setCoverSuccessMessage(null), 4500);
+    } catch (err: any) {
+      console.error('Failed to set cover image:', err);
+    }
   };
 
   // Close Edit Portfolio Item Modal
@@ -730,6 +778,10 @@ export default function DesignerDashboard() {
           .from('portfolio_items')
           .update(updatedPayload)
           .eq('id', editingItem.id);
+      }
+
+      if (editIsCover) {
+        handleSetCoverItem({ ...editingItem, ...updatedPayload });
       }
 
       setUpdateSuccess('Portfolio work updated successfully!');
@@ -1314,96 +1366,157 @@ export default function DesignerDashboard() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="group bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col"
-                >
-                  <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
-                    {item.media_type === 'video' ? (
-                      <video
-                        src={item.media_url}
-                        controls
-                        className="w-full h-full object-cover object-top"
-                      />
-                    ) : (
-                      <img
-                        src={item.media_url}
-                        alt={item.caption || 'Tailor work'}
-                        className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
-                        loading="lazy"
-                      />
-                    )}
-
-                    {/* Quick Update Button overlay on image */}
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(item)}
-                      className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md bg-stone-900/80 hover:bg-stone-950 backdrop-blur-sm text-white text-[10px] font-bold tracking-wide flex items-center gap-1.5 transition-all shadow-sm group/btn hover:scale-105"
-                      title="Update photo, styling, or caption"
-                    >
-                      <Edit3 className="w-3 h-3 text-brand-400" />
-                      <span>Update</span>
-                    </button>
-                    
-                    <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                      {item.media_type === 'video' ? (
-                        <>
-                          <Video className="w-3 h-3" /> Video
-                        </>
-                      ) : (
-                        <>
-                          <ImageIcon className="w-3 h-3" /> Photo
-                        </>
-                      )}
-                    </span>
+            <div className="space-y-4">
+              {coverSuccessMessage && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm font-semibold flex items-center justify-between shadow-xs animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <Star className="w-4 h-4 text-amber-600 fill-amber-500 shrink-0" />
+                    <span>{coverSuccessMessage}</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setCoverSuccessMessage(null)}
+                    className="text-amber-700 hover:text-amber-950 p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
 
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div>
-                      {(item as any).category && (
-                        <span className="inline-block mb-1 text-[10px] font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-2 py-0.5 rounded">
-                          {((item as any).category || '').replace('_', ' ')}
-                        </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {items.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`group bg-white rounded-2xl border overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col ${
+                      coverItemId === item.id ? 'border-amber-300 ring-2 ring-amber-400/30' : 'border-stone-200'
+                    }`}
+                  >
+                    <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
+                      {item.media_type === 'video' ? (
+                        <video
+                          src={item.media_url}
+                          controls
+                          className="w-full h-full object-cover object-top"
+                        />
+                      ) : (
+                        <img
+                          src={item.media_url}
+                          alt={item.caption || 'Tailor work'}
+                          className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
                       )}
-                      <p className="text-xs sm:text-sm text-stone-800 font-medium line-clamp-2">
-                        {item.caption || 'Custom tailored creation'}
-                      </p>
+
+                      {/* Quick Update Button overlay on image */}
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(item)}
+                        className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md bg-stone-900/80 hover:bg-stone-950 backdrop-blur-sm text-white text-[10px] font-bold tracking-wide flex items-center gap-1.5 transition-all shadow-sm group/btn hover:scale-105"
+                        title="Update photo, styling, or caption"
+                      >
+                        <Edit3 className="w-3 h-3 text-brand-400" />
+                        <span>Update</span>
+                      </button>
+
+                      {/* Homepage Cover Badge or Quick Set Cover Button */}
+                      {coverItemId === item.id ? (
+                        <span className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-md bg-amber-500 text-stone-950 text-[10px] font-black tracking-wide flex items-center gap-1 shadow-md backdrop-blur-sm">
+                          <Star className="w-3 h-3 fill-stone-950" />
+                          <span>Homepage Cover</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSetCoverItem(item);
+                          }}
+                          className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-md bg-stone-900/85 hover:bg-amber-500 hover:text-stone-950 text-white text-[10px] font-bold tracking-wide flex items-center gap-1 transition-all shadow-sm opacity-90 sm:opacity-0 group-hover:opacity-100 hover:scale-105 backdrop-blur-sm"
+                          title="Start your homepage studio badge with this outfit photo"
+                        >
+                          <Star className="w-3 h-3 text-amber-400 group-hover:text-stone-950" />
+                          <span>Set as Cover</span>
+                        </button>
+                      )}
+                      
+                      <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                        {item.media_type === 'video' ? (
+                          <>
+                            <Video className="w-3 h-3" /> Video
+                          </>
+                        ) : (
+                          <>
+                            <ImageIcon className="w-3 h-3" /> Photo
+                          </>
+                        )}
+                      </span>
                     </div>
 
-                    <div className="pt-3 mt-3 border-t border-stone-100 flex items-center justify-between text-xs text-stone-400 font-medium">
-                      <span>{new Date(item.created_at).toLocaleDateString()}</span>
-                      
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(item)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-50 hover:bg-brand-50 text-stone-700 hover:text-brand-700 border border-stone-200/80 text-[11px] font-semibold transition-colors"
-                          title="Update photo, styling, or caption"
-                        >
-                          <Edit3 className="w-3 h-3 text-brand-600" />
-                          <span>Update</span>
-                        </button>
+                    <div className="p-4 flex-1 flex flex-col justify-between">
+                      <div>
+                        {(item as any).category && (
+                          <span className="inline-block mb-1 text-[10px] font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-2 py-0.5 rounded">
+                            {((item as any).category || '').replace('_', ' ')}
+                          </span>
+                        )}
+                        <p className="text-xs sm:text-sm text-stone-800 font-medium line-clamp-2">
+                          {item.caption || 'Custom tailored creation'}
+                        </p>
+                      </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteItem(item)}
-                          disabled={deletingId === item.id}
-                          className="text-stone-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-lg transition-colors"
-                          title="Delete item"
-                        >
-                          {deletingId === item.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                      <div className="pt-3 mt-3 border-t border-stone-100 flex items-center justify-between text-xs text-stone-400 font-medium">
+                        <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                        
+                        <div className="flex items-center gap-1.5">
+                          {coverItemId === item.id ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 text-[10px] font-bold"
+                              title="This photo currently starts your studio badge on the homepage"
+                            >
+                              <Star className="w-3 h-3 fill-amber-500 text-amber-600" />
+                              <span>Cover</span>
+                            </span>
                           ) : (
-                            <Trash2 className="w-4 h-4" />
+                            <button
+                              type="button"
+                              onClick={() => handleSetCoverItem(item)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-stone-50 hover:bg-amber-50 text-stone-600 hover:text-amber-800 border border-stone-200/80 text-[10px] font-semibold transition-colors"
+                              title="Set this photo to start your studio badge on the homepage"
+                            >
+                              <Star className="w-3 h-3 text-stone-400 group-hover:text-amber-600" />
+                              <span>Cover</span>
+                            </button>
                           )}
-                        </button>
+
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(item)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-50 hover:bg-brand-50 text-stone-700 hover:text-brand-700 border border-stone-200/80 text-[11px] font-semibold transition-colors"
+                            title="Update photo, styling, or caption"
+                          >
+                            <Edit3 className="w-3 h-3 text-brand-600" />
+                            <span>Update</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteItem(item)}
+                            disabled={deletingId === item.id}
+                            className="text-stone-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-lg transition-colors"
+                            title="Delete item"
+                          >
+                            {deletingId === item.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -2736,6 +2849,26 @@ export default function DesignerDashboard() {
                   placeholder="e.g. Royal Emerald Agbada with Gold embroidery"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
+              </div>
+
+              {/* Homepage Cover Selector Checkbox */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/90 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="editIsCover"
+                  checked={editIsCover}
+                  onChange={(e) => setEditIsCover(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-stone-300 cursor-pointer"
+                />
+                <label htmlFor="editIsCover" className="text-xs text-stone-800 font-medium cursor-pointer select-none">
+                  <span className="font-bold flex items-center gap-1.5 text-amber-950">
+                    <Star className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                    Start homepage badge with this photo (Homepage Cover)
+                  </span>
+                  <span className="text-stone-500 block text-[11px] mt-0.5">
+                    This photo will be the leading image displayed on your atelier card on the Tailoram marketplace homepage.
+                  </span>
+                </label>
               </div>
 
               {/* Buttons */}

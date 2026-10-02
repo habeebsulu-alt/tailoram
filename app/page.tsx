@@ -127,7 +127,24 @@ function DesignerMarketplaceCard({
   genderFocus,
   genderBadge,
 }: DesignerCardProps) {
-  const portfolioItems = useMemo(() => designer.portfolio_items || [], [designer.portfolio_items]);
+  const portfolioItems = useMemo(() => {
+    const rawItems: any[] = designer.portfolio_items || [];
+    if (rawItems.length <= 1) return rawItems;
+
+    // Check if designer has selected a custom cover image to start their homepage badge
+    const coverId = designer.cover_image_id || (typeof window !== 'undefined' ? localStorage.getItem(`tailoram_cover_${designer.id}`) : null);
+    const coverUrl = designer.cover_image_url || (typeof window !== 'undefined' ? localStorage.getItem(`tailoram_cover_url_${designer.id}`) : null);
+
+    if (!coverId && !coverUrl) return rawItems;
+
+    const coverIndex = rawItems.findIndex((i: any) => (coverId && i.id === coverId) || (coverUrl && i.media_url === coverUrl));
+    if (coverIndex <= 0) return rawItems;
+
+    // Put selected cover image at index 0 so it starts their homepage card badge
+    const coverItem = rawItems[coverIndex];
+    const remaining = rawItems.filter((_: any, idx: number) => idx !== coverIndex);
+    return [coverItem, ...remaining];
+  }, [designer.portfolio_items, designer.cover_image_id, designer.cover_image_url, designer.id]);
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -584,11 +601,19 @@ export default function HomePage() {
             const localAvatar = typeof window !== 'undefined'
               ? localStorage.getItem(`tailoram_avatar_${d.id}`)
               : null;
+            const localCover = typeof window !== 'undefined'
+              ? localStorage.getItem(`tailoram_cover_${d.id}`)
+              : null;
+            const localCoverUrl = typeof window !== 'undefined'
+              ? localStorage.getItem(`tailoram_cover_url_${d.id}`)
+              : null;
 
             return {
               ...d,
               portfolio_items: filteredItems,
               profile_image_url: d.profile_image_url || localAvatar || null,
+              cover_image_id: d.cover_image_id || localCover || null,
+              cover_image_url: d.cover_image_url || localCoverUrl || null,
               avg_rating: avgRating,
               review_count: reviewCount,
               // Ranking score: weighted by rating and log-scaled volume of reviews

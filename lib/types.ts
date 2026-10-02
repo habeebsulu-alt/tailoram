@@ -19,6 +19,8 @@ export interface DesignerProfile {
   categories: string[];
   whatsapp: string | null;
   profile_image_url?: string | null;
+  cover_image_id?: string | null;
+  cover_image_url?: string | null;
   has_store?: boolean;
   store_name?: string | null;
   gender_focus?: 'male' | 'female' | 'unisex' | null;
