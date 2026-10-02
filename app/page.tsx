@@ -826,10 +826,10 @@ export default function HomePage() {
             );
           })}
 
-          {/* Rich luxury editorial overlay: balanced opacity for subtle background elegance with superior text focus */}
-          <div className="absolute inset-0 bg-stone-950/60 sm:bg-stone-950/55" />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/95 via-stone-950/45 to-stone-950/70" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/15 via-transparent to-transparent pointer-events-none" />
+          {/* Deep dark shade over the hero image slider so images are subtle, elegant, and not so visible */}
+          <div className="absolute inset-0 bg-black/80 sm:bg-black/85" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/75 to-black/90" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent pointer-events-none" />
         </div>
 
         <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
