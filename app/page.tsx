@@ -448,7 +448,7 @@ export default function HomePage() {
               ) : (
                 <>
                   <Navigation className="w-4 h-4 text-white shrink-0" />
-                  <span>View Designers Around Me</span>
+                  <span>Designers Around Me</span>
                   <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-bold shrink-0">
                     Nearby
                   </span>
