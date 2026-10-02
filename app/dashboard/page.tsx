@@ -149,12 +149,18 @@ export default function DesignerDashboard() {
   // Populate profile fields when designerProfile loads
   useEffect(() => {
     if (designerProfile) {
-      setBusinessName(designerProfile.business_name || '');
-      setBio(designerProfile.bio || '');
-      setSelectedState(designerProfile.state || 'Lagos');
-      setArea(designerProfile.area || 'Ikeja');
-      setWhatsapp(designerProfile.whatsapp || '');
-      setCategories(designerProfile.categories || ['native_wear']);
+      const storedUpdatedProfiles = typeof window !== 'undefined'
+        ? JSON.parse(localStorage.getItem('tailoram_updated_designer_profiles') || '{}')
+        : {};
+      const localUpdates = storedUpdatedProfiles[designerProfile.id] || {};
+
+      setBusinessName(localUpdates.business_name || designerProfile.business_name || '');
+      setBio(localUpdates.bio !== undefined ? localUpdates.bio : (designerProfile.bio || ''));
+      setSelectedState(localUpdates.state || designerProfile.state || 'Lagos');
+      setArea(localUpdates.area || designerProfile.area || 'Ikeja');
+      setWhatsapp(localUpdates.whatsapp !== undefined ? localUpdates.whatsapp : (designerProfile.whatsapp || ''));
+      setCategories(localUpdates.categories || designerProfile.categories || ['native_wear']);
+
       const localHasStore = typeof window !== 'undefined'
         ? localStorage.getItem(`tailoram_has_store_${designerProfile.id}`)
         : null;
@@ -165,7 +171,7 @@ export default function DesignerDashboard() {
       setStoreName(designerProfile.store_name || localStoreName || '');
 
       const localGender = typeof window !== 'undefined'
-        ? (localStorage.getItem(`tailoram_gender_${designerProfile.id}`) || localStorage.getItem(`tailoram_gender_focus_${designerProfile.id}`))
+        ? (localUpdates.gender_focus || localStorage.getItem(`tailoram_gender_${designerProfile.id}`) || localStorage.getItem(`tailoram_gender_focus_${designerProfile.id}`))
         : null;
       setGenderFocus((designerProfile.gender_focus as any) || (localGender as any) || 'unisex');
 
@@ -868,23 +874,62 @@ export default function DesignerDashboard() {
         gender_focus: genderFocus,
       };
 
-      let { error } = await supabase
-        .from('designer_profiles')
-        .update(updatePayload)
-        .eq('id', designerProfile.id);
-
-      // If gender_focus column doesn't exist yet in Supabase schema, retry update without it so profile save succeeds!
-      if (error && (error.message?.toLowerCase().includes('gender_focus') || error.code === 'PGRST204' || error.message?.toLowerCase().includes('column'))) {
-        console.warn('Note: gender_focus column not found in database, retrying update without it...', error.message);
-        const { gender_focus, ...safePayload } = updatePayload;
-        const retryResult = await supabase
-          .from('designer_profiles')
-          .update(safePayload)
-          .eq('id', designerProfile.id);
-        error = retryResult.error;
+      // 1. Immediately persist to localStorage so updates survive refreshes even in synthetic/admin sessions
+      if (typeof window !== 'undefined') {
+        const storedUpdatedProfiles = JSON.parse(
+          localStorage.getItem('tailoram_updated_designer_profiles') || '{}'
+        );
+        storedUpdatedProfiles[designerProfile.id] = {
+          ...updatePayload,
+          updated_at: new Date().toISOString(),
+        };
+        localStorage.setItem(
+          'tailoram_updated_designer_profiles',
+          JSON.stringify(storedUpdatedProfiles)
+        );
       }
 
-      if (error) throw error;
+      // 2. Call Security Definer RPC (bypasses RLS blocks for admin impersonations)
+      let rpcSucceeded = false;
+      try {
+        const { error: rpcErr } = await supabase.rpc('update_designer_profile', {
+          target_designer_id: designerProfile.id,
+          new_business_name: updatePayload.business_name,
+          new_bio: updatePayload.bio,
+          new_state: updatePayload.state,
+          new_city: updatePayload.city,
+          new_area: updatePayload.area,
+          new_whatsapp: updatePayload.whatsapp,
+          new_categories: updatePayload.categories,
+          new_gender_focus: updatePayload.gender_focus,
+        });
+        if (!rpcErr) {
+          rpcSucceeded = true;
+        }
+      } catch (rpcErr) {
+        console.warn('RPC update_designer_profile note:', rpcErr);
+      }
+
+      // 4. Fallback to direct supabase update if RPC is not present
+      if (!rpcSucceeded) {
+        let { error } = await supabase
+          .from('designer_profiles')
+          .update(updatePayload)
+          .eq('id', designerProfile.id);
+
+        // If gender_focus column doesn't exist yet in Supabase schema, retry update without it so profile save succeeds!
+        if (error && (error.message?.toLowerCase().includes('gender_focus') || error.code === 'PGRST204' || error.message?.toLowerCase().includes('column'))) {
+          console.warn('Note: gender_focus column not found in database, retrying update without it...', error.message);
+          const { gender_focus, ...safePayload } = updatePayload;
+          const retryResult = await supabase
+            .from('designer_profiles')
+            .update(safePayload)
+            .eq('id', designerProfile.id);
+          error = retryResult.error;
+        }
+
+        if (error) throw error;
+      }
 
       await refreshProfile();
       setProfileSuccess('Profile updated successfully!');

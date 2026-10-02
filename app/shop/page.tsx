@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { StoreProduct, STORE_CATEGORIES } from '@/lib/types';
+import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import {
   ShoppingBag,
   Search,
@@ -30,9 +31,11 @@ export default function ShopPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'featured' | 'price_asc' | 'price_desc' | 'newest'>('featured');
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
 
-  // Fetch products
+  // Fetch products & settings
   useEffect(() => {
+    checkIsWhatsAppEnabled().then(setWhatsappEnabled);
     async function fetchProducts() {
       try {
         setLoading(true);
@@ -396,7 +399,7 @@ export default function ShopPage() {
                 )}
 
                 <div className="flex items-center gap-2 pt-1">
-                  {selectedProduct.designer?.whatsapp && (
+                  {whatsappEnabled && selectedProduct.designer?.whatsapp && (
                     <a
                       href={`https://wa.me/${selectedProduct.designer.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hello ${selectedProduct.designer.business_name}, I want to purchase "${selectedProduct.title}" (${formatNaira(selectedProduct.price)}) from your Tailoram store.`)}`}
                       target="_blank"

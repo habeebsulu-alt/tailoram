@@ -107,11 +107,13 @@ export default function AdminPage() {
     announcement_message: string;
     announcement_type: 'info' | 'spotlight' | 'warning';
     maintenance_mode: boolean;
+    whatsapp_enabled: boolean;
   }>({
     announcement_enabled: true,
     announcement_message: "✨ Welcome to Tailoram: Nigeria's premier bespoke couture network. Explore top studios across all 36 states!",
     announcement_type: 'info',
     maintenance_mode: false,
+    whatsapp_enabled: false,
   });
 
   // Action / Feedback Notification
@@ -150,7 +152,18 @@ export default function AdminPage() {
         const deletedDesignerIds: string[] = typeof window !== 'undefined'
           ? JSON.parse(localStorage.getItem('tailoram_deleted_designer_profiles') || '[]')
           : [];
-        const activeDesigners = (dData as DesignerProfile[]).filter((d) => !deletedDesignerIds.includes(d.id));
+        const storedUpdatedProfiles: Record<string, any> = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('tailoram_updated_designer_profiles') || '{}')
+          : {};
+        const activeDesigners = (dData as DesignerProfile[])
+          .filter((d) => !deletedDesignerIds.includes(d.id))
+          .map((d) => {
+            const localUpdates = storedUpdatedProfiles[d.id] || {};
+            return {
+              ...d,
+              ...localUpdates,
+            };
+          });
         setDesigners(activeDesigners);
       }
 
@@ -217,11 +230,14 @@ export default function AdminPage() {
       if (settsData && settsData.length > 0) {
         const ann = settsData.find((s) => s.key === 'announcement')?.value;
         const maint = settsData.find((s) => s.key === 'maintenance_mode')?.value;
+        const wa = settsData.find((s) => s.key === 'whatsapp_enabled')?.value;
+        const localWa = typeof window !== 'undefined' ? localStorage.getItem('tailoram_whatsapp_enabled') === 'true' : false;
         setPlatformSettings({
           announcement_enabled: ann?.enabled ?? false,
           announcement_message: ann?.message ?? '',
           announcement_type: ann?.type ?? 'info',
           maintenance_mode: maint?.enabled ?? false,
+          whatsapp_enabled: wa?.enabled ?? localWa ?? false,
         });
       }
     } catch (err) {
@@ -646,6 +662,10 @@ export default function AdminPage() {
   // --- ACTIONS: PLATFORM SETTINGS ---
   const handleSavePlatformSettings = async () => {
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('tailoram_whatsapp_enabled', String(platformSettings.whatsapp_enabled));
+      }
+
       await supabase.from('platform_settings').upsert([
         {
           key: 'announcement',
@@ -661,6 +681,13 @@ export default function AdminPage() {
           value: {
             enabled: platformSettings.maintenance_mode,
             notice: 'Tailoram is currently undergoing maintenance.',
+          },
+          updated_at: new Date().toISOString(),
+        },
+        {
+          key: 'whatsapp_enabled',
+          value: {
+            enabled: platformSettings.whatsapp_enabled,
           },
           updated_at: new Date().toISOString(),
         },
@@ -1990,6 +2017,44 @@ export default function AdminPage() {
                   />
                   <div className="w-11 h-6 bg-stone-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500" />
                 </label>
+              </div>
+            </div>
+
+            {/* Client WhatsApp Chat Control */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-3 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-base text-white flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-emerald-400" />
+                    <span>Client WhatsApp Chat Option</span>
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Show &quot;Chat on WhatsApp&quot; and &quot;Order on WhatsApp&quot; buttons on studio profiles, marketplace cards, and ready-to-wear product previews.
+                  </p>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={platformSettings.whatsapp_enabled}
+                    onChange={(e) =>
+                      setPlatformSettings({
+                        ...platformSettings,
+                        whatsapp_enabled: e.target.checked,
+                      })
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-stone-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
+                </label>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-stone-950 border border-stone-800/80 flex items-center justify-between text-xs">
+                <span className="text-stone-400">Current Status:</span>
+                <span className={`font-bold flex items-center gap-1.5 ${platformSettings.whatsapp_enabled ? 'text-emerald-400' : 'text-stone-400'}`}>
+                  <span className={`w-2 h-2 rounded-full ${platformSettings.whatsapp_enabled ? 'bg-emerald-400 animate-pulse' : 'bg-stone-500'}`} />
+                  {platformSettings.whatsapp_enabled ? 'Active (WhatsApp Buttons Visible)' : 'Hidden (Platform Chat / Request Forms Only)'}
+                </span>
               </div>
             </div>
 

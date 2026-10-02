@@ -14,6 +14,7 @@ import {
   GENDER_FOCUS_OPTIONS,
   getDesignerGender,
 } from '@/lib/types';
+import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import {
   Scissors,
   MapPin,
@@ -120,6 +121,7 @@ export default function DesignerProfilePage() {
   const [newComment, setNewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState('');
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
 
   // Sort portfolio by category sequence so "All Styles" groups in sequence:
   // Agbada -> Aso Ebi -> Senator -> Ankara -> Adire -> Bridal -> RTW -> Contemporary
@@ -216,12 +218,18 @@ export default function DesignerProfilePage() {
           .single();
 
         if (dError) throw dError;
+        const storedUpdatedProfiles = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('tailoram_updated_designer_profiles') || '{}')
+          : {};
+        const localUpdates = storedUpdatedProfiles[designerId] || {};
         const localAvatar = typeof window !== 'undefined' ? localStorage.getItem(`tailoram_avatar_${designerId}`) : null;
         const mergedDesigner: DesignerProfile = {
           ...(dData as DesignerProfile),
-          profile_image_url: (dData as any).profile_image_url || localAvatar || null,
+          ...localUpdates,
+          profile_image_url: localUpdates.profile_image_url || (dData as any).profile_image_url || localAvatar || null,
         };
         setDesigner(mergedDesigner);
+        checkIsWhatsAppEnabled().then(setWhatsappEnabled);
 
         // 2. Fetch portfolio items
         const { data: pData, error: pError } = await supabase
@@ -527,7 +535,7 @@ export default function DesignerProfilePage() {
               Send Custom Request
             </Link>
 
-            {whatsappUrl && (
+            {whatsappEnabled && whatsappUrl && (
               <a
                 href={whatsappUrl}
                 target="_blank"
@@ -1296,7 +1304,7 @@ export default function DesignerProfilePage() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {cleanPhone && (
+                  {whatsappEnabled && cleanPhone && (
                     <a
                       href={`https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hello ${designer.business_name}, I want to buy "${activeProduct.title}" (₦${activeProduct.price.toLocaleString()}) from your Tailoram store.`)}`}
                       target="_blank"

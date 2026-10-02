@@ -14,6 +14,7 @@ import {
   GENDER_FOCUS_OPTIONS,
   getDesignerGender,
 } from '@/lib/types';
+import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import {
   Scissors,
   Search,
@@ -117,6 +118,7 @@ interface DesignerCardProps {
   cleanPhone: string | null;
   genderFocus: 'male' | 'female' | 'unisex';
   genderBadge: any;
+  whatsappEnabled?: boolean;
 }
 
 function DesignerMarketplaceCard({
@@ -126,6 +128,7 @@ function DesignerMarketplaceCard({
   cleanPhone,
   genderFocus,
   genderBadge,
+  whatsappEnabled,
 }: DesignerCardProps) {
   const portfolioItems = useMemo(() => {
     const rawItems: any[] = designer.portfolio_items || [];
@@ -445,7 +448,7 @@ function DesignerMarketplaceCard({
           Request
         </Link>
 
-        {cleanPhone && (
+        {whatsappEnabled && cleanPhone && (
           <a
             href={`https://wa.me/${cleanPhone}`}
             target="_blank"
@@ -559,9 +562,12 @@ export default function HomePage() {
   const [geoLocating, setGeoLocating] = useState(false);
   const [nearMeLocation, setNearMeLocation] = useState<string | null>(null);
   const [nearMeModalOpen, setNearMeModalOpen] = useState(false);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
 
   // Load all designers with portfolio items and reviews
   useEffect(() => {
+    checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+
     async function fetchDesigners() {
       try {
         setLoading(true);
@@ -578,6 +584,10 @@ export default function HomePage() {
             : [];
           const activeDesigners = (data as any[]).filter((d) => !deletedDesignerIds.includes(d.id));
 
+          const storedUpdatedProfiles: Record<string, any> = typeof window !== 'undefined'
+            ? JSON.parse(localStorage.getItem('tailoram_updated_designer_profiles') || '{}')
+            : {};
+
           const deletedIds: string[] = typeof window !== 'undefined'
             ? JSON.parse(localStorage.getItem('tailoram_deleted_portfolio_items') || '[]')
             : [];
@@ -587,6 +597,7 @@ export default function HomePage() {
 
           // Process ratings and reviews
           const processed = activeDesigners.map((d) => {
+            const localUpdates = storedUpdatedProfiles[d.id] || {};
             const revs = d.reviews || [];
             const reviewCount = revs.length;
             const avgRating =
@@ -614,11 +625,12 @@ export default function HomePage() {
 
             return {
               ...d,
+              ...localUpdates,
               portfolio_items: filteredItems,
-              profile_image_url: d.profile_image_url || localAvatar || null,
+              profile_image_url: localUpdates.profile_image_url || d.profile_image_url || localAvatar || null,
               cover_image_id: d.cover_image_id || localCover || null,
               cover_image_url: d.cover_image_url || localCoverUrl || null,
-              gender_focus: d.gender_focus || localGender || null,
+              gender_focus: localUpdates.gender_focus || d.gender_focus || localGender || null,
               avg_rating: avgRating,
               review_count: reviewCount,
               // Ranking score: weighted by rating and log-scaled volume of reviews
@@ -1272,6 +1284,7 @@ export default function HomePage() {
                   cleanPhone={cleanPhone}
                   genderFocus={genderFocus}
                   genderBadge={genderBadge}
+                  whatsappEnabled={whatsappEnabled}
                 />
               );
             })}

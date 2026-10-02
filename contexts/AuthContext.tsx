@@ -132,10 +132,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .maybeSingle();
 
           if (!dError && dData) {
+            const storedUpdatedProfiles = typeof window !== 'undefined'
+              ? JSON.parse(localStorage.getItem('tailoram_updated_designer_profiles') || '{}')
+              : {};
+            const localUpdates = storedUpdatedProfiles[dData.id] || {};
             const localAvatar = typeof window !== 'undefined' ? localStorage.getItem(`tailoram_avatar_${dData.id}`) : null;
             const mergedDesigner: DesignerProfile = {
               ...(dData as DesignerProfile),
-              profile_image_url: (dData as any).profile_image_url || localAvatar || null,
+              ...localUpdates,
+              profile_image_url: localUpdates.profile_image_url || (dData as any).profile_image_url || localAvatar || null,
             };
             setDesignerProfile(mergedDesigner);
           } else {
