@@ -46,6 +46,7 @@ import {
   ShieldCheck,
   Camera,
   X,
+  Maximize2,
   Layers,
   Edit3,
   Pencil,
@@ -129,6 +130,7 @@ export default function DesignerDashboard() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarSuccess, setAvatarSuccess] = useState('');
   const [avatarError, setAvatarError] = useState('');
+  const [zoomAvatarUrl, setZoomAvatarUrl] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Edit profile state
@@ -331,8 +333,8 @@ export default function DesignerDashboard() {
       setAvatarError('');
       setAvatarSuccess('');
 
-      // Compress to 500x500 WebP for ultra-fast mobile rendering
-      const compressedFile = await compressImage(file, 500, 500, 0.88);
+      // Compress to 800x800 WebP for sharp WhatsApp-style circular display and zoom clarity
+      const compressedFile = await compressImage(file, 800, 800, 0.92);
       const fileName = `avatars/${designerProfile.id}-${Date.now()}.webp`;
 
       const { error: storageError } = await supabase.storage
@@ -352,6 +354,18 @@ export default function DesignerDashboard() {
       // Save to localStorage for instant persistence across demo/impersonation sessions
       if (typeof window !== 'undefined') {
         localStorage.setItem(`tailoram_avatar_${designerProfile.id}`, publicUrl);
+        const storedUpdatedProfiles = JSON.parse(
+          localStorage.getItem('tailoram_updated_designer_profiles') || '{}'
+        );
+        storedUpdatedProfiles[designerProfile.id] = {
+          ...(storedUpdatedProfiles[designerProfile.id] || {}),
+          profile_image_url: publicUrl,
+          updated_at: new Date().toISOString(),
+        };
+        localStorage.setItem(
+          'tailoram_updated_designer_profiles',
+          JSON.stringify(storedUpdatedProfiles)
+        );
       }
 
       // Update in designer_profiles table
@@ -1214,44 +1228,86 @@ export default function DesignerDashboard() {
       <div className="bg-white rounded-3xl border border-stone-200/90 p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-stone-100">
           <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-            {/* Studio Avatar / Profile Picture with 1-Click Upload */}
-            <div className="relative group shrink-0">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl overflow-hidden border-2 border-stone-200 bg-stone-100 shadow-md relative">
-                {designerProfile?.profile_image_url ? (
-                  <img
-                    src={designerProfile.profile_image_url}
-                    alt={designerProfile.business_name || 'Studio Logo'}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-brand-600 to-amber-600 flex items-center justify-center text-white font-black text-2xl sm:text-3xl">
-                    {(designerProfile?.business_name || profile?.full_name || 'T').charAt(0).toUpperCase()}
-                  </div>
-                )}
-                {avatarUploading && (
-                  <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
-                    <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
-                  </div>
-                )}
+            {/* Studio Avatar / Profile Picture with WhatsApp-Style Circle & Zoom */}
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+              <div className="relative group shrink-0">
+                <div
+                  onClick={() => {
+                    if (designerProfile?.profile_image_url) {
+                      setZoomAvatarUrl(designerProfile.profile_image_url);
+                    } else {
+                      avatarInputRef.current?.click();
+                    }
+                  }}
+                  title={designerProfile?.profile_image_url ? "Click to view full photo" : "Click to upload profile photo"}
+                  className="w-28 h-28 sm:w-36 sm:h-36 rounded-full aspect-square overflow-hidden border-4 border-white shadow-xl ring-4 ring-amber-400/30 bg-stone-100 relative cursor-pointer group transition-all hover:scale-[1.02]"
+                >
+                  {designerProfile?.profile_image_url ? (
+                    <img
+                      src={designerProfile.profile_image_url}
+                      alt={designerProfile.business_name || 'Studio Logo'}
+                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-brand-600 to-amber-600 flex flex-col items-center justify-center text-white font-black text-3xl sm:text-4xl shadow-inner">
+                      <span>{(designerProfile?.business_name || profile?.full_name || 'T').charAt(0).toUpperCase()}</span>
+                      <span className="text-[10px] font-semibold opacity-90 mt-1 uppercase tracking-wider">Add Photo</span>
+                    </div>
+                  )}
+
+                  {/* Hover Overlay indicating click to zoom */}
+                  {designerProfile?.profile_image_url && !avatarUploading && (
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 backdrop-blur-xs">
+                      <Maximize2 className="w-6 h-6 text-amber-300" />
+                      <span className="text-[11px] font-bold tracking-wide">View Photo</span>
+                    </div>
+                  )}
+
+                  {avatarUploading && (
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center text-white gap-1">
+                      <Loader2 className="w-7 h-7 animate-spin text-amber-400" />
+                      <span className="text-[10px] font-bold text-amber-300">Uploading...</span>
+                    </div>
+                  )}
+                </div>
+
+                <input
+                  type="file"
+                  ref={avatarInputRef}
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
               </div>
 
-              {/* Quick Change Overlay Button */}
-              <button
-                type="button"
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={avatarUploading}
-                title="Change Studio Profile Picture / Logo"
-                className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-stone-900 hover:bg-brand-600 active:scale-95 text-white flex items-center justify-center shadow-lg border-2 border-white transition-all cursor-pointer"
-              >
-                <Camera className="w-4 h-4 text-amber-300" />
-              </button>
-              <input
-                type="file"
-                ref={avatarInputRef}
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleAvatarChange}
-                className="hidden"
-              />
+              {/* Prominent Upload / Change Button */}
+              <div className="flex flex-col sm:justify-center gap-2 text-center sm:text-left">
+                <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    className="inline-flex items-center gap-2 px-4 py-2 sm:px-4.5 sm:py-2.5 rounded-xl bg-stone-900 hover:bg-brand-600 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Camera className="w-4 h-4 text-amber-300" />
+                    <span>{designerProfile?.profile_image_url ? 'Change Profile Photo' : 'Upload Profile Photo'}</span>
+                  </button>
+
+                  {designerProfile?.profile_image_url && (
+                    <button
+                      type="button"
+                      onClick={() => setZoomAvatarUrl(designerProfile?.profile_image_url ?? null)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs sm:text-sm transition-all cursor-pointer"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5 text-stone-500" />
+                      <span>View</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-stone-500 max-w-xs">
+                  WhatsApp-style circular portrait. Click photo to zoom. Recommended: Square JPG or PNG.
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -1868,15 +1924,26 @@ export default function DesignerDashboard() {
             )}
 
             {/* Studio Avatar / Profile Picture Upload Field */}
-            <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="p-4 sm:p-5 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden border border-stone-300 bg-white shadow-xs shrink-0 relative">
+                <div
+                  onClick={() => designerProfile?.profile_image_url && setZoomAvatarUrl(designerProfile.profile_image_url ?? null)}
+                  className={`w-20 h-20 rounded-full aspect-square overflow-hidden border-4 border-white shadow-md ring-2 ring-stone-200 bg-white shrink-0 relative ${
+                    designerProfile?.profile_image_url ? 'cursor-pointer group' : ''
+                  }`}
+                  title={designerProfile?.profile_image_url ? "Click to view full photo" : undefined}
+                >
                   {designerProfile?.profile_image_url ? (
-                    <img
-                      src={designerProfile.profile_image_url}
-                      alt={businessName || 'Studio Avatar'}
-                      className="w-full h-full object-cover"
-                    />
+                    <>
+                      <img
+                        src={designerProfile.profile_image_url}
+                        alt={businessName || 'Studio Avatar'}
+                        className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                        <Maximize2 className="w-4 h-4 text-amber-300" />
+                      </div>
+                    </>
                   ) : (
                     <div className="w-full h-full bg-brand-100 text-brand-800 flex items-center justify-center font-black text-xl">
                       {(businessName || 'T').charAt(0).toUpperCase()}
@@ -1891,20 +1958,20 @@ export default function DesignerDashboard() {
                 <div>
                   <h4 className="text-xs font-bold text-stone-900">Studio Profile Picture / Logo</h4>
                   <p className="text-[11px] text-stone-500">
-                    Display your portrait or atelier logo on your public designer profile and marketplace search results.
+                    Circular WhatsApp-style portrait displayed across Tailoram. Click photo to zoom.
                   </p>
                 </div>
               </div>
 
-              <div>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => avatarInputRef.current?.click()}
                   disabled={avatarUploading}
-                  className="px-4 py-2 rounded-xl bg-white border border-stone-300 hover:bg-stone-100 text-stone-800 text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 shrink-0"
+                  className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-brand-600 active:scale-95 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
                 >
-                  <Camera className="w-3.5 h-3.5 text-brand-600" />
-                  <span>{designerProfile?.profile_image_url ? 'Change Photo' : 'Upload Photo'}</span>
+                  <Camera className="w-3.5 h-3.5 text-amber-300" />
+                  <span>{designerProfile?.profile_image_url ? 'Change Profile Photo' : 'Upload Profile Photo'}</span>
                 </button>
               </div>
             </div>
@@ -2985,6 +3052,72 @@ export default function DesignerDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp-Style Circular Avatar Zoom Modal */}
+      {zoomAvatarUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setZoomAvatarUrl(null)}
+        >
+          {/* Top right floating close button */}
+          <button
+            type="button"
+            onClick={() => setZoomAvatarUrl(null)}
+            className="fixed top-4 right-4 z-50 w-11 h-11 rounded-full bg-stone-900/90 hover:bg-stone-800 text-white flex items-center justify-center border border-stone-700 shadow-2xl transition-transform active:scale-95 cursor-pointer"
+            aria-label="Close"
+            title="Close (Esc)"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+
+          <div
+            className="relative max-w-lg w-full flex flex-col items-center gap-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header info */}
+            <div className="text-center space-y-1">
+              <h3 className="text-xl font-bold text-white tracking-tight">
+                {designerProfile?.business_name || profile?.full_name || 'Studio Profile Photo'}
+              </h3>
+              <p className="text-xs text-stone-400">
+                Official Studio Profile Photo on Tailoram
+              </p>
+            </div>
+
+            {/* Circular Zoom Avatar */}
+            <div className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full aspect-square overflow-hidden border-4 border-amber-400/80 shadow-2xl ring-8 ring-white/10 bg-stone-950 flex items-center justify-center">
+              <img
+                src={zoomAvatarUrl}
+                alt={designerProfile?.business_name || 'Studio Profile'}
+                className="w-full h-full object-cover object-center"
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setZoomAvatarUrl(null);
+                  avatarInputRef.current?.click();
+                }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-brand-600/30 transition-all cursor-pointer"
+              >
+                <Camera className="w-4 h-4 text-amber-300" />
+                <span>Change Photo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setZoomAvatarUrl(null)}
+                className="px-5 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs sm:text-sm transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

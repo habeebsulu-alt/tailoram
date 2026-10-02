@@ -122,6 +122,7 @@ export default function DesignerProfilePage() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState('');
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [zoomAvatarUrl, setZoomAvatarUrl] = useState<string | null>(null);
 
   // Sort portfolio by category sequence so "All Styles" groups in sequence:
   // Agbada -> Aso Ebi -> Senator -> Ankara -> Adire -> Bridal -> RTW -> Contemporary
@@ -405,15 +406,27 @@ export default function DesignerProfilePage() {
           
           {/* Main Info */}
           <div className="flex flex-col sm:flex-row items-start gap-6 max-w-2xl">
-            {/* Studio Avatar / Profile Picture */}
+            {/* Studio Avatar / Profile Picture with WhatsApp-Style Circle & Zoom */}
             <div className="relative shrink-0">
-              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-3xl overflow-hidden border-2 border-stone-200 bg-stone-100 shadow-md relative">
+              <div
+                onClick={() => designer?.profile_image_url && setZoomAvatarUrl(designer.profile_image_url ?? null)}
+                title={designer?.profile_image_url ? "Click to view full profile photo" : undefined}
+                className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full aspect-square overflow-hidden border-4 border-white shadow-xl ring-2 ring-stone-200/80 bg-stone-100 relative ${
+                  designer.profile_image_url ? 'cursor-pointer group hover:scale-[1.02] transition-transform' : ''
+                }`}
+              >
                 {designer.profile_image_url ? (
-                  <img
-                    src={designer.profile_image_url}
-                    alt={designer.business_name}
-                    className="w-full h-full object-cover"
-                  />
+                  <>
+                    <img
+                      src={designer.profile_image_url}
+                      alt={designer.business_name}
+                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 backdrop-blur-xs">
+                      <Maximize2 className="w-5 h-5 text-amber-300" />
+                      <span className="text-[10px] font-bold tracking-wide">View Photo</span>
+                    </div>
+                  </>
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-brand-600 to-amber-600 flex items-center justify-center text-white font-black text-3xl sm:text-4xl shadow-inner">
                     {designer.business_name.charAt(0).toUpperCase()}
@@ -423,9 +436,9 @@ export default function DesignerProfilePage() {
               {designer.is_verified && (
                 <div
                   title="Tailoram Verified Studio"
-                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white shadow-sm"
+                  className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white shadow-md z-10"
                 >
-                  <CheckCircle2 className="w-4 h-4 fill-white text-emerald-500" />
+                  <CheckCircle2 className="w-4.5 h-4.5 fill-white text-emerald-500" />
                 </div>
               )}
             </div>
@@ -1416,6 +1429,56 @@ export default function DesignerProfilePage() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp-Style Circular Avatar Zoom Lightbox */}
+      {zoomAvatarUrl && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setZoomAvatarUrl(null)}
+        >
+          {/* Top right floating close button */}
+          <button
+            type="button"
+            onClick={() => setZoomAvatarUrl(null)}
+            className="fixed top-4 right-4 z-[130] w-11 h-11 rounded-full bg-stone-900/90 hover:bg-stone-800 text-white flex items-center justify-center border border-stone-700 shadow-2xl transition-transform active:scale-95 cursor-pointer"
+            aria-label="Close Preview (Esc)"
+            title="Close Preview (Esc)"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+
+          <div
+            className="relative max-w-lg w-full flex flex-col items-center gap-5 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-1">
+              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                {designer?.business_name || 'Designer Atelier'}
+              </h3>
+              <p className="text-xs text-stone-400">
+                Official Studio Profile Photo • {designer?.area}, {designer?.state}
+              </p>
+            </div>
+
+            {/* Circular Zoom Avatar */}
+            <div className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full aspect-square overflow-hidden border-4 border-amber-400/80 shadow-2xl ring-8 ring-white/10 bg-stone-950 flex items-center justify-center">
+              <img
+                src={zoomAvatarUrl}
+                alt={designer?.business_name || 'Studio Profile'}
+                className="w-full h-full object-cover object-center"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setZoomAvatarUrl(null)}
+              className="px-6 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs sm:text-sm transition-all cursor-pointer"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}

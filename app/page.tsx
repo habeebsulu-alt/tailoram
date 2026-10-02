@@ -298,12 +298,12 @@ function DesignerMarketplaceCard({
 
           {/* Studio Profile Picture Badge on Image Card */}
           <div className="absolute bottom-3 left-3 z-30 flex items-center gap-2">
-            <div className="relative w-12 h-12 rounded-2xl overflow-hidden border-2 border-white shadow-xl bg-stone-900 group-hover:scale-105 transition-transform duration-300 ring-2 ring-black/20">
+            <div className="relative w-12 h-12 rounded-full aspect-square overflow-hidden border-2 border-white shadow-xl bg-stone-900 group-hover:scale-105 transition-transform duration-300 ring-2 ring-black/25">
               {designer.profile_image_url ? (
                 <img
                   src={designer.profile_image_url}
                   alt={designer.business_name}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-center"
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-brand-600 to-amber-600 text-white flex items-center justify-center font-black text-base shadow-inner">
@@ -314,7 +314,7 @@ function DesignerMarketplaceCard({
             {designer.is_verified && (
               <span
                 title="Verified Studio"
-                className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white shadow-md"
+                className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white shadow-md z-10"
               >
                 <CheckCircle2 className="w-3 h-3 fill-white text-emerald-500" />
               </span>
