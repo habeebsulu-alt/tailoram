@@ -509,18 +509,17 @@ export default function HomePage() {
     return selectedSlides.length > 0 ? selectedSlides : DEFAULT_HERO_SLIDES;
   }, [designers]);
 
-  // Hero Background Slider state
+  // Hero Background Slider state - moves automatically
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [isSliderPaused, setIsSliderPaused] = useState(false);
   const activeSlideIndex = currentSlide % (heroSlides.length || 1);
 
   useEffect(() => {
-    if (isSliderPaused || heroSlides.length <= 1) return;
+    if (heroSlides.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
-    }, 6500);
+    }, 4000);
     return () => clearInterval(interval);
-  }, [isSliderPaused, heroSlides.length]);
+  }, [heroSlides.length]);
 
   const handleNextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
@@ -803,29 +802,29 @@ export default function HomePage() {
       <div className="space-y-12 pb-24">
       
       {/* Luxury Editorial Hero Section with Ambient Background Slider */}
-      <section
-        className="relative overflow-hidden bg-stone-950 text-white border-b border-stone-800/80 pt-16 pb-16 px-4 sm:px-6 lg:px-8 transition-colors duration-700"
-        onMouseEnter={() => setIsSliderPaused(true)}
-        onMouseLeave={() => setIsSliderPaused(false)}
-      >
+      <section className="relative overflow-hidden bg-stone-950 text-white border-b border-stone-800/80 pt-16 pb-16 px-4 sm:px-6 lg:px-8 transition-colors duration-700">
         {/* Background Slides with Smooth Crossfade and Ken Burns Effect */}
         <div className="absolute inset-0 pointer-events-none select-none overflow-hidden">
-          {heroSlides.map((slide, idx) => (
-            <div
-              key={idx}
-              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                idx === activeSlideIndex ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              <img
-                src={slide.image}
-                alt={slide.title}
-                className={`w-full h-full object-cover object-top transform transition-transform duration-[7000ms] ease-out ${
-                  idx === activeSlideIndex ? 'scale-105' : 'scale-100'
+          {heroSlides.map((slide, idx) => {
+            const isActive = idx === activeSlideIndex;
+            return (
+              <div
+                key={`${slide.image}-${idx}`}
+                className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+                  isActive ? 'opacity-100 z-10' : 'opacity-0 z-0'
                 }`}
-              />
-            </div>
-          ))}
+              >
+                <img
+                  src={slide.image}
+                  alt={slide.title}
+                  className={`w-full h-full object-cover object-top transform transition-transform duration-[6000ms] ease-out ${
+                    isActive ? 'scale-105' : 'scale-100'
+                  }`}
+                  loading={idx === 0 ? 'eager' : 'lazy'}
+                />
+              </div>
+            );
+          })}
 
           {/* Softened ambient overlays: reduces dark shade so designer creations are vivid & visible while text remains 100% readable */}
           <div className="absolute inset-0 bg-stone-950/40 sm:bg-stone-950/35" />
