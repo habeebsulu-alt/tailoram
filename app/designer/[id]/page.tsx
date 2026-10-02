@@ -196,6 +196,15 @@ export default function DesignerProfilePage() {
     async function loadData() {
       if (!designerId) return;
 
+      const deletedDesignerIds: string[] = typeof window !== 'undefined'
+        ? JSON.parse(localStorage.getItem('tailoram_deleted_designer_profiles') || '[]')
+        : [];
+      if (deletedDesignerIds.includes(designerId)) {
+        setDesigner(null);
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
 

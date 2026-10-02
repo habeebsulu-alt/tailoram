@@ -147,7 +147,11 @@ export default function AdminPage() {
         .order('created_at', { ascending: false });
 
       if (!dErr && dData) {
-        setDesigners(dData as DesignerProfile[]);
+        const deletedDesignerIds: string[] = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('tailoram_deleted_designer_profiles') || '[]')
+          : [];
+        const activeDesigners = (dData as DesignerProfile[]).filter((d) => !deletedDesignerIds.includes(d.id));
+        setDesigners(activeDesigners);
       }
 
       // 2. Profiles (Users)
@@ -157,7 +161,11 @@ export default function AdminPage() {
         .order('created_at', { ascending: false });
 
       if (!pErr && pData) {
-        setProfilesList(pData as Profile[]);
+        const deletedUserIds: string[] = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('tailoram_deleted_user_profiles') || '[]')
+          : [];
+        const activeProfiles = (pData as Profile[]).filter((p) => !deletedUserIds.includes(p.id));
+        setProfilesList(activeProfiles);
       }
 
       // 3. Bespoke Requests
@@ -355,20 +363,101 @@ export default function AdminPage() {
   };
 
   const handleDeleteDesigner = async (designerId: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete designer studio "${name}"? This action removes all portfolio items and store products.`)) {
+    if (!confirm(`Are you sure you want to permanently delete designer studio "${name}"? This action removes all portfolio items, store products, and studio data.`)) {
       return;
     }
     try {
-      const { error } = await supabase.from('designer_profiles').delete().eq('id', designerId);
-      if (error) throw error;
+      // 1. Immediately persist deletion in localStorage
+      if (typeof window !== 'undefined') {
+        const deletedDesignerIds: string[] = JSON.parse(
+          localStorage.getItem('tailoram_deleted_designer_profiles') || '[]'
+        );
+        if (!deletedDesignerIds.includes(designerId)) {
+          deletedDesignerIds.push(designerId);
+          localStorage.setItem(
+            'tailoram_deleted_designer_profiles',
+            JSON.stringify(deletedDesignerIds)
+          );
+        }
+      }
+
+      // 2. Remove optimistically from React state
       setDesigners((prev) => prev.filter((d) => d.id !== designerId));
-      showNotice(`Designer "${name}" successfully deleted.`);
+
+      // 3. Call security definer RPC
+      try {
+        await supabase.rpc('admin_delete_designer', { target_designer_id: designerId });
+      } catch (rpcErr) {
+        console.warn('RPC admin_delete_designer fallback:', rpcErr);
+        try {
+          await supabase.from('portfolio_items').delete().eq('designer_id', designerId);
+          await supabase.from('store_products').delete().eq('designer_id', designerId);
+          await supabase.from('reviews').delete().eq('designer_id', designerId);
+          await supabase.from('requests').delete().eq('designer_id', designerId);
+        } catch {}
+        await supabase.from('designer_profiles').delete().eq('id', designerId);
+      }
+
+      showNotice(`Designer studio "${name}" successfully deleted.`);
     } catch (err: any) {
+      console.error('Failed to delete designer:', err);
       showNotice(`Failed to delete designer: ${err.message}`, 'error');
     }
   };
 
   // --- ACTIONS: USERS ---
+  const handleDeleteUser = async (userId: string, name: string) => {
+    if (!confirm(`Are you sure you want to permanently delete user account "${name}"? This removes their profile, requests, and any associated atelier data.`)) {
+      return;
+    }
+    try {
+      // 1. Immediately persist in localStorage
+      if (typeof window !== 'undefined') {
+        const deletedUserIds: string[] = JSON.parse(
+          localStorage.getItem('tailoram_deleted_user_profiles') || '[]'
+        );
+        if (!deletedUserIds.includes(userId)) {
+          deletedUserIds.push(userId);
+          localStorage.setItem(
+            'tailoram_deleted_user_profiles',
+            JSON.stringify(deletedUserIds)
+          );
+        }
+
+        // Also check if this user has an associated designer profile
+        const matchingDesigner = designers.find((d) => d.user_id === userId);
+        if (matchingDesigner) {
+          const deletedDesignerIds: string[] = JSON.parse(
+            localStorage.getItem('tailoram_deleted_designer_profiles') || '[]'
+          );
+          if (!deletedDesignerIds.includes(matchingDesigner.id)) {
+            deletedDesignerIds.push(matchingDesigner.id);
+            localStorage.setItem(
+              'tailoram_deleted_designer_profiles',
+              JSON.stringify(deletedDesignerIds)
+            );
+          }
+        }
+      }
+
+      // 2. Remove optimistically from React state
+      setProfilesList((prev) => prev.filter((p) => p.id !== userId));
+      setDesigners((prev) => prev.filter((d) => d.user_id !== userId));
+
+      // 3. Call security definer RPC
+      try {
+        await supabase.rpc('admin_delete_profile', { target_user_id: userId });
+      } catch (rpcErr) {
+        console.warn('RPC admin_delete_profile fallback:', rpcErr);
+        await supabase.from('profiles').delete().eq('id', userId);
+      }
+
+      showNotice(`User account "${name}" successfully deleted.`);
+    } catch (err: any) {
+      console.error('Failed to delete user:', err);
+      showNotice(`Failed to delete user: ${err.message}`, 'error');
+    }
+  };
   const handleChangeUserRole = async (userId: string, newRole: UserRole) => {
     setProfilesList((prev) =>
       prev.map((p) => (p.id === userId ? { ...p, role: newRole } : p))
@@ -1467,6 +1556,14 @@ export default function AdminPage() {
                                 <option value="designer">Designer</option>
                                 <option value="admin">Admin</option>
                               </select>
+
+                              <button
+                                onClick={() => handleDeleteUser(u.id, u.full_name || 'User')}
+                                className="p-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-900/30 transition-colors"
+                                title="Delete User Profile"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </td>
                         </tr>

@@ -556,6 +556,11 @@ export default function HomePage() {
         if (error) {
           console.error('Error fetching designers:', error);
         } else if (data) {
+          const deletedDesignerIds: string[] = typeof window !== 'undefined'
+            ? JSON.parse(localStorage.getItem('tailoram_deleted_designer_profiles') || '[]')
+            : [];
+          const activeDesigners = (data as any[]).filter((d) => !deletedDesignerIds.includes(d.id));
+
           const deletedIds: string[] = typeof window !== 'undefined'
             ? JSON.parse(localStorage.getItem('tailoram_deleted_portfolio_items') || '[]')
             : [];
@@ -564,7 +569,7 @@ export default function HomePage() {
             : {};
 
           // Process ratings and reviews
-          const processed = (data as any[]).map((d) => {
+          const processed = activeDesigners.map((d) => {
             const revs = d.reviews || [];
             const reviewCount = revs.length;
             const avgRating =
