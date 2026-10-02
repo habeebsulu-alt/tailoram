@@ -43,11 +43,12 @@ import {
   TrendingUp,
   ShoppingBag,
   Package,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function DesignerDashboard() {
   const router = useRouter();
-  const { user, profile, designerProfile, refreshProfile, loading: authLoading } = useAuth();
+  const { user, profile, designerProfile, refreshProfile, loading: authLoading, isImpersonating } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'portfolio' | 'requests' | 'reviews' | 'profile' | 'store'>('portfolio');
 
@@ -678,6 +679,40 @@ export default function DesignerDashboard() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
+      {/* Admin Impersonation Notice Bar */}
+      {(isImpersonating || (typeof window !== 'undefined' && sessionStorage.getItem('tailoram_impersonating_admin'))) && (
+        <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-stone-950 p-4 sm:p-5 rounded-3xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-amber-300 animate-fadeIn">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-stone-950 text-amber-400 flex items-center justify-center shrink-0 shadow-md">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-sm text-stone-950">
+                  ⚡ Administrator Studio Access
+                </span>
+                <span className="text-[10px] bg-stone-950 text-amber-300 px-2 py-0.5 rounded-full font-black uppercase tracking-wider">
+                  Password Bypassed
+                </span>
+              </div>
+              <p className="text-xs text-stone-900 font-semibold mt-0.5">
+                Logged in as <strong>{designerProfile?.business_name || profile?.full_name}</strong>. You have full control to upload &amp; replace portfolio images, delete outdated items, edit RTW garments, and configure studio settings.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0 justify-end">
+            <button
+              onClick={() => router.push('/admin')}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-stone-950 hover:bg-stone-900 active:scale-95 text-white font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4 text-amber-400" />
+              <span>Return to Admin Panel</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Designer Studio Header & Key Performance Bar */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-stone-100">

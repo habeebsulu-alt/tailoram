@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { Scissors, Menu, X, User, LogOut, LayoutDashboard, ShoppingBag, ShieldCheck, Sparkles } from 'lucide-react';
 
 export default function Navbar() {
-  const { user, profile, designerProfile, signOut } = useAuth();
+  const { user, profile, designerProfile, signOut, isImpersonating } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
 
@@ -134,13 +134,14 @@ export default function Navbar() {
                   </>
                 )}
 
-                {profile?.role === 'admin' && (
+                {((profile?.role === 'admin') || isImpersonating || (typeof window !== 'undefined' && sessionStorage.getItem('tailoram_impersonating_admin'))) && (
                   <Link
                     href="/admin"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-bold text-xs shadow-sm transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs shadow-md transition-all animate-pulse"
+                    title="Return to Admin Control Center"
                   >
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Admin</span>
+                    <ShieldCheck className="w-3.5 h-3.5 text-stone-950" />
+                    <span>Return to Admin</span>
                   </Link>
                 )}
 
@@ -241,14 +242,14 @@ export default function Navbar() {
                 </div>
               </div>
 
-              {profile?.role === 'admin' && (
+              {((profile?.role === 'admin') || isImpersonating || (typeof window !== 'undefined' && sessionStorage.getItem('tailoram_impersonating_admin'))) && (
                 <Link
                   href="/admin"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 py-2 px-3 rounded-xl bg-amber-500/10 text-amber-900 text-sm font-bold border border-amber-500/20"
+                  className="flex items-center gap-2 py-2 px-3 rounded-xl bg-amber-500 text-stone-950 text-sm font-black shadow-md border border-amber-600"
                 >
-                  <ShieldCheck className="w-4 h-4 text-amber-600" />
-                  <span>Admin Command Center</span>
+                  <ShieldCheck className="w-4 h-4 text-stone-950" />
+                  <span>Return to Admin Panel</span>
                 </Link>
               )}
 

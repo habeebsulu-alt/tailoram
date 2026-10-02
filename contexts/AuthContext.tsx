@@ -11,7 +11,10 @@ interface AuthContextType {
   profile: Profile | null;
   designerProfile: DesignerProfile | null;
   loading: boolean;
+  isImpersonating?: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; role?: UserRole }>;
+  impersonateUser: (userId: string) => Promise<{ error: Error | null }>;
+  stopImpersonation: () => Promise<void>;
   signUp: (
     email: string,
     password: string,
@@ -91,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [designerProfile, setDesignerProfile] = useState<DesignerProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isImpersonating, setIsImpersonating] = useState(false);
 
   // Fetch user profile and designer profile if applicable
   const fetchProfiles = async (userId: string) => {
@@ -148,6 +152,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Check impersonation flag on mount
+    if (typeof window !== 'undefined') {
+      const imp = sessionStorage.getItem('tailoram_impersonating_admin');
+      if (imp) {
+        setIsImpersonating(true);
+      }
+    }
+
     // Initial session check
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -390,9 +402,125 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Impersonate User function (Allows Admins to manage any designer studio without password)
+  const impersonateUser = async (targetUserId: string) => {
+    try {
+      setLoading(true);
+
+      // 1. Fetch user's main profile
+      const { data: profData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', targetUserId)
+        .maybeSingle();
+
+      let targetProfile: Profile | null = profData as Profile | null;
+      let targetName = targetProfile?.full_name || 'Designer';
+      let targetRole: UserRole = targetProfile?.role || 'designer';
+
+      // 2. Fetch designer profile for business information
+      const { data: dData } = await supabase
+        .from('designer_profiles')
+        .select('*')
+        .eq('user_id', targetUserId)
+        .maybeSingle();
+
+      const businessName = dData?.business_name || targetName;
+
+      // Fallback matching from DEMO_USERS_MAP if not found in profiles table
+      const matchedDemo = Object.values(DEMO_USERS_MAP).find((u) => u.id === targetUserId);
+      if (matchedDemo) {
+        targetName = matchedDemo.name;
+        targetRole = matchedDemo.role;
+        if (!targetProfile) {
+          targetProfile = {
+            id: matchedDemo.id,
+            role: matchedDemo.role,
+            full_name: matchedDemo.name,
+            created_at: new Date().toISOString(),
+          };
+        }
+      }
+
+      const matchedDemoEmail = Object.entries(DEMO_USERS_MAP).find(([_, u]) => u.id === targetUserId)?.[0];
+      const targetEmail =
+        matchedDemoEmail ||
+        `${businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}@atelier.tailoram.com`;
+
+      const syntheticUser: User = {
+        id: targetUserId,
+        app_metadata: { provider: 'admin_impersonate' },
+        user_metadata: { full_name: businessName, role: targetRole },
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        email: targetEmail,
+        phone: dData?.whatsapp || '',
+        role: 'authenticated',
+        updated_at: new Date().toISOString(),
+      };
+
+      const syntheticSession: Session = {
+        access_token: 'impersonate-token-' + targetUserId,
+        token_type: 'bearer',
+        expires_in: 86400 * 30,
+        expires_at: Math.floor(Date.now() / 1000) + 86400 * 30,
+        refresh_token: 'impersonate-refresh-' + targetUserId,
+        user: syntheticUser,
+      };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(
+          'tailoram_demo_session',
+          JSON.stringify({ user: syntheticUser, session: syntheticSession })
+        );
+        sessionStorage.setItem(
+          'tailoram_impersonating_admin',
+          JSON.stringify({
+            userId: targetUserId,
+            name: targetName,
+            businessName: businessName,
+          })
+        );
+      }
+
+      setUser(syntheticUser);
+      setSession(syntheticSession);
+      setIsImpersonating(true);
+
+      await fetchProfiles(targetUserId);
+
+      setLoading(false);
+      return { error: null };
+    } catch (err: any) {
+      setLoading(false);
+      console.error('Failed to impersonate user:', err);
+      return { error: err };
+    }
+  };
+
+  // Stop Impersonation function (Reverts back to Admin)
+  const stopImpersonation = async () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('tailoram_impersonating_admin');
+      localStorage.removeItem('tailoram_demo_session');
+    }
+    setIsImpersonating(false);
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setDesignerProfile(null);
+  };
+
   // Sign Out function
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('tailoram_demo_session');
+      sessionStorage.removeItem('tailoram_impersonating_admin');
+    }
+    setIsImpersonating(false);
     setUser(null);
     setSession(null);
     setProfile(null);
@@ -407,7 +535,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         designerProfile,
         loading,
+        isImpersonating,
         signIn,
+        impersonateUser,
+        stopImpersonation,
         signUp,
         signOut,
         refreshProfile,

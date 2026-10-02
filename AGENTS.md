@@ -97,6 +97,7 @@ Tailoram/
   - **Preset Password**: `Tailoram2026!`
 - **Seamless Fallback**: In `contexts/AuthContext.tsx`, if Supabase returns unhashed credentials, the client falls back to synthetic session persistence (`localStorage.getItem('tailoram_demo_session')`), loading full profiles instantly without throwing errors.
 - **Admin Password Reset**: Admins can reset any user password in `/admin`. Changes are saved immediately into `platform_settings.user_passwords` for instant, global recognition.
+- **Admin Studio Impersonation (Passwordless Access)**: Admins in `/admin` can click "Login as Designer" on any atelier to instantly assume that designer's session without entering their password. Enables admins to directly modify portfolio photos, upload/delete images, edit RTW store garments, and update studio profiles. Includes an omnipresent top banner with a 1-click "Return to Admin Panel" button.
 - **Login UI Rule**: Login page must remain strictly clean and customer-facing. Never expose SQL scripts, migration instructions, or developer debugging text to users.
 
 ---

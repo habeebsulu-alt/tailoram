@@ -23,6 +23,7 @@ import {
   Users,
   Scissors,
   ShoppingBag,
+  LogIn,
   Star,
   Activity,
   Settings,
@@ -72,7 +73,7 @@ const DEMO_EMAILS_MAP: Record<string, string> = {
 const ALL_DEMO_EMAILS = Object.values(DEMO_EMAILS_MAP);
 
 export default function AdminPage() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, impersonateUser } = useAuth();
   const router = useRouter();
 
   // Authentication & Gatekeeper State
@@ -280,6 +281,21 @@ export default function AdminPage() {
   };
 
   // --- ACTIONS: DESIGNERS ---
+  const handleLoginAsDesigner = async (userId: string, businessName: string) => {
+    try {
+      showNotice(`Connecting to ${businessName} studio...`, 'info');
+      const { error } = await impersonateUser(userId);
+      if (error) {
+        showNotice(`Could not log in as designer: ${error.message}`, 'error');
+        return;
+      }
+      showNotice(`Successfully authenticated as ${businessName}. Opening Studio Dashboard...`, 'success');
+      router.push('/dashboard');
+    } catch (err: any) {
+      showNotice(err.message || 'Error entering designer studio', 'error');
+    }
+  };
+
   const handleToggleVerified = async (designerId: string, currentVal: boolean = false) => {
     const newVal = !currentVal;
     // Optimistic update
@@ -1273,6 +1289,15 @@ export default function AdminPage() {
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
+                              onClick={() => handleLoginAsDesigner(designer.user_id, designer.business_name)}
+                              className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-black text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0"
+                              title={`Log into ${designer.business_name} studio to modify images, products & profile`}
+                            >
+                              <LogIn className="w-3.5 h-3.5 text-stone-950" />
+                              <span>Login as Designer</span>
+                            </button>
+
+                            <button
                               onClick={() => {
                                 setResetModalUser({
                                   id: designer.user_id,
@@ -1406,6 +1431,17 @@ export default function AdminPage() {
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              {u.role === 'designer' && (
+                                <button
+                                  onClick={() => handleLoginAsDesigner(u.id, u.full_name)}
+                                  className="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-stone-950 border border-amber-500/40 text-xs font-bold transition-all flex items-center gap-1"
+                                  title="Log into Studio without password"
+                                >
+                                  <LogIn className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Studio</span>
+                                </button>
+                              )}
+
                               <button
                                 onClick={() => {
                                   setResetModalUser({
