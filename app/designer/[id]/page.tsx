@@ -411,7 +411,7 @@ export default function DesignerProfilePage() {
               <div
                 onClick={() => designer?.profile_image_url && setZoomAvatarUrl(designer.profile_image_url ?? null)}
                 title={designer?.profile_image_url ? "Click to view full profile photo" : undefined}
-                className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full aspect-square overflow-hidden border-4 border-white shadow-xl ring-2 ring-stone-200/80 bg-stone-100 relative ${
+                className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full aspect-square overflow-hidden border-4 border-white shadow-xl ring-2 ring-stone-200/80 bg-stone-900 relative flex items-center justify-center ${
                   designer.profile_image_url ? 'cursor-pointer group hover:scale-[1.02] transition-transform' : ''
                 }`}
               >
@@ -420,7 +420,11 @@ export default function DesignerProfilePage() {
                     <img
                       src={designer.profile_image_url}
                       alt={designer.business_name}
-                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                      className={`w-full h-full ${
+                        (typeof window !== 'undefined' && localStorage.getItem(`tailoram_avatar_fit_${designer.id}`) === 'cover')
+                          ? 'object-cover'
+                          : 'object-contain p-1 sm:p-1.5'
+                      } object-center group-hover:scale-105 transition-transform duration-300`}
                     />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 backdrop-blur-xs">
                       <Maximize2 className="w-5 h-5 text-amber-300" />
@@ -1464,11 +1468,11 @@ export default function DesignerProfilePage() {
             </div>
 
             {/* Circular Zoom Avatar */}
-            <div className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full aspect-square overflow-hidden border-4 border-amber-400/80 shadow-2xl ring-8 ring-white/10 bg-stone-950 flex items-center justify-center">
+            <div className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full aspect-square overflow-hidden border-4 border-amber-400/80 shadow-2xl ring-8 ring-white/10 bg-stone-950 flex items-center justify-center p-3">
               <img
                 src={zoomAvatarUrl}
                 alt={designer?.business_name || 'Studio Profile'}
-                className="w-full h-full object-cover object-center"
+                className="w-full h-full object-contain object-center"
               />
             </div>
 

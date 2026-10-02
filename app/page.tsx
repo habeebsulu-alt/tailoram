@@ -298,12 +298,12 @@ function DesignerMarketplaceCard({
 
           {/* Studio Profile Picture Badge on Image Card */}
           <div className="absolute bottom-3 left-3 z-30 flex items-center gap-2">
-            <div className="relative w-12 h-12 rounded-full aspect-square overflow-hidden border-2 border-white shadow-xl bg-stone-900 group-hover:scale-105 transition-transform duration-300 ring-2 ring-black/25">
+            <div className="relative w-12 h-12 rounded-full aspect-square overflow-hidden border-2 border-white shadow-xl bg-stone-900 group-hover:scale-105 transition-transform duration-300 ring-2 ring-black/25 flex items-center justify-center">
               {designer.profile_image_url ? (
                 <img
                   src={designer.profile_image_url}
                   alt={designer.business_name}
-                  className="w-full h-full object-cover object-center"
+                  className="w-full h-full object-contain p-0.5 object-center"
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-brand-600 to-amber-600 text-white flex items-center justify-center font-black text-base shadow-inner">

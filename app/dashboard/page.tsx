@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { compressImage } from '@/lib/imageCompressor';
+import { compressImage, compressAvatarImage } from '@/lib/imageCompressor';
 import { logEvent } from '@/lib/analytics';
 import {
   PortfolioItem,
@@ -130,8 +130,17 @@ export default function DesignerDashboard() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarSuccess, setAvatarSuccess] = useState('');
   const [avatarError, setAvatarError] = useState('');
+  const [avatarFitMode, setAvatarFitMode] = useState<'contain' | 'cover'>('contain');
   const [zoomAvatarUrl, setZoomAvatarUrl] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleAvatarFit = () => {
+    const nextMode = avatarFitMode === 'contain' ? 'cover' : 'contain';
+    setAvatarFitMode(nextMode);
+    if (designerProfile?.id && typeof window !== 'undefined') {
+      localStorage.setItem(`tailoram_avatar_fit_${designerProfile.id}`, nextMode);
+    }
+  };
 
   // Edit profile state
   const [businessName, setBusinessName] = useState('');
@@ -181,6 +190,13 @@ export default function DesignerDashboard() {
         ? localStorage.getItem(`tailoram_cover_${designerProfile.id}`)
         : null;
       setCoverItemId((designerProfile as any).cover_image_id || localCover || null);
+
+      const localFit = typeof window !== 'undefined'
+        ? localStorage.getItem(`tailoram_avatar_fit_${designerProfile.id}`)
+        : null;
+      if (localFit === 'contain' || localFit === 'cover') {
+        setAvatarFitMode(localFit);
+      }
     }
   }, [designerProfile]);
 
@@ -333,8 +349,8 @@ export default function DesignerDashboard() {
       setAvatarError('');
       setAvatarSuccess('');
 
-      // Compress to 800x800 WebP for sharp WhatsApp-style circular display and zoom clarity
-      const compressedFile = await compressImage(file, 800, 800, 0.92);
+      // Format & compress with exact aspect-ratio preservation for WhatsApp-style circular display
+      const compressedFile = await compressAvatarImage(file, 800, 0.92);
       const fileName = `avatars/${designerProfile.id}-${Date.now()}.webp`;
 
       const { error: storageError } = await supabase.storage
@@ -1240,13 +1256,15 @@ export default function DesignerDashboard() {
                     }
                   }}
                   title={designerProfile?.profile_image_url ? "Click to view full photo" : "Click to upload profile photo"}
-                  className="w-28 h-28 sm:w-36 sm:h-36 rounded-full aspect-square overflow-hidden border-4 border-white shadow-xl ring-4 ring-amber-400/30 bg-stone-100 relative cursor-pointer group transition-all hover:scale-[1.02]"
+                  className="w-28 h-28 sm:w-36 sm:h-36 rounded-full aspect-square overflow-hidden border-4 border-white shadow-xl ring-4 ring-amber-400/30 bg-stone-900 relative cursor-pointer group transition-all hover:scale-[1.02] flex items-center justify-center"
                 >
                   {designerProfile?.profile_image_url ? (
                     <img
                       src={designerProfile.profile_image_url}
                       alt={designerProfile.business_name || 'Studio Logo'}
-                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                      className={`w-full h-full ${
+                        avatarFitMode === 'contain' ? 'object-contain p-1.5 sm:p-2' : 'object-cover'
+                      } object-center group-hover:scale-105 transition-transform duration-300`}
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-brand-600 to-amber-600 flex flex-col items-center justify-center text-white font-black text-3xl sm:text-4xl shadow-inner">
@@ -1280,7 +1298,7 @@ export default function DesignerDashboard() {
                 />
               </div>
 
-              {/* Prominent Upload / Change Button */}
+              {/* Prominent Upload / Change Button & Fit Toggle */}
               <div className="flex flex-col sm:justify-center gap-2 text-center sm:text-left">
                 <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
                   <button
@@ -1294,18 +1312,30 @@ export default function DesignerDashboard() {
                   </button>
 
                   {designerProfile?.profile_image_url && (
-                    <button
-                      type="button"
-                      onClick={() => setZoomAvatarUrl(designerProfile?.profile_image_url ?? null)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs sm:text-sm transition-all cursor-pointer"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5 text-stone-500" />
-                      <span>View</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={toggleAvatarFit}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 font-bold text-xs sm:text-sm transition-all cursor-pointer"
+                        title={avatarFitMode === 'contain' ? "Currently shrunk inside circle. Click to fill circle." : "Currently filling circle. Click to shrink into circle."}
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
+                        <span>{avatarFitMode === 'contain' ? 'Fit in Circle' : 'Fill Circle'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setZoomAvatarUrl(designerProfile?.profile_image_url ?? null)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs sm:text-sm transition-all cursor-pointer"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5 text-stone-500" />
+                        <span>View</span>
+                      </button>
+                    </>
                   )}
                 </div>
                 <p className="text-[11px] text-stone-500 max-w-xs">
-                  WhatsApp-style circular portrait. Click photo to zoom. Recommended: Square JPG or PNG.
+                  WhatsApp-style circular portrait. Aspect ratio 100% preserved. Click photo to zoom.
                 </p>
               </div>
             </div>
@@ -1928,7 +1958,7 @@ export default function DesignerDashboard() {
               <div className="flex items-center gap-4">
                 <div
                   onClick={() => designerProfile?.profile_image_url && setZoomAvatarUrl(designerProfile.profile_image_url ?? null)}
-                  className={`w-20 h-20 rounded-full aspect-square overflow-hidden border-4 border-white shadow-md ring-2 ring-stone-200 bg-white shrink-0 relative ${
+                  className={`w-20 h-20 rounded-full aspect-square overflow-hidden border-4 border-white shadow-md ring-2 ring-stone-200 bg-stone-900 shrink-0 relative flex items-center justify-center ${
                     designerProfile?.profile_image_url ? 'cursor-pointer group' : ''
                   }`}
                   title={designerProfile?.profile_image_url ? "Click to view full photo" : undefined}
@@ -1938,7 +1968,9 @@ export default function DesignerDashboard() {
                       <img
                         src={designerProfile.profile_image_url}
                         alt={businessName || 'Studio Avatar'}
-                        className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                        className={`w-full h-full ${
+                          avatarFitMode === 'contain' ? 'object-contain p-1' : 'object-cover'
+                        } object-center group-hover:scale-105 transition-transform duration-300`}
                       />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                         <Maximize2 className="w-4 h-4 text-amber-300" />
@@ -3088,11 +3120,11 @@ export default function DesignerDashboard() {
             </div>
 
             {/* Circular Zoom Avatar */}
-            <div className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full aspect-square overflow-hidden border-4 border-amber-400/80 shadow-2xl ring-8 ring-white/10 bg-stone-950 flex items-center justify-center">
+            <div className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full aspect-square overflow-hidden border-4 border-amber-400/80 shadow-2xl ring-8 ring-white/10 bg-stone-950 flex items-center justify-center p-3">
               <img
                 src={zoomAvatarUrl}
                 alt={designerProfile?.business_name || 'Studio Profile'}
-                className="w-full h-full object-cover object-center"
+                className="w-full h-full object-contain object-center"
               />
             </div>
 
