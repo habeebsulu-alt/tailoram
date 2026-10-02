@@ -804,14 +804,14 @@ export default function HomePage() {
       {/* Luxury Editorial Hero Section with Ambient Background Slider */}
       <section className="relative overflow-hidden bg-stone-950 text-white border-b border-stone-800/80 pt-16 pb-16 px-4 sm:px-6 lg:px-8 transition-colors duration-700">
         {/* Background Slides with Smooth Crossfade and Ken Burns Effect */}
-        <div className="absolute inset-0 pointer-events-none select-none overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none select-none overflow-hidden z-0">
           {heroSlides.map((slide, idx) => {
             const isActive = idx === activeSlideIndex;
             return (
               <div
                 key={`${slide.image}-${idx}`}
                 className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                  isActive ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                  isActive ? 'opacity-100' : 'opacity-0'
                 }`}
               >
                 <img
@@ -826,13 +826,13 @@ export default function HomePage() {
             );
           })}
 
-          {/* Deep dark shade over the hero image slider so images are subtle, elegant, and not so visible */}
-          <div className="absolute inset-0 bg-black/80 sm:bg-black/85" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/75 to-black/90" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent pointer-events-none" />
+          {/* Dark shade overlay over slider images (original tone, slightly lighter so text and buttons project with extreme clarity) */}
+          <div className="absolute inset-0 z-10 bg-stone-950/65 sm:bg-stone-950/60" />
+          <div className="absolute inset-0 z-10 bg-gradient-to-t from-stone-950 via-stone-950/40 to-stone-950/75" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/15 via-transparent to-transparent pointer-events-none" />
         </div>
 
-        <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
+        <div className="max-w-5xl mx-auto text-center space-y-6 relative z-20">
           
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-bold tracking-wide shadow-sm">
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
