@@ -413,7 +413,7 @@ export default function HomePage() {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/20 via-transparent to-transparent pointer-events-none" />
         </div>
 
-        <div className="max-w-4xl mx-auto text-center space-y-6 relative z-10">
+        <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
           
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-bold tracking-wide shadow-sm">
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -434,24 +434,22 @@ export default function HomePage() {
           </p>
 
           {/* Action Choices: View Designers Around Me vs Explore All Designers vs Explore the Shop */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
+          <div className="flex flex-col sm:flex-row flex-wrap lg:flex-nowrap items-center justify-center gap-3 sm:gap-3.5 pt-2">
             <button
               onClick={handleFindAroundMe}
               disabled={geoLocating}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base shadow-xl shadow-brand-900/40 hover:shadow-2xl transition-all flex items-center justify-center gap-2.5 group"
+              className="w-full sm:w-auto h-12 sm:h-13 px-5 sm:px-6 rounded-2xl bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-extrabold text-sm shadow-xl shadow-brand-900/40 hover:shadow-2xl transition-all flex items-center justify-center gap-2.5 whitespace-nowrap group"
             >
               {geoLocating ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <Loader2 className="w-4 h-4 animate-spin text-white shrink-0" />
                   <span>Locating Studios Near You...</span>
                 </>
               ) : (
                 <>
-                  <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-                    <Navigation className="w-3.5 h-3.5 text-white" />
-                  </div>
+                  <Navigation className="w-4 h-4 text-white shrink-0" />
                   <span>View Designers Around Me</span>
-                  <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-bold shrink-0">
                     Nearby
                   </span>
                 </>
@@ -460,22 +458,22 @@ export default function HomePage() {
 
             <button
               onClick={handleExploreAll}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base border border-white/30 backdrop-blur-md shadow-lg transition-all flex items-center justify-center gap-2 group"
+              className="w-full sm:w-auto h-12 sm:h-13 px-5 sm:px-6 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-[0.98] text-white font-extrabold text-sm border border-white/30 backdrop-blur-md shadow-lg transition-all flex items-center justify-center gap-2.5 whitespace-nowrap group"
             >
-              <Compass className="w-4 h-4 text-amber-400 group-hover:rotate-45 transition-transform" />
+              <Compass className="w-4 h-4 text-amber-400 group-hover:rotate-45 transition-transform shrink-0" />
               <span>Explore All Designers</span>
-              <span className="text-[11px] bg-white/20 text-white px-2 py-0.5 rounded-full font-bold">
+              <span className="text-[11px] bg-white/20 text-white px-2 py-0.5 rounded-full font-bold shrink-0">
                 {designers.length}
               </span>
             </button>
 
             <Link
               href="/shop"
-              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-stone-950 font-black text-sm sm:text-base shadow-xl shadow-amber-500/25 hover:shadow-2xl transition-all flex items-center justify-center gap-2 group"
+              className="w-full sm:w-auto h-12 sm:h-13 px-5 sm:px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-stone-950 font-black text-sm shadow-xl shadow-amber-500/25 hover:shadow-2xl transition-all flex items-center justify-center gap-2.5 whitespace-nowrap group"
             >
-              <ShoppingBag className="w-4 h-4 text-stone-950" />
+              <ShoppingBag className="w-4 h-4 text-stone-950 shrink-0" />
               <span>Explore the Shop</span>
-              <span className="text-[11px] bg-stone-950/20 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-[11px] bg-stone-950/20 px-2 py-0.5 rounded-full font-bold shrink-0">
                 RTW
               </span>
             </Link>
