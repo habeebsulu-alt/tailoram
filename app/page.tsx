@@ -100,6 +100,340 @@ function hashString(str: string, seed: number = 42): number {
   return hash;
 }
 
+interface DesignerCardProps {
+  designer: any;
+  index: number;
+  isTopThree: boolean;
+  cleanPhone: string | null;
+  genderFocus: 'male' | 'female' | 'unisex';
+  genderBadge: any;
+}
+
+function DesignerMarketplaceCard({
+  designer,
+  index,
+  isTopThree,
+  cleanPhone,
+  genderFocus,
+  genderBadge,
+}: DesignerCardProps) {
+  const portfolioItems = useMemo(() => designer.portfolio_items || [], [designer.portfolio_items]);
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  // Slideshow timer on hover or keyboard focus
+  useEffect(() => {
+    if (!isHovered || portfolioItems.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setActiveMediaIndex((prev) => (prev + 1) % portfolioItems.length);
+    }, 1700);
+
+    return () => clearInterval(interval);
+  }, [isHovered, portfolioItems.length]);
+
+  const handleMouseEnter = () => setIsHovered(true);
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    setActiveMediaIndex(0);
+  };
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActiveMediaIndex((prev) => (prev - 1 + portfolioItems.length) % portfolioItems.length);
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActiveMediaIndex((prev) => (prev + 1) % portfolioItems.length);
+  };
+
+  return (
+    <div
+      className="bg-white rounded-3xl border border-stone-200/90 overflow-hidden shadow-xs hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between group"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onFocus={handleMouseEnter}
+      onBlur={handleMouseLeave}
+    >
+      {/* Clickable Media & Profile Card - Links to Designer Profile */}
+      <Link href={`/designer/${designer.id}`} className="block cursor-pointer flex-1">
+        <div className="relative aspect-[16/11] bg-stone-950 overflow-hidden">
+          {portfolioItems.length > 0 ? (
+            portfolioItems.map((item: any, idx: number) => {
+              const isActive = idx === activeMediaIndex;
+              return (
+                <div
+                  key={item.id || idx}
+                  className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+                    isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                  }`}
+                >
+                  {item.media_type === 'video' ? (
+                    <video
+                      src={item.media_url}
+                      muted
+                      playsInline
+                      autoPlay
+                      loop
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={item.media_url}
+                      alt={item.caption || designer.business_name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                      loading="lazy"
+                    />
+                  )}
+                  {/* Subtle dark bottom vignette for luxury contrast and badge legibility */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none" />
+                </div>
+              );
+            })
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-brand-50 to-stone-100 text-stone-400">
+              <Scissors className="w-8 h-8 text-brand-400" />
+              <span className="text-[11px] font-bold">New Studio</span>
+            </div>
+          )}
+
+          {/* Story-style Progress Indicator Bars on Hover / Multiple items */}
+          {portfolioItems.length > 1 && (
+            <div className="absolute top-2 inset-x-3 z-30 flex items-center gap-1 opacity-90 transition-opacity">
+              {portfolioItems.slice(0, 8).map((_: any, idx: number) => (
+                <div
+                  key={idx}
+                  className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                    idx === activeMediaIndex
+                      ? 'bg-amber-400 shadow-sm'
+                      : 'bg-white/40 backdrop-blur-xs'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Quick manual navigation arrows on hover */}
+          {isHovered && portfolioItems.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrev}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-30 w-7 h-7 rounded-full bg-black/65 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-xs shadow-lg transition-all active:scale-90"
+                aria-label="Previous work"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-30 w-7 h-7 rounded-full bg-black/65 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-xs shadow-lg transition-all active:scale-90"
+                aria-label="Next work"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </>
+          )}
+
+          {/* Rank / Top Rated Badge */}
+          {isTopThree && (
+            <span className="absolute top-4 left-3 px-3 py-1 rounded-full bg-amber-500/95 backdrop-blur-sm text-white text-[11px] font-black flex items-center gap-1 shadow-sm z-20">
+              <Trophy className="w-3.5 h-3.5 fill-white" />
+              #{index + 1} Top Rated
+            </span>
+          )}
+
+          {!isTopThree && (
+            <span className="absolute top-4 left-3 px-3 py-1 rounded-full bg-white/95 backdrop-blur-sm text-stone-800 text-[11px] font-bold flex items-center gap-1 shadow-xs z-20">
+              <MapPin className="w-3.5 h-3.5 text-brand-600" />
+              {designer.area}, {designer.state}
+            </span>
+          )}
+
+          {/* Gender Wear Tag Badge on Media */}
+          <span
+            className={`absolute top-4 right-3 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-xs border z-20 ${
+              genderFocus === 'male'
+                ? 'bg-blue-950/85 text-blue-200 border-blue-400/40'
+                : genderFocus === 'female'
+                ? 'bg-rose-950/85 text-rose-200 border-rose-400/40'
+                : 'bg-purple-950/85 text-purple-200 border-purple-400/40'
+            }`}
+          >
+            {genderBadge?.icon} {genderBadge?.tag}
+          </span>
+
+          {/* Studio Profile Picture Badge on Image Card */}
+          <div className="absolute bottom-3 left-3 z-30 flex items-center gap-2">
+            <div className="relative w-12 h-12 rounded-2xl overflow-hidden border-2 border-white shadow-xl bg-stone-900 group-hover:scale-105 transition-transform duration-300 ring-2 ring-black/20">
+              {designer.profile_image_url ? (
+                <img
+                  src={designer.profile_image_url}
+                  alt={designer.business_name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-brand-600 to-amber-600 text-white flex items-center justify-center font-black text-base shadow-inner">
+                  {designer.business_name.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+            {designer.is_verified && (
+              <span
+                title="Verified Studio"
+                className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white shadow-md"
+              >
+                <CheckCircle2 className="w-3 h-3 fill-white text-emerald-500" />
+              </span>
+            )}
+          </div>
+
+          {/* Portfolio count / dynamic active slide counter */}
+          <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-sm text-white text-[10px] font-bold tracking-wide z-20 flex items-center gap-1 shadow-sm">
+            {portfolioItems.length > 1 ? (
+              <>
+                <span className="text-amber-400 font-black">{activeMediaIndex + 1}</span>
+                <span className="text-stone-300">/{portfolioItems.length} Works</span>
+              </>
+            ) : (
+              <span>{portfolioItems.length} {portfolioItems.length === 1 ? 'Work' : 'Works'}</span>
+            )}
+          </span>
+        </div>
+
+        {/* Designer Details */}
+        <div className="p-6 space-y-3">
+          {/* Gender Wear Tag & Studio Store Badge */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span
+              className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${
+                genderFocus === 'male'
+                  ? 'bg-blue-50 text-blue-800 border-blue-200'
+                  : genderFocus === 'female'
+                  ? 'bg-rose-50 text-rose-800 border-rose-200'
+                  : 'bg-purple-50 text-purple-800 border-purple-200'
+              }`}
+            >
+              {genderBadge?.icon} {genderBadge?.tag}
+            </span>
+            {designer.has_store && (
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                <ShoppingBag className="w-2.5 h-2.5 text-amber-600" />
+                Studio Store
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="text-lg sm:text-xl font-black text-stone-900 group-hover:text-brand-600 transition-colors leading-tight truncate">
+                  {designer.business_name}
+                </h3>
+                {designer.is_verified && (
+                  <span
+                    title="Tailoram Verified Studio"
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black"
+                  >
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>Verified</span>
+                  </span>
+                )}
+                {designer.is_featured && (
+                  <span
+                    title="Featured Showcase"
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Featured</span>
+                  </span>
+                )}
+              </div>
+              {designer.profiles?.full_name && (
+                <p className="text-xs text-stone-400 font-medium truncate mt-0.5">
+                  Tailor: {designer.profiles.full_name}
+                </p>
+              )}
+            </div>
+
+            {/* Star Rating Badge */}
+            <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-xl flex-shrink-0">
+              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+              <span className="text-xs font-black text-amber-900">
+                {designer.review_count > 0 ? designer.avg_rating.toFixed(1) : 'New'}
+              </span>
+              {designer.review_count > 0 && (
+                <span className="text-[10px] text-amber-700 font-semibold">
+                  ({designer.review_count})
+                </span>
+              )}
+            </div>
+          </div>
+
+          {designer.bio && (
+            <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
+              {designer.bio}
+            </p>
+          )}
+
+          {/* Specialty tags */}
+          {designer.categories && designer.categories.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {designer.categories.slice(0, 3).map((cat: string) => (
+                <span
+                  key={cat}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider bg-stone-100 text-stone-700"
+                >
+                  {cat.replace('_', ' ')}
+                </span>
+              ))}
+              {designer.categories.length > 3 && (
+                <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-stone-100 text-stone-400">
+                  +{designer.categories.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </Link>
+
+      {/* Action Bar */}
+      <div className="p-6 pt-0 border-t border-stone-100 mt-2 flex items-center gap-2">
+        <Link
+          href={`/designer/${designer.id}`}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-2xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-xs"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          View Portfolio
+        </Link>
+
+        <Link
+          href={`/request/${designer.id}`}
+          className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-all shadow-md shadow-brand-600/20"
+        >
+          <Send className="w-3.5 h-3.5" />
+          Request
+        </Link>
+
+        {cleanPhone && (
+          <a
+            href={`https://wa.me/${cleanPhone}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2.5 rounded-2xl border border-stone-200 text-emerald-600 hover:bg-emerald-50 transition-colors"
+            title="Chat on WhatsApp"
+          >
+            <Phone className="w-4 h-4" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const { user } = useAuth();
 
@@ -805,222 +1139,21 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7">
             {filteredAndRankedDesigners.map((designer: any, index: number) => {
-              const portfolioItems = designer.portfolio_items || [];
-              const latestItem = portfolioItems[0];
               const cleanPhone = designer.whatsapp?.replace(/[^0-9]/g, '');
               const isTopThree = index < 3 && designer.avg_rating >= 4.0;
               const genderFocus = getDesignerGender(designer);
               const genderBadge = GENDER_FOCUS_OPTIONS.find((g) => g.id === genderFocus);
 
               return (
-                <div
+                <DesignerMarketplaceCard
                   key={designer.id}
-                  className="bg-white rounded-3xl border border-stone-200/90 overflow-hidden shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group"
-                >
-                  
-                  {/* Clickable Media & Profile Card - Links to Designer Profile */}
-                  <Link
-                    href={`/designer/${designer.id}`}
-                    className="block cursor-pointer flex-1"
-                  >
-                    <div className="relative aspect-[16/11] bg-stone-100 overflow-hidden">
-                      {latestItem ? (
-                        latestItem.media_type === 'video' ? (
-                          <video
-                            src={latestItem.media_url}
-                            muted
-                            playsInline
-                            autoPlay
-                            loop
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <img
-                            src={latestItem.media_url}
-                            alt={latestItem.caption || designer.business_name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            loading="lazy"
-                          />
-                        )
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-brand-50 to-stone-100 text-stone-400">
-                          <Scissors className="w-8 h-8 text-brand-400" />
-                          <span className="text-[11px] font-bold">New Studio</span>
-                        </div>
-                      )}
-
-                      {/* Rank / Top Rated Badge */}
-                      {isTopThree && (
-                        <span className="absolute top-3 left-3 px-3 py-1 rounded-full bg-amber-500/95 backdrop-blur-sm text-white text-[11px] font-black flex items-center gap-1 shadow-sm">
-                          <Trophy className="w-3.5 h-3.5 fill-white" />
-                          #{index + 1} Top Rated
-                        </span>
-                      )}
-
-                      {!isTopThree && (
-                        <span className="absolute top-3 left-3 px-3 py-1 rounded-full bg-white/95 backdrop-blur-sm text-stone-800 text-[11px] font-bold flex items-center gap-1 shadow-xs">
-                          <MapPin className="w-3.5 h-3.5 text-brand-600" />
-                          {designer.area}, {designer.state}
-                        </span>
-                      )}
-
-                      {/* Gender Wear Tag Badge on Media */}
-                      <span className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-xs border ${
-                        genderFocus === 'male'
-                          ? 'bg-blue-950/85 text-blue-200 border-blue-400/40'
-                          : genderFocus === 'female'
-                          ? 'bg-rose-950/85 text-rose-200 border-rose-400/40'
-                          : 'bg-purple-950/85 text-purple-200 border-purple-400/40'
-                      }`}>
-                        {genderBadge?.icon} {genderBadge?.tag}
-                      </span>
-
-                      {/* Portfolio count */}
-                      <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-black/65 backdrop-blur-sm text-white text-[10px] font-bold tracking-wide">
-                        {portfolioItems.length} {portfolioItems.length === 1 ? 'Work' : 'Works'}
-                      </span>
-                    </div>
-
-                    {/* Designer Details */}
-                    <div className="p-6 space-y-3">
-                      {/* Gender Wear Tag & Studio Store Badge */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${
-                          genderFocus === 'male'
-                            ? 'bg-blue-50 text-blue-800 border-blue-200'
-                            : genderFocus === 'female'
-                            ? 'bg-rose-50 text-rose-800 border-rose-200'
-                            : 'bg-purple-50 text-purple-800 border-purple-200'
-                        }`}>
-                          {genderBadge?.icon} {genderBadge?.tag}
-                        </span>
-                        {designer.has_store && (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
-                            <ShoppingBag className="w-2.5 h-2.5 text-amber-600" />
-                            Studio Store
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-3 min-w-0">
-                          {designer.profile_image_url ? (
-                            <img
-                              src={designer.profile_image_url}
-                              alt={designer.business_name}
-                              className="w-10 h-10 rounded-2xl object-cover border border-stone-200 shrink-0 shadow-xs"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-600 to-amber-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
-                              {designer.business_name.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <h3 className="text-lg sm:text-xl font-black text-stone-900 group-hover:text-brand-600 transition-colors leading-tight">
-                                {designer.business_name}
-                              </h3>
-                              {designer.is_verified && (
-                                <span
-                                  title="Tailoram Verified Studio"
-                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black"
-                                >
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                  <span>Verified</span>
-                                </span>
-                              )}
-                              {designer.is_featured && (
-                                <span
-                                  title="Featured Showcase"
-                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black"
-                                >
-                                  <Sparkles className="w-3 h-3 text-amber-500" />
-                                  <span>Featured</span>
-                                </span>
-                              )}
-                            </div>
-                            {designer.profiles?.full_name && (
-                              <p className="text-xs text-stone-400 font-medium truncate">
-                                Tailor: {designer.profiles.full_name}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Star Rating Badge */}
-                        <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-xl flex-shrink-0">
-                          <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                          <span className="text-xs font-black text-amber-900">
-                            {designer.review_count > 0 ? designer.avg_rating.toFixed(1) : 'New'}
-                          </span>
-                          {designer.review_count > 0 && (
-                            <span className="text-[10px] text-amber-700 font-semibold">
-                              ({designer.review_count})
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {designer.bio && (
-                        <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
-                          {designer.bio}
-                        </p>
-                      )}
-
-                      {/* Specialty tags */}
-                      {designer.categories && designer.categories.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {designer.categories.slice(0, 3).map((cat: string) => (
-                            <span
-                              key={cat}
-                              className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider bg-stone-100 text-stone-700"
-                            >
-                              {cat.replace('_', ' ')}
-                            </span>
-                          ))}
-                          {designer.categories.length > 3 && (
-                            <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-stone-100 text-stone-400">
-                              +{designer.categories.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-
-                  {/* Action Bar */}
-                  <div className="p-6 pt-0 border-t border-stone-100 mt-2 flex items-center gap-2">
-                    <Link
-                      href={`/designer/${designer.id}`}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-2xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-xs"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      View Portfolio
-                    </Link>
-
-                    <Link
-                      href={`/request/${designer.id}`}
-                      className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-all shadow-md shadow-brand-600/20"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      Request
-                    </Link>
-
-                    {cleanPhone && (
-                      <a
-                        href={`https://wa.me/${cleanPhone}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2.5 rounded-2xl border border-stone-200 text-emerald-600 hover:bg-emerald-50 transition-colors"
-                        title="Chat on WhatsApp"
-                      >
-                        <Phone className="w-4 h-4" />
-                      </a>
-                    )}
-                  </div>
-
-                </div>
+                  designer={designer}
+                  index={index}
+                  isTopThree={isTopThree}
+                  cleanPhone={cleanPhone}
+                  genderFocus={genderFocus}
+                  genderBadge={genderBadge}
+                />
               );
             })}
           </div>
