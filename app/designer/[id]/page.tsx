@@ -35,6 +35,7 @@ import {
   ChevronRight,
   ShoppingBag,
   Tag,
+  Maximize2,
 } from 'lucide-react';
 
 const CATEGORY_SEQUENCE = [
@@ -206,7 +207,12 @@ export default function DesignerProfilePage() {
           .single();
 
         if (dError) throw dError;
-        setDesigner(dData as DesignerProfile);
+        const localAvatar = typeof window !== 'undefined' ? localStorage.getItem(`tailoram_avatar_${designerId}`) : null;
+        const mergedDesigner: DesignerProfile = {
+          ...(dData as DesignerProfile),
+          profile_image_url: (dData as any).profile_image_url || localAvatar || null,
+        };
+        setDesigner(mergedDesigner);
 
         // 2. Fetch portfolio items
         const { data: pData, error: pError } = await supabase
@@ -216,7 +222,11 @@ export default function DesignerProfilePage() {
           .order('created_at', { ascending: false });
 
         if (!pError && pData) {
-          setPortfolio(pData as PortfolioItem[]);
+          const deletedIds: string[] = typeof window !== 'undefined'
+            ? JSON.parse(localStorage.getItem('tailoram_deleted_portfolio_items') || '[]')
+            : [];
+          const activePortfolio = ((pData as PortfolioItem[]) || []).filter((i) => !deletedIds.includes(i.id));
+          setPortfolio(activePortfolio);
         }
 
         // 3. Fetch reviews
@@ -372,48 +382,74 @@ export default function DesignerProfilePage() {
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-8 relative z-10">
           
           {/* Main Info */}
-          <div className="space-y-4 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
-                Verified Nigerian Tailor
-              </span>
-              <span className="flex items-center gap-1 text-xs text-stone-600 font-semibold bg-stone-100 px-3 py-1 rounded-full">
-                <MapPin className="w-3.5 h-3.5 text-brand-600" />
-                {designer.area}, {designer.state}
-              </span>
-
-              {(() => {
-                const gFocus = getDesignerGender(designer);
-                const gInfo = GENDER_FOCUS_OPTIONS.find((g) => g.id === gFocus);
-                return (
-                  <span className={`flex items-center gap-1 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
-                    gFocus === 'male'
-                      ? 'bg-blue-50 text-blue-800 border-blue-200'
-                      : gFocus === 'female'
-                      ? 'bg-rose-50 text-rose-800 border-rose-200'
-                      : 'bg-purple-50 text-purple-800 border-purple-200'
-                  }`}>
-                    {gInfo?.icon} {gInfo?.tag || 'Unisex'}
-                  </span>
-                );
-              })()}
-
-              {avgRating ? (
-                <span className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full">
-                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                  {avgRating} ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
-                </span>
-              ) : (
-                <span className="text-[11px] font-semibold text-stone-400 bg-stone-50 px-2.5 py-1 rounded-full">
-                  New on Tailoram
-                </span>
+          <div className="flex flex-col sm:flex-row items-start gap-6 max-w-2xl">
+            {/* Studio Avatar / Profile Picture */}
+            <div className="relative shrink-0">
+              <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-3xl overflow-hidden border-2 border-stone-200 bg-stone-100 shadow-md relative">
+                {designer.profile_image_url ? (
+                  <img
+                    src={designer.profile_image_url}
+                    alt={designer.business_name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-brand-600 to-amber-600 flex items-center justify-center text-white font-black text-3xl sm:text-4xl shadow-inner">
+                    {designer.business_name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              {designer.is_verified && (
+                <div
+                  title="Tailoram Verified Studio"
+                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white shadow-sm"
+                >
+                  <CheckCircle2 className="w-4 h-4 fill-white text-emerald-500" />
+                </div>
               )}
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-3xl sm:text-5xl font-black text-stone-900 tracking-tight leading-tight">
-                {designer.business_name}
-              </h1>
+            <div className="space-y-4 flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+                  Verified Nigerian Tailor
+                </span>
+                <span className="flex items-center gap-1 text-xs text-stone-600 font-semibold bg-stone-100 px-3 py-1 rounded-full">
+                  <MapPin className="w-3.5 h-3.5 text-brand-600" />
+                  {designer.area}, {designer.state}
+                </span>
+
+                {(() => {
+                  const gFocus = getDesignerGender(designer);
+                  const gInfo = GENDER_FOCUS_OPTIONS.find((g) => g.id === gFocus);
+                  return (
+                    <span className={`flex items-center gap-1 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
+                      gFocus === 'male'
+                        ? 'bg-blue-50 text-blue-800 border-blue-200'
+                        : gFocus === 'female'
+                        ? 'bg-rose-50 text-rose-800 border-rose-200'
+                        : 'bg-purple-50 text-purple-800 border-purple-200'
+                    }`}>
+                      {gInfo?.icon} {gInfo?.tag || 'Unisex'}
+                    </span>
+                  );
+                })()}
+
+                {avgRating ? (
+                  <span className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full">
+                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                    {avgRating} ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold text-stone-400 bg-stone-50 px-2.5 py-1 rounded-full">
+                    New on Tailoram
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-3xl sm:text-5xl font-black text-stone-900 tracking-tight leading-tight">
+                  {designer.business_name}
+                </h1>
               {designer.is_verified && (
                 <span
                   title="Tailoram Verified Studio"
@@ -465,8 +501,9 @@ export default function DesignerProfilePage() {
               </div>
             )}
           </div>
+        </div>
 
-          {/* Action CTAs */}
+        {/* Action CTAs */}
           <div className="flex flex-col sm:flex-row md:flex-col gap-3 min-w-[220px]">
             <Link
               href={`/request/${designer.id}`}
@@ -634,83 +671,99 @@ export default function DesignerProfilePage() {
               return (
                 <div
                   key={item.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedIndex(idx)}
-                  className="group cursor-pointer bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col justify-between"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedIndex(idx);
+                    }
+                  }}
+                  className="group cursor-pointer bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col justify-between text-left focus:outline-none focus:ring-2 focus:ring-brand-500 select-none"
                 >
-                      <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
-                        {/* Rating badge on preview */}
-                        <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[11px] font-bold flex items-center gap-1 shadow-md z-10">
-                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                          <span>{itemRating}</span>
-                        </div>
+                  <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
+                    {/* Rating badge on preview */}
+                    <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[11px] font-bold flex items-center gap-1 shadow-md z-10 pointer-events-none">
+                      <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                      <span>{itemRating}</span>
+                    </div>
 
-                        {/* Media type badge */}
-                        <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 z-10">
-                          {item.media_type === 'video' ? (
-                            <>
-                              <Video className="w-3 h-3 text-brand-400" /> Reel
-                            </>
-                          ) : (
-                            <>
-                              <ImageIcon className="w-3 h-3" /> Photo
-                            </>
-                          )}
-                        </span>
+                    {/* Media type badge */}
+                    <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 z-10 pointer-events-none">
+                      {item.media_type === 'video' ? (
+                        <>
+                          <Video className="w-3 h-3 text-brand-400" /> Reel
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-3 h-3" /> Photo
+                        </>
+                      )}
+                    </span>
 
-                        {/* Category badge */}
-                        <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md bg-stone-900/85 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider z-10">
-                          {CATEGORY_NAMES[itemCat] || 'Bespoke'}
-                        </span>
+                    {/* Category badge */}
+                    <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md bg-stone-900/85 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider z-10 pointer-events-none">
+                      {CATEGORY_NAMES[itemCat] || 'Bespoke'}
+                    </span>
 
-                        {item.media_type === 'video' ? (
-                          <div className="relative w-full h-full">
-                            <video
-                              src={item.media_url}
-                              muted
-                              playsInline
-                              autoPlay
-                              loop
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-85 group-hover:opacity-100 transition-opacity">
-                              <div className="w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm text-stone-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                                <Play className="w-5 h-5 fill-stone-900 text-stone-900 ml-0.5" />
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <img
-                            src={item.media_url}
-                            alt={item.caption || 'Tailor Outfit'}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            loading="lazy"
-                          />
-                        )}
-                      </div>
-
-                      <div className="p-3.5 bg-white flex flex-col justify-between flex-1 gap-2.5">
-                        <p className="text-xs sm:text-sm text-stone-800 font-medium line-clamp-2">
-                          {item.caption || `${CATEGORY_NAMES[itemCat]} tailored by ${designer.business_name}`}
-                        </p>
-
-                        <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-stone-400">
-                            {CATEGORY_NAMES[itemCat]}
-                          </span>
-
-                          <Link
-                            href={`/request/${designer.id}?inspoUrl=${encodeURIComponent(item.media_url)}&styleTitle=${encodeURIComponent(item.caption || CATEGORY_NAMES[itemCat] || 'Bespoke Style')}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-[11px] shadow-sm shadow-amber-500/20 transition-all"
-                            title="Remake this style with bespoke tailoring"
-                          >
-                            <Sparkles className="w-3 h-3 fill-white" />
-                            <span>Use as Inspo</span>
-                          </Link>
-                        </div>
+                    {/* Tap to Preview overlay on hover / focus */}
+                    <div className="absolute inset-0 bg-stone-950/25 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity z-10 pointer-events-none flex items-center justify-center">
+                      <div className="px-3.5 py-2 rounded-xl bg-black/75 backdrop-blur-md text-white text-xs font-black flex items-center gap-1.5 shadow-xl border border-white/20 transform group-hover:scale-105 transition-transform">
+                        <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Tap to Preview</span>
                       </div>
                     </div>
-                  );
+
+                    {item.media_type === 'video' ? (
+                      <div className="relative w-full h-full pointer-events-none">
+                        <video
+                          src={item.media_url}
+                          muted
+                          playsInline
+                          autoPlay
+                          loop
+                          className="w-full h-full object-cover pointer-events-none"
+                        />
+                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-85 group-hover:opacity-100 transition-opacity pointer-events-none">
+                          <div className="w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm text-stone-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <Play className="w-5 h-5 fill-stone-900 text-stone-900 ml-0.5" />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={item.media_url}
+                        alt={item.caption || 'Tailor Outfit'}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
+                        loading="lazy"
+                      />
+                    )}
+                  </div>
+
+                  <div className="p-3.5 bg-white flex flex-col justify-between flex-1 gap-2.5">
+                    <p className="text-xs sm:text-sm text-stone-800 font-medium line-clamp-2">
+                      {item.caption || `${CATEGORY_NAMES[itemCat]} tailored by ${designer.business_name}`}
+                    </p>
+
+                    <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-stone-400">
+                        {CATEGORY_NAMES[itemCat]}
+                      </span>
+
+                      <Link
+                        href={`/request/${designer.id}?inspoUrl=${encodeURIComponent(item.media_url)}&styleTitle=${encodeURIComponent(item.caption || CATEGORY_NAMES[itemCat] || 'Bespoke Style')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-[11px] shadow-sm shadow-amber-500/20 transition-all z-20"
+                        title="Remake this style with bespoke tailoring"
+                      >
+                        <Sparkles className="w-3 h-3 fill-white" />
+                        <span>Use as Inspo</span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              );
                 })}
               </div>
             )}
@@ -908,7 +961,7 @@ export default function DesignerProfilePage() {
 
         return (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/95 backdrop-blur-md animate-in fade-in duration-200"
             onClick={() => setSelectedIndex(null)}
             onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
             onTouchEnd={(e) => {
@@ -920,6 +973,17 @@ export default function DesignerProfilePage() {
               }
             }}
           >
+            {/* Top right floating close button for instant dismissal on any device */}
+            <button
+              type="button"
+              onClick={() => setSelectedIndex(null)}
+              className="fixed top-4 right-4 z-[110] w-10 h-10 rounded-full bg-stone-900/90 hover:bg-stone-800 text-white flex items-center justify-center border border-stone-700 shadow-2xl transition-transform active:scale-95"
+              aria-label="Close Preview (Esc)"
+              title="Close Preview (Esc)"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+
             <div
               className="relative max-w-4xl w-full max-h-[95vh] bg-stone-900 rounded-2xl overflow-hidden flex flex-col shadow-2xl border border-stone-800"
               onClick={(e) => e.stopPropagation()}
@@ -1067,7 +1131,7 @@ export default function DesignerProfilePage() {
 
         return (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/95 backdrop-blur-md animate-in fade-in duration-200"
             onClick={() => setSelectedStoreIndex(null)}
             onTouchStart={(e) => setStoreTouchStartX(e.touches[0].clientX)}
             onTouchEnd={(e) => {
@@ -1079,6 +1143,17 @@ export default function DesignerProfilePage() {
               }
             }}
           >
+            {/* Top right floating close button for instant dismissal */}
+            <button
+              type="button"
+              onClick={() => setSelectedStoreIndex(null)}
+              className="fixed top-4 right-4 z-[110] w-10 h-10 rounded-full bg-stone-900/90 hover:bg-stone-800 text-white flex items-center justify-center border border-stone-700 shadow-2xl transition-transform active:scale-95"
+              aria-label="Close Preview (Esc)"
+              title="Close Preview (Esc)"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+
             <div
               className="relative max-w-4xl w-full max-h-[95vh] bg-stone-900 rounded-2xl overflow-hidden flex flex-col shadow-2xl border border-stone-800"
               onClick={(e) => e.stopPropagation()}

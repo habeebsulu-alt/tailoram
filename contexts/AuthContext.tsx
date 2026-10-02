@@ -132,7 +132,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .maybeSingle();
 
           if (!dError && dData) {
-            setDesignerProfile(dData as DesignerProfile);
+            const localAvatar = typeof window !== 'undefined' ? localStorage.getItem(`tailoram_avatar_${dData.id}`) : null;
+            const mergedDesigner: DesignerProfile = {
+              ...(dData as DesignerProfile),
+              profile_image_url: (dData as any).profile_image_url || localAvatar || null,
+            };
+            setDesignerProfile(mergedDesigner);
           } else {
             setDesignerProfile(null);
           }

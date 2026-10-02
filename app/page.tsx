@@ -154,6 +154,10 @@ export default function HomePage() {
         if (error) {
           console.error('Error fetching designers:', error);
         } else if (data) {
+          const deletedIds: string[] = typeof window !== 'undefined'
+            ? JSON.parse(localStorage.getItem('tailoram_deleted_portfolio_items') || '[]')
+            : [];
+
           // Process ratings and reviews
           const processed = (data as any[]).map((d) => {
             const revs = d.reviews || [];
@@ -163,8 +167,18 @@ export default function HomePage() {
                 ? revs.reduce((acc: number, r: any) => acc + (r.rating || 0), 0) / reviewCount
                 : 0;
 
+            const filteredItems = (d.portfolio_items || []).filter(
+              (p: any) => !deletedIds.includes(p.id)
+            );
+
+            const localAvatar = typeof window !== 'undefined'
+              ? localStorage.getItem(`tailoram_avatar_${d.id}`)
+              : null;
+
             return {
               ...d,
+              portfolio_items: filteredItems,
+              profile_image_url: d.profile_image_url || localAvatar || null,
               avg_rating: avgRating,
               review_count: reviewCount,
               // Ranking score: weighted by rating and log-scaled volume of reviews
@@ -889,35 +903,49 @@ export default function HomePage() {
                       </div>
 
                       <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <h3 className="text-xl font-black text-stone-900 group-hover:text-brand-600 transition-colors leading-tight">
-                              {designer.business_name}
-                            </h3>
-                            {designer.is_verified && (
-                              <span
-                                title="Tailoram Verified Studio"
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black"
-                              >
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                <span>Verified</span>
-                              </span>
-                            )}
-                            {designer.is_featured && (
-                              <span
-                                title="Featured Showcase"
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black"
-                              >
-                                <Sparkles className="w-3 h-3 text-amber-500" />
-                                <span>Featured</span>
-                              </span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          {designer.profile_image_url ? (
+                            <img
+                              src={designer.profile_image_url}
+                              alt={designer.business_name}
+                              className="w-10 h-10 rounded-2xl object-cover border border-stone-200 shrink-0 shadow-xs"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-600 to-amber-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+                              {designer.business_name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h3 className="text-lg sm:text-xl font-black text-stone-900 group-hover:text-brand-600 transition-colors leading-tight">
+                                {designer.business_name}
+                              </h3>
+                              {designer.is_verified && (
+                                <span
+                                  title="Tailoram Verified Studio"
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black"
+                                >
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Verified</span>
+                                </span>
+                              )}
+                              {designer.is_featured && (
+                                <span
+                                  title="Featured Showcase"
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black"
+                                >
+                                  <Sparkles className="w-3 h-3 text-amber-500" />
+                                  <span>Featured</span>
+                                </span>
+                              )}
+                            </div>
+                            {designer.profiles?.full_name && (
+                              <p className="text-xs text-stone-400 font-medium truncate">
+                                Tailor: {designer.profiles.full_name}
+                              </p>
                             )}
                           </div>
-                          {designer.profiles?.full_name && (
-                            <p className="text-xs text-stone-400 font-medium">
-                              Tailor: {designer.profiles.full_name}
-                            </p>
-                          )}
                         </div>
 
                         {/* Star Rating Badge */}

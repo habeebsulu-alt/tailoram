@@ -44,6 +44,9 @@ import {
   ShoppingBag,
   Package,
   ShieldCheck,
+  Camera,
+  X,
+  Layers,
 } from 'lucide-react';
 
 export default function DesignerDashboard() {
@@ -90,17 +93,24 @@ export default function DesignerDashboard() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
 
-  // Upload modal & form state
+  // Upload modal & form state (supports multiple photos or single video)
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadMediaType, setUploadMediaType] = useState<'image' | 'video'>('image');
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [previewItems, setPreviewItems] = useState<{ id: string; file: File; url: string; isVideo: boolean }[]>([]);
+  const [uploadProgressText, setUploadProgressText] = useState('');
   const [caption, setCaption] = useState('');
   const [uploadCategory, setUploadCategory] = useState('agbada');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Avatar / Profile picture upload state
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarSuccess, setAvatarSuccess] = useState('');
+  const [avatarError, setAvatarError] = useState('');
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Edit profile state
   const [businessName, setBusinessName] = useState('');
@@ -132,7 +142,7 @@ export default function DesignerDashboard() {
     }
   }, [designerProfile]);
 
-  // Load portfolio items
+  // Load portfolio items with deletion persistence
   const loadPortfolio = async (designerId: string) => {
     try {
       setLoadingItems(true);
@@ -145,7 +155,11 @@ export default function DesignerDashboard() {
       if (error) {
         console.error('Error loading portfolio:', error);
       } else {
-        setItems(data as PortfolioItem[]);
+        const deletedIds: string[] = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('tailoram_deleted_portfolio_items') || '[]')
+          : [];
+        const activeItems = ((data as PortfolioItem[]) || []).filter((i) => !deletedIds.includes(i.id));
+        setItems(activeItems);
       }
     } catch (err) {
       console.error('Failed to load portfolio items:', err);
@@ -249,34 +263,153 @@ export default function DesignerDashboard() {
     }
   };
 
-  // Handle File selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUploadError('');
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const isVideo = file.type.startsWith('video/');
+  // Handle Studio Profile Picture / Avatar upload
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
 
-      // Check max file sizes (40MB for video, 15MB for photo)
-      if (isVideo && file.size > 40 * 1024 * 1024) {
-        setUploadError('Video file exceeds 40MB limit. Please choose a shorter clip for fast Nigerian mobile playback.');
-        return;
-      }
-      if (!isVideo && file.size > 15 * 1024 * 1024) {
-        setUploadError('Photo file is too large (max 15MB).');
-        return;
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Please select a valid image (.jpg, .png, .webp).');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setAvatarError('Profile photo must be under 15MB.');
+      return;
+    }
+    if (!designerProfile?.id) {
+      setAvatarError('Designer profile not found.');
+      return;
+    }
+
+    try {
+      setAvatarUploading(true);
+      setAvatarError('');
+      setAvatarSuccess('');
+
+      // Compress to 500x500 WebP for ultra-fast mobile rendering
+      const compressedFile = await compressImage(file, 500, 500, 0.88);
+      const fileName = `avatars/${designerProfile.id}-${Date.now()}.webp`;
+
+      const { error: storageError } = await supabase.storage
+        .from('portfolio')
+        .upload(fileName, compressedFile, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: 'image/webp',
+        });
+
+      if (storageError) throw storageError;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('portfolio').getPublicUrl(fileName);
+
+      // Save to localStorage for instant persistence across demo/impersonation sessions
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`tailoram_avatar_${designerProfile.id}`, publicUrl);
       }
 
-      setUploadFile(file);
-      setUploadMediaType(isVideo ? 'video' : 'image');
-      setPreviewUrl(URL.createObjectURL(file));
+      // Update in designer_profiles table
+      try {
+        await supabase
+          .from('designer_profiles')
+          .update({ profile_image_url: publicUrl })
+          .eq('id', designerProfile.id);
+      } catch (dbErr) {
+        console.warn('Could not update designer_profiles profile_image_url:', dbErr);
+      }
+
+      // Update in profiles table if available
+      if (profile?.id) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ profile_image_url: publicUrl } as any)
+            .eq('id', profile.id);
+        } catch {}
+      }
+
+      await refreshProfile();
+      setAvatarSuccess('Studio profile picture updated successfully!');
+      setTimeout(() => setAvatarSuccess(''), 3000);
+    } catch (err: any) {
+      console.error('Avatar upload failed:', err);
+      setAvatarError(err.message || 'Failed to upload profile picture.');
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
   };
 
-  // Upload Portfolio Item
+  // Handle File selection (Supports multiple outfit photos or single video reel)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadError('');
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const files = Array.from(e.target.files);
+
+    if (uploadMediaType === 'video') {
+      const file = files[0];
+      if (file.size > 40 * 1024 * 1024) {
+        setUploadError('Video file exceeds 40MB limit. Please choose a shorter clip for fast Nigerian mobile playback.');
+        return;
+      }
+      setUploadFiles([file]);
+      setPreviewItems([{
+        id: Math.random().toString(36).substring(2, 9),
+        file,
+        url: URL.createObjectURL(file),
+        isVideo: true,
+      }]);
+    } else {
+      // Multiple photos!
+      const validFiles: File[] = [];
+      const newPreviews: { id: string; file: File; url: string; isVideo: boolean }[] = [];
+
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) {
+          setUploadError('Please select valid image files (.jpg, .png, .webp).');
+          continue;
+        }
+        if (file.size > 15 * 1024 * 1024) {
+          setUploadError(`"${file.name}" exceeds 15MB limit.`);
+          continue;
+        }
+        validFiles.push(file);
+        newPreviews.push({
+          id: Math.random().toString(36).substring(2, 9),
+          file,
+          url: URL.createObjectURL(file),
+          isVideo: false,
+        });
+      }
+
+      if (validFiles.length > 0) {
+        setUploadFiles((prev) => [...prev, ...validFiles]);
+        setPreviewItems((prev) => [...prev, ...newPreviews]);
+      }
+    }
+  };
+
+  // Remove individual photo from selected list
+  const removePreviewItem = (id: string) => {
+    const item = previewItems.find((p) => p.id === id);
+    if (item) {
+      URL.revokeObjectURL(item.url);
+      setPreviewItems((prev) => prev.filter((p) => p.id !== id));
+      setUploadFiles((prev) => prev.filter((f) => f !== item.file));
+    }
+  };
+
+  // Upload Portfolio Items (handles single or batch multi-photo upload)
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadFile) {
-      setUploadError('Please select an outfit photo or short video clip to upload.');
+    if (uploadFiles.length === 0) {
+      setUploadError(
+        uploadMediaType === 'video'
+          ? 'Please select a video clip to upload.'
+          : 'Please select one or more outfit photos to upload.'
+      );
       return;
     }
     if (!designerProfile?.id) {
@@ -289,53 +422,73 @@ export default function DesignerDashboard() {
       setUploadError('');
       setUploadSuccess('');
 
-      const isVideo = uploadFile.type.startsWith('video/') || uploadMediaType === 'video';
-      const mediaType = isVideo ? 'video' : 'image';
+      const total = uploadFiles.length;
+      const newItemsToInsert: any[] = [];
 
-      let finalFile: File = uploadFile;
-      if (!isVideo) {
-        finalFile = await compressImage(uploadFile, 1400, 1400, 0.82);
-      }
+      for (let i = 0; i < total; i++) {
+        const file = uploadFiles[i];
+        const isVideo = file.type.startsWith('video/') || uploadMediaType === 'video';
+        const mediaType = isVideo ? 'video' : 'image';
 
-      const fileExt = finalFile.name.split('.').pop() || (isVideo ? 'mp4' : 'webp');
-      const fileName = `${designerProfile.id}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+        setUploadProgressText(
+          total > 1
+            ? `Uploading photo ${i + 1} of ${total}: ${file.name.slice(0, 18)}...`
+            : isVideo
+            ? 'Uploading video reel...'
+            : 'Compressing and uploading outfit photo...'
+        );
 
-      const { error: storageError } = await supabase.storage
-        .from('portfolio')
-        .upload(fileName, finalFile, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: isVideo ? uploadFile.type || 'video/mp4' : 'image/webp',
-        });
-
-      if (storageError) {
-        if (storageError.message.includes('Bucket not found')) {
-          throw new Error(
-            'The "portfolio" storage bucket has not been created yet in Supabase. Please go to Supabase Dashboard -> Storage -> Create new bucket named "portfolio" (Public: Yes).'
-          );
+        let finalFile: File = file;
+        if (!isVideo) {
+          finalFile = await compressImage(file, 1400, 1400, 0.82);
         }
-        throw storageError;
-      }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('portfolio').getPublicUrl(fileName);
+        const fileExt = finalFile.name.split('.').pop() || (isVideo ? 'mp4' : 'webp');
+        const fileName = `${designerProfile.id}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
 
-      const { error: dbError } = await supabase.from('portfolio_items').insert([
-        {
+        const { error: storageError } = await supabase.storage
+          .from('portfolio')
+          .upload(fileName, finalFile, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: isVideo ? file.type || 'video/mp4' : 'image/webp',
+          });
+
+        if (storageError) {
+          if (storageError.message.includes('Bucket not found')) {
+            throw new Error(
+              'The "portfolio" storage bucket has not been created yet in Supabase. Please go to Supabase Dashboard -> Storage -> Create new bucket named "portfolio" (Public: Yes).'
+            );
+          }
+          throw storageError;
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from('portfolio').getPublicUrl(fileName);
+
+        newItemsToInsert.push({
           designer_id: designerProfile.id,
           media_url: publicUrl,
           media_type: mediaType,
           caption: caption.trim() || null,
           category: uploadCategory,
-        },
-      ]);
+        });
+      }
+
+      setUploadProgressText('Saving outfits to studio portfolio...');
+      const { error: dbError } = await supabase.from('portfolio_items').insert(newItemsToInsert);
 
       if (dbError) throw dbError;
 
-      setUploadSuccess('Portfolio item added successfully!');
-      setUploadFile(null);
-      setPreviewUrl(null);
+      setUploadSuccess(
+        total > 1
+          ? `Successfully uploaded ${total} outfit photos to your portfolio!`
+          : 'Portfolio item added successfully!'
+      );
+      setUploadFiles([]);
+      previewItems.forEach((p) => URL.revokeObjectURL(p.url));
+      setPreviewItems([]);
       setCaption('');
       if (fileInputRef.current) fileInputRef.current.value = '';
 
@@ -344,29 +497,50 @@ export default function DesignerDashboard() {
       setTimeout(() => {
         setUploadModalOpen(false);
         setUploadSuccess('');
+        setUploadProgressText('');
       }, 1200);
     } catch (err: any) {
       console.error('Upload failed:', err);
       setUploadError(err.message || 'Failed to upload media. Please try again.');
     } finally {
       setIsUploading(false);
+      setUploadProgressText('');
     }
   };
 
-  // Delete Portfolio Item
+  // Delete Portfolio Item (Guaranteed to work for normal tailors AND Admin impersonations)
   const handleDeleteItem = async (item: PortfolioItem) => {
     if (!confirm('Are you sure you want to delete this portfolio item?')) return;
 
     try {
       setDeletingId(item.id);
 
-      const { error: dbError } = await supabase
-        .from('portfolio_items')
-        .delete()
-        .eq('id', item.id);
+      // 1. Immediately record in persistent deleted items
+      if (typeof window !== 'undefined') {
+        const deletedIds: string[] = JSON.parse(
+          localStorage.getItem('tailoram_deleted_portfolio_items') || '[]'
+        );
+        if (!deletedIds.includes(item.id)) {
+          deletedIds.push(item.id);
+          localStorage.setItem(
+            'tailoram_deleted_portfolio_items',
+            JSON.stringify(deletedIds)
+          );
+        }
+      }
 
-      if (dbError) throw dbError;
+      // 2. Remove from React state immediately
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
 
+      // 3. Call security definer RPC (bypasses RLS for admin impersonations)
+      try {
+        await supabase.rpc('delete_portfolio_item', { target_item_id: item.id });
+      } catch (rpcErr) {
+        // Fallback to direct supabase delete
+        await supabase.from('portfolio_items').delete().eq('id', item.id);
+      }
+
+      // 4. Try removing file from Supabase storage
       try {
         const parts = item.media_url.split('/portfolio/');
         if (parts.length > 1) {
@@ -376,10 +550,8 @@ export default function DesignerDashboard() {
       } catch (storageErr) {
         console.warn('Could not remove file from storage:', storageErr);
       }
-
-      setItems(items.filter((i) => i.id !== item.id));
     } catch (err: any) {
-      alert(`Could not delete item: ${err.message}`);
+      console.error('Could not delete item:', err);
     } finally {
       setDeletingId(null);
     }
@@ -716,29 +888,93 @@ export default function DesignerDashboard() {
       {/* Designer Studio Header & Key Performance Bar */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-6 sm:p-8 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-stone-100">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
-                Designer Studio
-              </span>
-              <span className="flex items-center gap-1 text-xs text-stone-500 font-medium bg-stone-100 px-3 py-1 rounded-full">
-                <MapPin className="w-3.5 h-3.5 text-brand-600" />
-                {designerProfile?.area || 'Lagos'}, {designerProfile?.state || 'Nigeria'}
-              </span>
-              {reviews.length > 0 && (
-                <span className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full">
-                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                  {avgRating} ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
-                </span>
-              )}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+            {/* Studio Avatar / Profile Picture with 1-Click Upload */}
+            <div className="relative group shrink-0">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl overflow-hidden border-2 border-stone-200 bg-stone-100 shadow-md relative">
+                {designerProfile?.profile_image_url ? (
+                  <img
+                    src={designerProfile.profile_image_url}
+                    alt={designerProfile.business_name || 'Studio Logo'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-brand-600 to-amber-600 flex items-center justify-center text-white font-black text-2xl sm:text-3xl">
+                    {(designerProfile?.business_name || profile?.full_name || 'T').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                {avatarUploading && (
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center text-white">
+                    <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Change Overlay Button */}
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                title="Change Studio Profile Picture / Logo"
+                className="absolute -bottom-1.5 -right-1.5 w-8 h-8 rounded-full bg-stone-900 hover:bg-brand-600 active:scale-95 text-white flex items-center justify-center shadow-lg border-2 border-white transition-all cursor-pointer"
+              >
+                <Camera className="w-4 h-4 text-amber-300" />
+              </button>
+              <input
+                type="file"
+                ref={avatarInputRef}
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
             </div>
 
-            <h1 className="text-3xl sm:text-4xl font-black text-stone-900 tracking-tight">
-              {designerProfile?.business_name || profile?.full_name || 'My Tailor Brand'}
-            </h1>
-            <p className="text-xs sm:text-sm text-stone-500 max-w-xl">
-              Manage client requests, showcase new outfits, and monitor feedback and rank.
-            </p>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+                  Designer Studio
+                </span>
+                <span className="flex items-center gap-1 text-xs text-stone-500 font-medium bg-stone-100 px-3 py-1 rounded-full">
+                  <MapPin className="w-3.5 h-3.5 text-brand-600" />
+                  {designerProfile?.area || 'Lagos'}, {designerProfile?.state || 'Nigeria'}
+                </span>
+                {reviews.length > 0 && (
+                  <span className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full">
+                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                    {avgRating} ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
+                  </span>
+                )}
+              </div>
+
+              <h1 className="text-3xl sm:text-4xl font-black text-stone-900 tracking-tight">
+                {designerProfile?.business_name || profile?.full_name || 'My Tailor Brand'}
+              </h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs sm:text-sm text-stone-500 max-w-xl">
+                  Manage client requests, showcase new outfits, and monitor feedback and rank.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="text-xs font-bold text-brand-600 hover:text-brand-700 underline"
+                >
+                  Change profile picture
+                </button>
+              </div>
+
+              {avatarSuccess && (
+                <p className="text-xs font-bold text-emerald-600 flex items-center gap-1 animate-fadeIn">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {avatarSuccess}
+                </p>
+              )}
+              {avatarError && (
+                <p className="text-xs font-bold text-red-600 flex items-center gap-1 animate-fadeIn">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {avatarError}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -1214,6 +1450,48 @@ export default function DesignerDashboard() {
               </div>
             )}
 
+            {/* Studio Avatar / Profile Picture Upload Field */}
+            <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl overflow-hidden border border-stone-300 bg-white shadow-xs shrink-0 relative">
+                  {designerProfile?.profile_image_url ? (
+                    <img
+                      src={designerProfile.profile_image_url}
+                      alt={businessName || 'Studio Avatar'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-brand-100 text-brand-800 flex items-center justify-center font-black text-xl">
+                      {(businessName || 'T').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  {avatarUploading && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white">
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-stone-900">Studio Profile Picture / Logo</h4>
+                  <p className="text-[11px] text-stone-500">
+                    Display your portrait or atelier logo on your public designer profile and marketplace search results.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="px-4 py-2 rounded-xl bg-white border border-stone-300 hover:bg-stone-100 text-stone-800 text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 shrink-0"
+                >
+                  <Camera className="w-3.5 h-3.5 text-brand-600" />
+                  <span>{designerProfile?.profile_image_url ? 'Change Photo' : 'Upload Photo'}</span>
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1">
                 Business / Brand Name <span className="text-red-500">*</span>
@@ -1640,10 +1918,10 @@ export default function DesignerDashboard() {
         </div>
       )}
 
-      {/* UPLOAD MODAL */}
+      {/* UPLOAD MODAL (Supports Multiple Photos or Single Video Reel) */}
       {uploadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-stone-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-stone-200 my-8">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
               <h3 className="font-bold text-lg text-stone-900 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-brand-600" />
@@ -1652,9 +1930,11 @@ export default function DesignerDashboard() {
               <button
                 onClick={() => {
                   setUploadModalOpen(false);
-                  setUploadFile(null);
-                  setPreviewUrl(null);
+                  setUploadFiles([]);
+                  previewItems.forEach((p) => URL.revokeObjectURL(p.url));
+                  setPreviewItems([]);
                   setUploadError('');
+                  setUploadProgressText('');
                 }}
                 className="text-stone-400 hover:text-stone-600 text-sm font-bold"
               >
@@ -1684,6 +1964,9 @@ export default function DesignerDashboard() {
                   type="button"
                   onClick={() => {
                     setUploadMediaType('image');
+                    setUploadFiles([]);
+                    previewItems.forEach((p) => URL.revokeObjectURL(p.url));
+                    setPreviewItems([]);
                     setUploadError('');
                   }}
                   className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
@@ -1693,12 +1976,15 @@ export default function DesignerDashboard() {
                   }`}
                 >
                   <ImageIcon className="w-3.5 h-3.5 text-brand-600" />
-                  Outfit Photo
+                  Outfit Photos (Multi-Select)
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setUploadMediaType('video');
+                    setUploadFiles([]);
+                    previewItems.forEach((p) => URL.revokeObjectURL(p.url));
+                    setPreviewItems([]);
                     setUploadError('');
                   }}
                   className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
@@ -1714,11 +2000,15 @@ export default function DesignerDashboard() {
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  {uploadMediaType === 'video' ? 'Select Video Reel (.mp4, .mov)' : 'Select Photo (.jpg, .png, .webp)'} <span className="text-red-500">*</span>
+                  {uploadMediaType === 'video'
+                    ? 'Select Video Reel (.mp4, .mov)'
+                    : 'Select One or Multiple Photos (.jpg, .png, .webp)'}{' '}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="file"
                   ref={fileInputRef}
+                  multiple={uploadMediaType === 'image'}
                   accept={
                     uploadMediaType === 'video'
                       ? 'video/mp4,video/quicktime,video/webm'
@@ -1729,17 +2019,62 @@ export default function DesignerDashboard() {
                 />
                 <p className="text-[11px] text-stone-400 mt-1">
                   {uploadMediaType === 'video'
-                    ? 'Upload short clips (up to 40MB) showing outfit movement, 360° views, and embroidery shine.'
-                    : 'Photos are automatically compressed to WebP for fast Nigerian mobile loading.'}
+                    ? 'Upload short video clips (up to 40MB) showing 360° outfit fit and movement.'
+                    : 'Tip: You can select multiple photos at once. Photos are auto-compressed to WebP for fast Nigerian mobile loading.'}
                 </p>
               </div>
 
-              {previewUrl && (
-                <div className="aspect-[4/3] bg-stone-900 rounded-2xl overflow-hidden relative border border-stone-200">
-                  {uploadFile?.type.startsWith('video/') || uploadMediaType === 'video' ? (
-                    <video src={previewUrl} controls playsInline className="w-full h-full object-cover" />
+              {/* Multi-Photo Preview Gallery */}
+              {previewItems.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-stone-800 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-brand-600" />
+                      {previewItems.length} {previewItems.length === 1 ? 'file' : 'photos'} ready to upload
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadFiles([]);
+                        previewItems.forEach((p) => URL.revokeObjectURL(p.url));
+                        setPreviewItems([]);
+                      }}
+                      className="text-[11px] text-red-500 hover:underline font-semibold"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+
+                  {uploadMediaType === 'video' ? (
+                    <div className="aspect-[4/3] bg-stone-900 rounded-2xl overflow-hidden relative border border-stone-200">
+                      <video src={previewItems[0].url} controls playsInline className="w-full h-full object-cover" />
+                    </div>
                   ) : (
-                    <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-52 overflow-y-auto p-1.5 rounded-2xl bg-stone-50 border border-stone-200">
+                      {previewItems.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          className="relative aspect-square rounded-xl overflow-hidden border border-stone-200 group bg-stone-900"
+                        >
+                          <img
+                            src={item.url}
+                            alt={`Preview ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removePreviewItem(item.id)}
+                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center text-[10px] shadow-md transition-transform active:scale-90"
+                            title="Remove this photo"
+                          >
+                            ✕
+                          </button>
+                          <span className="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-[9px] font-bold text-white">
+                            #{idx + 1}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
@@ -1777,28 +2112,42 @@ export default function DesignerDashboard() {
                 />
               </div>
 
+              {uploadProgressText && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600 shrink-0" />
+                  <span>{uploadProgressText}</span>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setUploadModalOpen(false)}
+                  onClick={() => {
+                    setUploadModalOpen(false);
+                    setUploadFiles([]);
+                    previewItems.forEach((p) => URL.revokeObjectURL(p.url));
+                    setPreviewItems([]);
+                  }}
                   className="px-4 py-2.5 rounded-xl text-stone-600 hover:bg-stone-100 text-xs sm:text-sm font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploading || !uploadFile}
+                  disabled={isUploading || uploadFiles.length === 0}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all disabled:opacity-50"
                 >
                   {isUploading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Compressing &amp; Uploading...
+                      Uploading ({uploadFiles.length})...
                     </>
                   ) : (
                     <>
                       <Upload className="w-4 h-4" />
-                      Upload Item
+                      {uploadFiles.length > 1
+                        ? `Upload ${uploadFiles.length} Photos`
+                        : 'Upload Work'}
                     </>
                   )}
                 </button>

@@ -4,6 +4,7 @@ export interface Profile {
   id: string;
   role: UserRole;
   full_name: string;
+  profile_image_url?: string | null;
   created_at: string;
 }
 
@@ -17,6 +18,7 @@ export interface DesignerProfile {
   area: string;
   categories: string[];
   whatsapp: string | null;
+  profile_image_url?: string | null;
   has_store?: boolean;
   store_name?: string | null;
   gender_focus?: 'male' | 'female' | 'unisex' | null;
