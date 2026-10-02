@@ -303,7 +303,7 @@ function DesignerMarketplaceCard({
                 <img
                   src={designer.profile_image_url}
                   alt={designer.business_name}
-                  className="w-full h-full object-contain p-0.5 object-center"
+                  className="w-full h-full object-cover object-center"
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-brand-600 to-amber-600 text-white flex items-center justify-center font-black text-base shadow-inner">

@@ -130,7 +130,7 @@ export default function DesignerDashboard() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarSuccess, setAvatarSuccess] = useState('');
   const [avatarError, setAvatarError] = useState('');
-  const [avatarFitMode, setAvatarFitMode] = useState<'contain' | 'cover'>('contain');
+  const [avatarFitMode, setAvatarFitMode] = useState<'contain' | 'cover'>('cover');
   const [zoomAvatarUrl, setZoomAvatarUrl] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -196,6 +196,8 @@ export default function DesignerDashboard() {
         : null;
       if (localFit === 'contain' || localFit === 'cover') {
         setAvatarFitMode(localFit);
+      } else {
+        setAvatarFitMode('cover');
       }
     }
   }, [designerProfile]);
@@ -382,6 +384,10 @@ export default function DesignerDashboard() {
           'tailoram_updated_designer_profiles',
           JSON.stringify(storedUpdatedProfiles)
         );
+
+        // Automatically default new uploads to fill the circle edge-to-edge
+        localStorage.setItem(`tailoram_avatar_fit_${designerProfile.id}`, 'cover');
+        setAvatarFitMode('cover');
       }
 
       // Update in designer_profiles table
@@ -3119,12 +3125,12 @@ export default function DesignerDashboard() {
               </p>
             </div>
 
-            {/* Circular Zoom Avatar */}
-            <div className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full aspect-square overflow-hidden border-4 border-amber-400/80 shadow-2xl ring-8 ring-white/10 bg-stone-950 flex items-center justify-center p-3">
+            {/* Full photo view without the circle */}
+            <div className="relative max-w-2xl w-full max-h-[75vh] rounded-3xl overflow-hidden border-2 border-stone-800 shadow-2xl bg-stone-950 flex items-center justify-center p-2 sm:p-4">
               <img
                 src={zoomAvatarUrl}
                 alt={designerProfile?.business_name || 'Studio Profile'}
-                className="w-full h-full object-contain object-center"
+                className="max-h-[70vh] w-auto max-w-full object-contain rounded-2xl shadow-lg"
               />
             </div>
 

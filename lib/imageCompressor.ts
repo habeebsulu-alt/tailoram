@@ -78,80 +78,16 @@ export async function compressImage(
 
 /**
  * Avatar image compressor.
- * Fits any portrait, landscape, or square photo cleanly inside a square canvas (default 800x800)
- * preserving 100% of the original aspect ratio with a comfortable inner margin,
- * so the image shrinks naturally into a circular avatar frame without distortion or edge-clipping.
+ * Compresses any portrait, landscape, or square photo up to 1000x1000
+ * preserving 100% of the true native aspect ratio without distortion or artificial borders,
+ * allowing CSS to automatically fill the avatar circle while letting full-size zoom
+ * display the complete uncropped photo.
  */
 export async function compressAvatarImage(
   file: File,
-  targetSize = 800,
+  maxDimension = 1000,
   quality = 0.92
 ): Promise<File> {
-  if (!file.type.startsWith('image/')) {
-    return file;
-  }
-
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-
-      img.onload = () => {
-        const origWidth = img.width;
-        const origHeight = img.height;
-
-        // Scale factor: fit within 94% of targetSize so rectangular corners stay safely inside the circular mask
-        const maxInnerDimension = targetSize * 0.94;
-        const scale = Math.min(maxInnerDimension / origWidth, maxInnerDimension / origHeight);
-
-        const drawWidth = Math.max(1, Math.round(origWidth * scale));
-        const drawHeight = Math.max(1, Math.round(origHeight * scale));
-
-        // Create a 1:1 square canvas
-        const canvas = document.createElement('canvas');
-        canvas.width = targetSize;
-        canvas.height = targetSize;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(file);
-          return;
-        }
-
-        // Center the scaled photo on the square canvas
-        const offsetX = Math.round((targetSize - drawWidth) / 2);
-        const offsetY = Math.round((targetSize - drawHeight) / 2);
-
-        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-
-        const outputMime = 'image/webp';
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              resolve(file);
-              return;
-            }
-
-            const cleanName = file.name.replace(/\.[^/.]+$/, '') + '-avatar.webp';
-            const compressedFile = new File([blob], cleanName, {
-              type: outputMime,
-              lastModified: Date.now(),
-            });
-
-            resolve(compressedFile);
-          },
-          outputMime,
-          quality
-        );
-      };
-
-      img.onerror = () => resolve(file);
-    };
-
-    reader.onerror = () => resolve(file);
-  });
+  return compressImage(file, maxDimension, maxDimension, quality);
 }
 
