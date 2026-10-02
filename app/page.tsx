@@ -15,6 +15,7 @@ import {
   getDesignerGender,
 } from '@/lib/types';
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
+import { fetchManualRatings, computeEffectiveRating } from '@/lib/ratingsManager';
 import {
   Scissors,
   Search,
@@ -393,7 +394,7 @@ function DesignerMarketplaceCard({
             <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-xl flex-shrink-0">
               <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
               <span className="text-xs font-black text-amber-900">
-                {designer.review_count > 0 ? designer.avg_rating.toFixed(1) : 'New'}
+                {designer.avg_rating > 0 ? designer.avg_rating.toFixed(1) : (designer.review_count > 0 ? designer.avg_rating.toFixed(1) : 'New')}
               </span>
               {designer.review_count > 0 && (
                 <span className="text-[10px] text-amber-700 font-semibold">
@@ -595,15 +596,15 @@ export default function HomePage() {
             ? JSON.parse(localStorage.getItem('tailoram_updated_portfolio_items') || '{}')
             : {};
 
+          const manualRatingsMap = await fetchManualRatings();
+
           // Process ratings and reviews
           const processed = activeDesigners.map((d) => {
             const localUpdates = storedUpdatedProfiles[d.id] || {};
             const revs = d.reviews || [];
-            const reviewCount = revs.length;
-            const avgRating =
-              reviewCount > 0
-                ? revs.reduce((acc: number, r: any) => acc + (r.rating || 0), 0) / reviewCount
-                : 0;
+            const effective = computeEffectiveRating(d.id, revs, manualRatingsMap);
+            const reviewCount = effective.reviewCount;
+            const avgRating = effective.rating !== null ? effective.rating : 0;
 
             const filteredItems = (d.portfolio_items || [])
               .filter((p: any) => !deletedIds.includes(p.id))

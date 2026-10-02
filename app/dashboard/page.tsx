@@ -17,6 +17,7 @@ import {
   StoreProduct,
   STORE_CATEGORIES,
 } from '@/lib/types';
+import { fetchManualRatings, computeEffectiveRating, ManualRatingData } from '@/lib/ratingsManager';
 import {
   Scissors,
   Upload,
@@ -96,6 +97,7 @@ export default function DesignerDashboard() {
   // Reviews state
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
+  const [manualRatings, setManualRatings] = useState<Record<string, ManualRatingData>>({});
 
   // Upload modal & form state (supports multiple photos or single video)
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -303,6 +305,7 @@ export default function DesignerDashboard() {
       loadRequests(designerProfile.id);
       loadReviews(designerProfile.id);
       loadStoreProducts(designerProfile.id);
+      fetchManualRatings().then(setManualRatings);
     }
   }, [user, designerProfile, authLoading, router]);
 
@@ -1204,10 +1207,15 @@ export default function DesignerDashboard() {
     return r.status === requestFilter;
   });
 
+  const effectiveRating = designerProfile?.id
+    ? computeEffectiveRating(designerProfile.id, reviews, manualRatings)
+    : { rating: null, reviewCount: reviews.length, isOverridden: false };
+
   const avgRating =
-    reviews.length > 0
-      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-      : 'New';
+    effectiveRating.rating !== null
+      ? effectiveRating.rating.toFixed(1)
+      : (reviews.length > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1) : 'New');
+  const displayReviewCount = effectiveRating.reviewCount;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -1355,10 +1363,10 @@ export default function DesignerDashboard() {
                   <MapPin className="w-3.5 h-3.5 text-brand-600" />
                   {designerProfile?.area || 'Lagos'}, {designerProfile?.state || 'Nigeria'}
                 </span>
-                {reviews.length > 0 && (
+                {(reviews.length > 0 || effectiveRating.isOverridden) && (
                   <span className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full">
                     <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                    {avgRating} ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
+                    {avgRating} ({displayReviewCount} {displayReviewCount === 1 ? 'review' : 'reviews'})
                   </span>
                 )}
               </div>
@@ -1868,7 +1876,7 @@ export default function DesignerDashboard() {
                   {avgRating}
                 </p>
                 <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider mt-0.5">
-                  {reviews.length} {reviews.length === 1 ? 'Review' : 'Reviews'}
+                  {displayReviewCount} {displayReviewCount === 1 ? 'Review' : 'Reviews'}
                 </p>
               </div>
             </div>

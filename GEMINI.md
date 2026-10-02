@@ -79,7 +79,7 @@ Tailoram/
    - `id`, `event_type`, `user_id`, `designer_id`, `metadata` (JSONB)
 
 9. **`platform_settings`**:
-   - `key`: Text (e.g. `'announcement'`, `'maintenance_mode'`, `'user_passwords'`)
+   - `key`: Text (e.g. `'announcement'`, `'maintenance_mode'`, `'user_passwords'`, `'designer_ratings'`)
    - `value`: JSONB
 
 ---
@@ -98,6 +98,7 @@ Tailoram/
 - **Seamless Fallback**: In `contexts/AuthContext.tsx`, if Supabase returns unhashed credentials, the client falls back to synthetic session persistence (`localStorage.getItem('tailoram_demo_session')`), loading full profiles instantly without throwing errors.
 - **Admin Password Reset**: Admins can reset any user password in `/admin`. Changes are saved immediately into `platform_settings.user_passwords` for instant, global recognition.
 - **Admin Studio Impersonation (Passwordless Access)**: Admins in `/admin` can click "Login as Designer" on any atelier to instantly assume that designer's session without entering their password. Enables admins to directly modify portfolio photos, upload/delete images, edit RTW store garments, and update studio profiles. Includes an omnipresent top banner with a 1-click "Return to Admin Panel" button.
+- **Admin Designer Rating Override**: Admins in `/admin` can manually override any atelier's star rating (1.0 to 5.0) and displayed review count. Changes persist globally in `platform_settings.designer_ratings` and locally in `localStorage` (`tailoram_designer_ratings`). The marketplace directory, public profile, and studio dashboard compute effective ratings using `computeEffectiveRating`, dynamically adjusting ranking scores and display badges. Admins can revert back to natural client reviews at any time.
 - **Login UI Rule**: Login page must remain strictly clean and customer-facing. Never expose SQL scripts, migration instructions, or developer debugging text to users.
 
 ---

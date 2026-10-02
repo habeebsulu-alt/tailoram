@@ -15,6 +15,7 @@ import {
   getDesignerGender,
 } from '@/lib/types';
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
+import { fetchManualRatings, computeEffectiveRating, ManualRatingData } from '@/lib/ratingsManager';
 import {
   Scissors,
   MapPin,
@@ -123,6 +124,7 @@ export default function DesignerProfilePage() {
   const [reviewSuccess, setReviewSuccess] = useState('');
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [zoomAvatarUrl, setZoomAvatarUrl] = useState<string | null>(null);
+  const [manualRatings, setManualRatings] = useState<Record<string, ManualRatingData>>({});
 
   // Sort portfolio by category sequence so "All Styles" groups in sequence:
   // Agbada -> Aso Ebi -> Senator -> Ankara -> Adire -> Bridal -> RTW -> Contemporary
@@ -231,6 +233,7 @@ export default function DesignerProfilePage() {
         };
         setDesigner(mergedDesigner);
         checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+        fetchManualRatings().then(setManualRatings);
 
         // 2. Fetch portfolio items
         const { data: pData, error: pError } = await supabase
@@ -370,11 +373,10 @@ export default function DesignerProfilePage() {
     );
   }
 
-  // Calculate average rating
-  const avgRating =
-    reviews.length > 0
-      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-      : null;
+  // Calculate average rating accounting for manual admin overrides
+  const effective = computeEffectiveRating(designer.id, reviews, manualRatings);
+  const avgRating = effective.rating !== null ? effective.rating.toFixed(1) : null;
+  const effectiveReviewCount = effective.reviewCount;
 
   // Format WhatsApp Link
   const cleanPhone = designer.whatsapp?.replace(/[^0-9]/g, '');
@@ -476,7 +478,7 @@ export default function DesignerProfilePage() {
                 {avgRating ? (
                   <span className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full">
                     <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                    {avgRating} ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
+                    {avgRating} ({effectiveReviewCount} {effectiveReviewCount === 1 ? 'review' : 'reviews'})
                   </span>
                 ) : (
                   <span className="text-[11px] font-semibold text-stone-400 bg-stone-50 px-2.5 py-1 rounded-full">
@@ -705,7 +707,7 @@ export default function DesignerProfilePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {displayItems.map((item, idx) => {
               const itemCat = getItemCategory(item, designer.categories);
-              const itemRating = (item.rating || designer.avg_rating || 5.0).toFixed(1);
+              const itemRating = (item.rating || (effective.rating !== null ? effective.rating : (designer.avg_rating || 5.0))).toFixed(1);
 
               return (
                 <div
@@ -996,7 +998,7 @@ export default function DesignerProfilePage() {
       {selectedIndex !== null && displayItems[selectedIndex] && (() => {
         const activeMedia = displayItems[selectedIndex];
         const activeCat = getItemCategory(activeMedia, designer.categories);
-        const activeRating = (activeMedia.rating || designer.avg_rating || 5.0).toFixed(1);
+        const activeRating = (activeMedia.rating || (effective.rating !== null ? effective.rating : (designer.avg_rating || 5.0))).toFixed(1);
 
         return (
           <div

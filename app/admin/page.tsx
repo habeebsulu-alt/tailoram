@@ -18,6 +18,13 @@ import {
   UserRole,
 } from '@/lib/types';
 import {
+  fetchManualRatings,
+  saveManualRating,
+  removeManualRating,
+  computeEffectiveRating,
+  ManualRatingData,
+} from '@/lib/ratingsManager';
+import {
   ShieldCheck,
   ShieldAlert,
   Users,
@@ -55,6 +62,7 @@ import {
   Check,
   X,
   Volume2,
+  Loader2,
 } from 'lucide-react';
 
 const DEMO_EMAILS_MAP: Record<string, string> = {
@@ -87,6 +95,14 @@ export default function AdminPage() {
   const [newPasswordInput, setNewPasswordInput] = useState('Tailoram2026!');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [isBatchSyncing, setIsBatchSyncing] = useState(false);
+
+  // Manual Designer Rating Override Modal State
+  const [manualRatings, setManualRatings] = useState<Record<string, ManualRatingData>>({});
+  const [ratingModalDesigner, setRatingModalDesigner] = useState<DesignerProfile | null>(null);
+  const [ratingInput, setRatingInput] = useState<number>(5.0);
+  const [reviewCountInput, setReviewCountInput] = useState<number>(10);
+  const [ratingNotesInput, setRatingNotesInput] = useState<string>('');
+  const [isSavingRating, setIsSavingRating] = useState(false);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
@@ -240,6 +256,10 @@ export default function AdminPage() {
           whatsapp_enabled: wa?.enabled ?? localWa ?? false,
         });
       }
+
+      // 8. Manual Designer Ratings
+      const ratings = await fetchManualRatings();
+      setManualRatings(ratings);
     } catch (err) {
       console.error('Error fetching admin data:', err);
       showNotice('Failed to synchronize some marketplace records', 'error');
@@ -375,6 +395,53 @@ export default function AdminPage() {
     } catch (err: any) {
       showNotice(`Failed to toggle store: ${err.message}`, 'error');
       fetchAllAdminData();
+    }
+  };
+
+  const openRatingModal = (designer: DesignerProfile) => {
+    const effective = computeEffectiveRating(designer.id, designer.reviews || [], manualRatings);
+    setRatingModalDesigner(designer);
+    setRatingInput(effective.rating !== null ? effective.rating : 5.0);
+    setReviewCountInput(effective.reviewCount || 10);
+    setRatingNotesInput(manualRatings[designer.id]?.notes || '');
+  };
+
+  const handleSaveRatingOverride = async () => {
+    if (!ratingModalDesigner) return;
+    try {
+      setIsSavingRating(true);
+      await saveManualRating(
+        ratingModalDesigner.id,
+        ratingInput,
+        reviewCountInput,
+        ratingNotesInput
+      );
+      const updated = await fetchManualRatings();
+      setManualRatings(updated);
+      showNotice(`Successfully set ${ratingModalDesigner.business_name} rating to ⭐ ${ratingInput.toFixed(1)} (${reviewCountInput} reviews)`, 'success');
+      setRatingModalDesigner(null);
+    } catch (err: any) {
+      console.error('Error saving manual rating:', err);
+      showNotice(err.message || 'Failed to save rating override', 'error');
+    } finally {
+      setIsSavingRating(false);
+    }
+  };
+
+  const handleRemoveRatingOverride = async () => {
+    if (!ratingModalDesigner) return;
+    try {
+      setIsSavingRating(true);
+      await removeManualRating(ratingModalDesigner.id);
+      const updated = await fetchManualRatings();
+      setManualRatings(updated);
+      showNotice(`Reverted ${ratingModalDesigner.business_name} to natural client reviews`, 'success');
+      setRatingModalDesigner(null);
+    } catch (err: any) {
+      console.error('Error removing rating override:', err);
+      showNotice(err.message || 'Failed to remove rating override', 'error');
+    } finally {
+      setIsSavingRating(false);
     }
   };
 
@@ -1318,6 +1385,7 @@ export default function AdminPage() {
                       <th className="py-3.5 px-4">Studio / Brand</th>
                       <th className="py-3.5 px-4">Location</th>
                       <th className="py-3.5 px-4">Specialty</th>
+                      <th className="py-3.5 px-4 text-center">Rating</th>
                       <th className="py-3.5 px-4 text-center">Verified</th>
                       <th className="py-3.5 px-4 text-center">Featured</th>
                       <th className="py-3.5 px-4 text-center">Store</th>
@@ -1354,6 +1422,34 @@ export default function AdminPage() {
                           <div className="text-[10px] text-stone-400 mt-1 truncate max-w-[120px]">
                             {designer.categories?.join(', ')}
                           </div>
+                        </td>
+
+                        {/* Rating Display & Override Trigger */}
+                        <td className="py-3 px-4 text-center">
+                          {(() => {
+                            const effective = computeEffectiveRating(designer.id, designer.reviews || [], manualRatings);
+                            return (
+                              <button
+                                onClick={() => openRatingModal(designer)}
+                                className={`px-2.5 py-1 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer ${
+                                  effective.isOverridden
+                                    ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40 hover:bg-amber-400/30'
+                                    : 'bg-stone-950 hover:bg-stone-800 text-stone-200 border border-stone-800'
+                                }`}
+                                title="Click to manually edit studio rating"
+                              >
+                                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                <span className="font-black text-white">
+                                  {effective.rating !== null ? effective.rating.toFixed(1) : 'New'}
+                                </span>
+                                {effective.isOverridden && (
+                                  <span className="text-[9px] bg-amber-400 text-stone-950 font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider">
+                                    Override
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })()}
                         </td>
 
                         {/* Verified Toggle */}
@@ -1426,6 +1522,14 @@ export default function AdminPage() {
                               title="Reset Studio Password"
                             >
                               <Key className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => openRatingModal(designer)}
+                              className="p-1.5 rounded-lg bg-stone-800 hover:bg-amber-500/20 text-stone-300 hover:text-amber-400 border border-stone-700 hover:border-amber-500/40 transition-colors cursor-pointer"
+                              title="Manually Set Designer Rating"
+                            >
+                              <Star className="w-3.5 h-3.5 fill-amber-400/20 text-amber-400" />
                             </button>
 
                             <Link
@@ -2183,6 +2287,185 @@ export default function AdminPage() {
                 <Key className="w-3.5 h-3.5" />
                 <span>{isResettingPassword ? 'Resetting Password...' : 'Apply Password Reset'}</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Designer Rating Override Modal */}
+      {ratingModalDesigner && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/85 backdrop-blur-md animate-fadeIn"
+          onClick={() => !isSavingRating && setRatingModalDesigner(null)}
+        >
+          <div
+            className="bg-stone-900 border border-stone-800 rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-6 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-stone-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Star className="w-5 h-5 fill-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base sm:text-lg text-white">
+                    Set Studio Rating
+                  </h3>
+                  <p className="text-xs text-stone-400 truncate max-w-[240px]">
+                    {ratingModalDesigner.business_name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRatingModalDesigner(null)}
+                disabled={isSavingRating}
+                className="w-8 h-8 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Current Natural Status */}
+            {(() => {
+              const naturalRevs = ratingModalDesigner.reviews || [];
+              const naturalCount = naturalRevs.length;
+              const naturalAvg = naturalCount > 0
+                ? (naturalRevs.reduce((sum, r) => sum + (r.rating || 0), 0) / naturalCount).toFixed(1)
+                : 'None';
+              const currentEffective = computeEffectiveRating(ratingModalDesigner.id, naturalRevs, manualRatings);
+
+              return (
+                <div className="p-3.5 rounded-2xl bg-stone-950 border border-stone-800/80 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between text-stone-400">
+                    <span>Natural Client Average:</span>
+                    <span className="font-bold text-stone-200">
+                      {naturalAvg === 'None' ? 'No client reviews yet' : `⭐ ${naturalAvg} (${naturalCount} reviews)`}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-stone-400">
+                    <span>Current Display Status:</span>
+                    <span className="font-black text-amber-400">
+                      {currentEffective.rating !== null ? `⭐ ${currentEffective.rating.toFixed(1)} (${currentEffective.reviewCount} reviews)` : 'New Studio'}
+                      {currentEffective.isOverridden && ' (Manual Override Active)'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Quick Preset Buttons */}
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-400 mb-2">
+                Quick Star Rating Presets
+              </label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[5.0, 4.9, 4.8, 4.7, 4.5].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setRatingInput(preset)}
+                    className={`py-2 px-1 rounded-xl text-xs font-black transition-all flex flex-col items-center gap-0.5 cursor-pointer ${
+                      ratingInput === preset
+                        ? 'bg-amber-400 text-stone-950 shadow-md shadow-amber-400/20'
+                        : 'bg-stone-800 hover:bg-stone-700 text-stone-300'
+                    }`}
+                  >
+                    <span>{preset.toFixed(1)}</span>
+                    <span className="text-[10px]">★★★★★</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Rating Value & Review Count */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">
+                  Rating Value (1.0 – 5.0)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="1.0"
+                    max="5.0"
+                    value={ratingInput}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val)) setRatingInput(val);
+                    }}
+                    className="w-full pl-3.5 pr-8 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-white font-black text-sm focus:outline-none focus:border-amber-400"
+                  />
+                  <Star className="w-4 h-4 text-amber-400 fill-amber-400 absolute right-3 top-3 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">
+                  Review Count Badge
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="999"
+                  value={reviewCountInput}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val)) setReviewCountInput(val);
+                  }}
+                  placeholder="e.g. 15"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-white font-black text-sm focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            </div>
+
+            {/* Internal Admin Note */}
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">
+                Admin Note / Audit Reason (Optional)
+              </label>
+              <input
+                type="text"
+                value={ratingNotesInput}
+                onChange={(e) => setRatingNotesInput(e.target.value)}
+                placeholder="e.g. Verified Master Atelier quality inspection score"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 text-xs focus:outline-none focus:border-amber-400"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2.5 pt-2 border-t border-stone-800">
+              <button
+                type="button"
+                onClick={handleSaveRatingOverride}
+                disabled={isSavingRating}
+                className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-sm shadow-lg shadow-amber-400/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isSavingRating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-stone-950" />
+                    <span>Applying Rating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>Save Rating (⭐ {ratingInput.toFixed(1)})</span>
+                  </>
+                )}
+              </button>
+
+              {manualRatings[ratingModalDesigner.id] && (
+                <button
+                  type="button"
+                  onClick={handleRemoveRatingOverride}
+                  disabled={isSavingRating}
+                  className="w-full py-2.5 rounded-xl bg-stone-800 hover:bg-red-950/40 text-stone-400 hover:text-red-400 border border-stone-700 hover:border-red-500/40 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Reset to Natural Client Reviews
+                </button>
+              )}
             </div>
           </div>
         </div>
