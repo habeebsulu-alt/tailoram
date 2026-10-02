@@ -39,6 +39,7 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
 } from 'lucide-react';
 
 const NIGERIAN_HUBS = [
@@ -50,7 +51,16 @@ const NIGERIAN_HUBS = [
   { state: 'Enugu', name: 'Enugu', desc: 'Independence Layout, New Haven, GRA', lat: 6.4584, lng: 7.5464 },
 ];
 
-const HERO_SLIDES = [
+interface HeroSlide {
+  image: string;
+  title: string;
+  tag: string;
+  location: string;
+  designerId?: string;
+  designerName?: string;
+}
+
+const DEFAULT_HERO_SLIDES: HeroSlide[] = [
   {
     image: 'https://images.unsplash.com/photo-1572495532056-8583af1cbae0?auto=format&fit=crop&w=1920&q=85',
     title: 'Agbada & Senator Couture',
@@ -437,29 +447,88 @@ function DesignerMarketplaceCard({
 export default function HomePage() {
   const { user } = useAuth();
 
-  // Hero Background Slider state
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [isSliderPaused, setIsSliderPaused] = useState(false);
-
-  useEffect(() => {
-    if (isSliderPaused) return;
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
-    }, 6500);
-    return () => clearInterval(interval);
-  }, [isSliderPaused]);
-
-  const handleNextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
-  };
-
-  const handlePrevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
-  };
-
   // Designers state
   const [designers, setDesigners] = useState<DesignerProfile[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Dynamic Hero Slides: picked from random designers across Nigeria
+  const heroSlides = useMemo<HeroSlide[]>(() => {
+    const candidateSlides: HeroSlide[] = [];
+
+    // Map each designer's portfolio items into candidate slides
+    for (const designer of designers) {
+      const items = (designer.portfolio_items || []).filter(
+        (item: any) => item.media_url && item.media_type !== 'video'
+      );
+      for (const item of items) {
+        const rawCat = (item as any).category || (designer.categories && designer.categories[0]) || 'bespoke';
+        const catLabel = rawCat
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+        candidateSlides.push({
+          image: item.media_url,
+          title: item.caption || `${designer.business_name} Signature Creation`,
+          tag: catLabel,
+          location: `${designer.area ? designer.area + ', ' : ''}${designer.state || 'Nigeria'}`,
+          designerId: designer.id,
+          designerName: designer.business_name,
+        });
+      }
+    }
+
+    if (candidateSlides.length === 0) {
+      return DEFAULT_HERO_SLIDES;
+    }
+
+    // Shuffle candidate slides
+    const shuffled = [...candidateSlides].sort(() => 0.5 - Math.random());
+
+    // Select diverse designers across fashion hubs (Lagos, Abuja, PH, Ibadan, Kano, Enugu, etc.)
+    const seenDesigners = new Set<string>();
+    const selectedSlides: HeroSlide[] = [];
+
+    for (const slide of shuffled) {
+      if (slide.designerId && !seenDesigners.has(slide.designerId)) {
+        seenDesigners.add(slide.designerId);
+        selectedSlides.push(slide);
+      }
+      if (selectedSlides.length >= 6) break;
+    }
+
+    // Fill up to 6 slides if fewer unique designers
+    if (selectedSlides.length < 5) {
+      for (const slide of shuffled) {
+        if (!selectedSlides.some((s) => s.image === slide.image)) {
+          selectedSlides.push(slide);
+        }
+        if (selectedSlides.length >= 6) break;
+      }
+    }
+
+    return selectedSlides.length > 0 ? selectedSlides : DEFAULT_HERO_SLIDES;
+  }, [designers]);
+
+  // Hero Background Slider state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isSliderPaused, setIsSliderPaused] = useState(false);
+  const activeSlideIndex = currentSlide % (heroSlides.length || 1);
+
+  useEffect(() => {
+    if (isSliderPaused || heroSlides.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 6500);
+    return () => clearInterval(interval);
+  }, [isSliderPaused, heroSlides.length]);
+
+  const handleNextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
+  };
+
+  const handlePrevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
+  };
 
   // Filters & Sorting state
   const [searchQuery, setSearchQuery] = useState('');
@@ -741,27 +810,27 @@ export default function HomePage() {
       >
         {/* Background Slides with Smooth Crossfade and Ken Burns Effect */}
         <div className="absolute inset-0 pointer-events-none select-none overflow-hidden">
-          {HERO_SLIDES.map((slide, idx) => (
+          {heroSlides.map((slide, idx) => (
             <div
               key={idx}
               className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                idx === currentSlide ? 'opacity-100' : 'opacity-0'
+                idx === activeSlideIndex ? 'opacity-100' : 'opacity-0'
               }`}
             >
               <img
                 src={slide.image}
                 alt={slide.title}
-                className={`w-full h-full object-cover object-center transform transition-transform duration-[7000ms] ease-out ${
-                  idx === currentSlide ? 'scale-105' : 'scale-100'
+                className={`w-full h-full object-cover object-top transform transition-transform duration-[7000ms] ease-out ${
+                  idx === activeSlideIndex ? 'scale-105' : 'scale-100'
                 }`}
               />
             </div>
           ))}
 
-          {/* Deep luxury gradient overlays to ensure 100% text legibility */}
-          <div className="absolute inset-0 bg-stone-950/75 sm:bg-stone-950/70" />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-stone-950/80" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/20 via-transparent to-transparent pointer-events-none" />
+          {/* Softened ambient overlays: reduces dark shade so designer creations are vivid & visible while text remains 100% readable */}
+          <div className="absolute inset-0 bg-stone-950/40 sm:bg-stone-950/35" />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/25 to-stone-950/55" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/25 via-transparent to-transparent pointer-events-none" />
         </div>
 
         <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
@@ -773,14 +842,14 @@ export default function HomePage() {
             <span className="text-amber-300 font-extrabold">All 36 States</span>
           </div>
 
-          <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-[1.1] drop-shadow-md">
+          <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-[1.1] drop-shadow-lg">
             Find &amp; Commission the Finest <br className="hidden sm:inline" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-brand-300 to-amber-400">
               Bespoke Tailors in Nigeria
             </span>
           </h1>
 
-          <p className="text-base sm:text-lg text-stone-200 max-w-2xl mx-auto leading-relaxed font-medium drop-shadow-sm">
+          <p className="text-base sm:text-lg text-stone-100 max-w-2xl mx-auto leading-relaxed font-semibold drop-shadow-md">
             Browse real portfolios, read verified client reviews, compare rankings, and commission bespoke Agbada, Aso Ebi, Ankara styles, and Senator suits.
           </p>
 
@@ -840,23 +909,36 @@ export default function HomePage() {
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs text-white/90 font-medium shadow-sm">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span className="font-extrabold text-amber-300">{HERO_SLIDES[currentSlide].tag}</span>
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-md border border-white/20 text-xs text-white/90 font-medium shadow-md transition-colors">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
+              <span className="font-extrabold text-amber-300">{heroSlides[activeSlideIndex]?.tag}</span>
               <span className="text-white/40">•</span>
-              <span className="text-stone-200 hidden sm:inline">{HERO_SLIDES[currentSlide].title}</span>
+              {heroSlides[activeSlideIndex]?.designerId ? (
+                <Link
+                  href={`/designer/${heroSlides[activeSlideIndex].designerId}`}
+                  className="text-white font-bold hover:text-amber-300 transition-colors inline-flex items-center gap-1 group/author"
+                  title="View this atelier's profile & portfolio"
+                >
+                  <span className="underline decoration-amber-400/40 group-hover/author:decoration-amber-300 underline-offset-2">
+                    {heroSlides[activeSlideIndex].designerName}
+                  </span>
+                  <ExternalLink className="w-3 h-3 text-amber-400 opacity-75 group-hover/author:opacity-100" />
+                </Link>
+              ) : (
+                <span className="text-stone-200 hidden sm:inline">{heroSlides[activeSlideIndex]?.title}</span>
+              )}
               <span className="text-white/40 hidden sm:inline">•</span>
-              <span className="text-stone-300 text-[11px]">{HERO_SLIDES[currentSlide].location}</span>
+              <span className="text-stone-300 text-[11px]">{heroSlides[activeSlideIndex]?.location}</span>
             </div>
 
             <div className="flex items-center gap-1.5">
-              {HERO_SLIDES.map((_, idx) => (
+              {heroSlides.map((_, idx) => (
                 <button
                   key={idx}
                   onClick={() => setCurrentSlide(idx)}
                   aria-label={`Go to couture style ${idx + 1}`}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                    idx === currentSlide ? 'w-6 bg-amber-400' : 'w-2 bg-white/30 hover:bg-white/60'
+                    idx === activeSlideIndex ? 'w-6 bg-amber-400' : 'w-2 bg-white/30 hover:bg-white/60'
                   }`}
                 />
               ))}
