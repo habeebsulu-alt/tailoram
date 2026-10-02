@@ -1138,13 +1138,13 @@ export default function DesignerDashboard() {
                       <video
                         src={item.media_url}
                         controls
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover object-top"
                       />
                     ) : (
                       <img
                         src={item.media_url}
                         alt={item.caption || 'Tailor work'}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
                       />
                     )}

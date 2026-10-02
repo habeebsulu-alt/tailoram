@@ -723,7 +723,7 @@ export default function DesignerProfilePage() {
                           playsInline
                           autoPlay
                           loop
-                          className="w-full h-full object-cover pointer-events-none"
+                          className="w-full h-full object-cover object-top pointer-events-none"
                         />
                         <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-85 group-hover:opacity-100 transition-opacity pointer-events-none">
                           <div className="w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm text-stone-900 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
@@ -735,7 +735,7 @@ export default function DesignerProfilePage() {
                       <img
                         src={item.media_url}
                         alt={item.caption || 'Tailor Outfit'}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
+                        className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
                         loading="lazy"
                       />
                     )}
