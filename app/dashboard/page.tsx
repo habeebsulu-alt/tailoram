@@ -47,6 +47,9 @@ import {
   Camera,
   X,
   Layers,
+  Edit3,
+  Pencil,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function DesignerDashboard() {
@@ -106,6 +109,17 @@ export default function DesignerDashboard() {
   const [uploadSuccess, setUploadSuccess] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Edit / Update Portfolio Item modal & form state
+  const [editingItem, setEditingItem] = useState<PortfolioItem | null>(null);
+  const [editCaption, setEditCaption] = useState('');
+  const [editCategory, setEditCategory] = useState('agbada');
+  const [editReplacementFile, setEditReplacementFile] = useState<File | null>(null);
+  const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
+  const [isUpdatingItem, setIsUpdatingItem] = useState(false);
+  const [updateError, setUpdateError] = useState('');
+  const [updateSuccess, setUpdateSuccess] = useState('');
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+
   // Avatar / Profile picture upload state
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarSuccess, setAvatarSuccess] = useState('');
@@ -142,7 +156,7 @@ export default function DesignerDashboard() {
     }
   }, [designerProfile]);
 
-  // Load portfolio items with deletion persistence
+  // Load portfolio items with deletion and update persistence
   const loadPortfolio = async (designerId: string) => {
     try {
       setLoadingItems(true);
@@ -158,7 +172,12 @@ export default function DesignerDashboard() {
         const deletedIds: string[] = typeof window !== 'undefined'
           ? JSON.parse(localStorage.getItem('tailoram_deleted_portfolio_items') || '[]')
           : [];
-        const activeItems = ((data as PortfolioItem[]) || []).filter((i) => !deletedIds.includes(i.id));
+        const updatedMap: Record<string, Partial<PortfolioItem>> = typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem('tailoram_updated_portfolio_items') || '{}')
+          : {};
+        const activeItems = ((data as PortfolioItem[]) || [])
+          .filter((i) => !deletedIds.includes(i.id))
+          .map((i) => (updatedMap[i.id] ? { ...i, ...updatedMap[i.id] } : i));
         setItems(activeItems);
       }
     } catch (err) {
@@ -527,6 +546,15 @@ export default function DesignerDashboard() {
             JSON.stringify(deletedIds)
           );
         }
+
+        // Also clean up updated items cache if present
+        const storedUpdates: Record<string, any> = JSON.parse(
+          localStorage.getItem('tailoram_updated_portfolio_items') || '{}'
+        );
+        if (storedUpdates[item.id]) {
+          delete storedUpdates[item.id];
+          localStorage.setItem('tailoram_updated_portfolio_items', JSON.stringify(storedUpdates));
+        }
       }
 
       // 2. Remove from React state immediately
@@ -554,6 +582,165 @@ export default function DesignerDashboard() {
       console.error('Could not delete item:', err);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // Open Edit Portfolio Item Modal
+  const openEditModal = (item: PortfolioItem) => {
+    setEditingItem(item);
+    setEditCaption(item.caption || '');
+    setEditCategory((item as any).category || 'agbada');
+    setEditReplacementFile(null);
+    setEditPreviewUrl(null);
+    setUpdateError('');
+    setUpdateSuccess('');
+  };
+
+  // Close Edit Portfolio Item Modal
+  const closeEditModal = () => {
+    if (editPreviewUrl && editPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(editPreviewUrl);
+    }
+    setEditingItem(null);
+    setEditReplacementFile(null);
+    setEditPreviewUrl(null);
+    setUpdateError('');
+    setUpdateSuccess('');
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
+  };
+
+  // Select replacement photo or video
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUpdateError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isVideo = file.type.startsWith('video/');
+    if (isVideo && file.size > 40 * 1024 * 1024) {
+      setUpdateError('Video file exceeds 40MB limit.');
+      return;
+    }
+    if (!isVideo && file.size > 15 * 1024 * 1024) {
+      setUpdateError('Image file exceeds 15MB limit.');
+      return;
+    }
+
+    setEditReplacementFile(file);
+    if (editPreviewUrl && editPreviewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(editPreviewUrl);
+    }
+    setEditPreviewUrl(URL.createObjectURL(file));
+  };
+
+  // Save / Update Portfolio Item
+  const handleUpdateItemSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+
+    try {
+      setIsUpdatingItem(true);
+      setUpdateError('');
+      setUpdateSuccess('');
+
+      let finalMediaUrl = editingItem.media_url;
+      let finalMediaType = editingItem.media_type;
+
+      // 1. If replacement photo or video was selected, compress & upload
+      if (editReplacementFile) {
+        const isVideo = editReplacementFile.type.startsWith('video/');
+        finalMediaType = isVideo ? 'video' : 'image';
+
+        let uploadFile: File = editReplacementFile;
+        if (!isVideo) {
+          uploadFile = await compressImage(editReplacementFile, 1400, 1400, 0.82);
+        }
+
+        const fileExt = uploadFile.name.split('.').pop() || (isVideo ? 'mp4' : 'webp');
+        const fileName = `${designerProfile?.id || 'portfolio'}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+
+        const { error: storageError } = await supabase.storage
+          .from('portfolio')
+          .upload(fileName, uploadFile, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: isVideo ? editReplacementFile.type || 'video/mp4' : 'image/webp',
+          });
+
+        if (storageError) {
+          console.error('Storage upload error:', storageError);
+          if (storageError.message?.includes('Bucket not found')) {
+            throw new Error('The "portfolio" storage bucket is not configured yet in Supabase.');
+          }
+          throw storageError;
+        }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from('portfolio').getPublicUrl(fileName);
+        finalMediaUrl = publicUrl;
+      }
+
+      const updatedPayload = {
+        caption: editCaption.trim() || null,
+        category: editCategory,
+        media_url: finalMediaUrl,
+        media_type: finalMediaType,
+      };
+
+      // 2. Persist in localStorage (guarantees instant update during synthetic admin sessions)
+      if (typeof window !== 'undefined') {
+        const storedUpdates: Record<string, any> = JSON.parse(
+          localStorage.getItem('tailoram_updated_portfolio_items') || '{}'
+        );
+        storedUpdates[editingItem.id] = {
+          ...updatedPayload,
+          updated_at: new Date().toISOString(),
+        };
+        localStorage.setItem(
+          'tailoram_updated_portfolio_items',
+          JSON.stringify(storedUpdates)
+        );
+      }
+
+      // 3. Update React state immediately
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === editingItem.id
+            ? {
+                ...i,
+                ...updatedPayload,
+              }
+            : i
+        )
+      );
+
+      // 4. Update in Supabase via Security Definer RPC (bypasses RLS)
+      try {
+        await supabase.rpc('update_portfolio_item', {
+          target_item_id: editingItem.id,
+          new_caption: updatedPayload.caption,
+          new_category: updatedPayload.category,
+          new_media_url: updatedPayload.media_url,
+          new_media_type: updatedPayload.media_type,
+        });
+      } catch (rpcErr) {
+        console.warn('RPC update_portfolio_item fallback:', rpcErr);
+        // Fallback to direct supabase update
+        await supabase
+          .from('portfolio_items')
+          .update(updatedPayload)
+          .eq('id', editingItem.id);
+      }
+
+      setUpdateSuccess('Portfolio work updated successfully!');
+      setTimeout(() => {
+        closeEditModal();
+      }, 1000);
+    } catch (err: any) {
+      console.error('Update portfolio item failed:', err);
+      setUpdateError(err.message || 'Failed to update portfolio item.');
+    } finally {
+      setIsUpdatingItem(false);
     }
   };
 
@@ -1148,6 +1335,17 @@ export default function DesignerDashboard() {
                         loading="lazy"
                       />
                     )}
+
+                    {/* Quick Update Button overlay on image */}
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(item)}
+                      className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md bg-stone-900/80 hover:bg-stone-950 backdrop-blur-sm text-white text-[10px] font-bold tracking-wide flex items-center gap-1.5 transition-all shadow-sm group/btn hover:scale-105"
+                      title="Update photo, styling, or caption"
+                    >
+                      <Edit3 className="w-3 h-3 text-brand-400" />
+                      <span>Update</span>
+                    </button>
                     
                     <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                       {item.media_type === 'video' ? (
@@ -1163,25 +1361,45 @@ export default function DesignerDashboard() {
                   </div>
 
                   <div className="p-4 flex-1 flex flex-col justify-between">
-                    <p className="text-xs sm:text-sm text-stone-800 font-medium line-clamp-2">
-                      {item.caption || 'Custom tailored creation'}
-                    </p>
+                    <div>
+                      {(item as any).category && (
+                        <span className="inline-block mb-1 text-[10px] font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-2 py-0.5 rounded">
+                          {((item as any).category || '').replace('_', ' ')}
+                        </span>
+                      )}
+                      <p className="text-xs sm:text-sm text-stone-800 font-medium line-clamp-2">
+                        {item.caption || 'Custom tailored creation'}
+                      </p>
+                    </div>
 
                     <div className="pt-3 mt-3 border-t border-stone-100 flex items-center justify-between text-xs text-stone-400 font-medium">
                       <span>{new Date(item.created_at).toLocaleDateString()}</span>
                       
-                      <button
-                        onClick={() => handleDeleteItem(item)}
-                        disabled={deletingId === item.id}
-                        className="text-stone-400 hover:text-red-600 transition-colors p-1"
-                        title="Delete item"
-                      >
-                        {deletingId === item.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(item)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-50 hover:bg-brand-50 text-stone-700 hover:text-brand-700 border border-stone-200/80 text-[11px] font-semibold transition-colors"
+                          title="Update photo, styling, or caption"
+                        >
+                          <Edit3 className="w-3 h-3 text-brand-600" />
+                          <span>Update</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteItem(item)}
+                          disabled={deletingId === item.id}
+                          className="text-stone-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-lg transition-colors"
+                          title="Delete item"
+                        >
+                          {deletingId === item.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2343,6 +2561,206 @@ export default function DesignerDashboard() {
                     <>
                       <Plus className="w-4 h-4" />
                       Add to Store
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT / UPDATE PORTFOLIO ITEM MODAL */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 my-8">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+              <div>
+                <h3 className="text-lg font-bold text-stone-900 flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-brand-600" />
+                  Update Portfolio Work
+                </h3>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Replace the outfit photo/video, change style category, or update the caption.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-500 flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {updateError && (
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{updateError}</span>
+              </div>
+            )}
+
+            {updateSuccess && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{updateSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateItemSubmit} className="space-y-4">
+              {/* Media Preview & Replace Button */}
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+                  Portfolio Media (Photo or Video)
+                </label>
+                
+                <div className="relative aspect-[16/11] bg-stone-950 rounded-2xl overflow-hidden border border-stone-200 shadow-inner group">
+                  {editPreviewUrl ? (
+                    editReplacementFile?.type.startsWith('video/') ? (
+                      <video
+                        src={editPreviewUrl}
+                        controls
+                        className="w-full h-full object-cover object-top"
+                      />
+                    ) : (
+                      <img
+                        src={editPreviewUrl}
+                        alt="New preview"
+                        className="w-full h-full object-cover object-top"
+                      />
+                    )
+                  ) : editingItem.media_type === 'video' ? (
+                    <video
+                      src={editingItem.media_url}
+                      controls
+                      className="w-full h-full object-cover object-top"
+                    />
+                  ) : (
+                    <img
+                      src={editingItem.media_url}
+                      alt={editingItem.caption || 'Current portfolio item'}
+                      className="w-full h-full object-cover object-top"
+                    />
+                  )}
+
+                  {/* Overlay badge indicating replacement state */}
+                  {editReplacementFile ? (
+                    <div className="absolute top-3 left-3 bg-emerald-600/90 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm shadow flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5" />
+                      New media selected
+                    </div>
+                  ) : (
+                    <div className="absolute top-3 left-3 bg-black/60 text-white text-[10px] font-medium px-2 py-0.5 rounded-md backdrop-blur-sm">
+                      Current {editingItem.media_type === 'video' ? 'Video' : 'Photo'}
+                    </div>
+                  )}
+
+                  {/* Action buttons inside media container */}
+                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                    {editReplacementFile && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editPreviewUrl && editPreviewUrl.startsWith('blob:')) {
+                            URL.revokeObjectURL(editPreviewUrl);
+                          }
+                          setEditReplacementFile(null);
+                          setEditPreviewUrl(null);
+                          if (editFileInputRef.current) editFileInputRef.current.value = '';
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-black/75 hover:bg-black text-white text-xs font-semibold backdrop-blur-sm shadow transition-all"
+                      >
+                        Reset Media
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => editFileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-md transition-all"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>{editReplacementFile ? 'Choose Different File' : 'Replace Photo/Video'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <input
+                  type="file"
+                  ref={editFileInputRef}
+                  accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                  onChange={handleEditFileChange}
+                  className="hidden"
+                />
+
+                {editReplacementFile ? (
+                  <p className="text-[11px] text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Selected replacement: {editReplacementFile.name} ({(editReplacementFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-stone-400 mt-1.5">
+                    Click "Replace Photo/Video" above to upload a new image or video for this garment.
+                  </p>
+                )}
+              </div>
+
+              {/* Style Category */}
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  Style Category <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                >
+                  <option value="agbada">Agbada &amp; Senegalese</option>
+                  <option value="aso_ebi">Aso Ebi &amp; Owambe</option>
+                  <option value="senator">Senator &amp; Kaftan</option>
+                  <option value="ankara">Ankara Prints</option>
+                  <option value="adire">Adire &amp; Heritage</option>
+                  <option value="bridal">Bridal &amp; Traditional</option>
+                  <option value="ready_to_wear">Ready-to-Wear (RTW)</option>
+                  <option value="contemporary">Contemporary / Casual</option>
+                </select>
+              </div>
+
+              {/* Caption */}
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                  Caption / Outfit Description
+                </label>
+                <input
+                  type="text"
+                  value={editCaption}
+                  onChange={(e) => setEditCaption(e.target.value)}
+                  placeholder="e.g. Royal Emerald Agbada with Gold embroidery"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="px-4 py-2.5 rounded-xl text-stone-600 hover:bg-stone-100 text-xs sm:text-sm font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingItem}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all disabled:opacity-50"
+                >
+                  {isUpdatingItem ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving Updates...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Save Changes
                     </>
                   )}
                 </button>

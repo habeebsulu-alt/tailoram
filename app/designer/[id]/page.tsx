@@ -225,7 +225,12 @@ export default function DesignerProfilePage() {
           const deletedIds: string[] = typeof window !== 'undefined'
             ? JSON.parse(localStorage.getItem('tailoram_deleted_portfolio_items') || '[]')
             : [];
-          const activePortfolio = ((pData as PortfolioItem[]) || []).filter((i) => !deletedIds.includes(i.id));
+          const updatedMap: Record<string, Partial<PortfolioItem>> = typeof window !== 'undefined'
+            ? JSON.parse(localStorage.getItem('tailoram_updated_portfolio_items') || '{}')
+            : {};
+          const activePortfolio = ((pData as PortfolioItem[]) || [])
+            .filter((i) => !deletedIds.includes(i.id))
+            .map((i) => (updatedMap[i.id] ? { ...i, ...updatedMap[i.id] } : i));
           setPortfolio(activePortfolio);
         }
 

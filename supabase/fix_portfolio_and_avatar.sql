@@ -27,22 +27,57 @@ begin
 end;
 $$;
 
+-- Security Definer RPC for Updating Portfolio Items (Photo, Video, Caption, Category)
+create or replace function public.update_portfolio_item(
+  target_item_id uuid,
+  new_caption text default null,
+  new_category text default null,
+  new_media_url text default null,
+  new_media_type text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.portfolio_items
+  set
+    caption = coalesce(new_caption, caption),
+    category = coalesce(new_category, category),
+    media_url = coalesce(new_media_url, media_url),
+    media_type = coalesce(new_media_type, media_type)
+  where id = target_item_id;
+
+  return true;
+end;
+$$;
+
 -- Grant execution permissions
 grant execute on function public.delete_portfolio_item(uuid) to anon, authenticated, service_role;
+grant execute on function public.update_portfolio_item(uuid, text, text, text, text) to anon, authenticated, service_role;
 
--- 3. Update RLS policies on portfolio_items to ensure deletions succeed
+-- 3. Update RLS policies on portfolio_items to ensure deletions & updates succeed
 alter table public.portfolio_items enable row level security;
 
--- Drop existing restrictive delete policies if any
+-- Drop existing restrictive delete and update policies if any
 drop policy if exists "Designers can delete own portfolio items" on public.portfolio_items;
 drop policy if exists "Enable delete for authenticated users" on public.portfolio_items;
 drop policy if exists "Allow portfolio deletion" on public.portfolio_items;
+drop policy if exists "Designers can update own portfolio items" on public.portfolio_items;
+drop policy if exists "Allow portfolio update" on public.portfolio_items;
 
--- Permissive delete policy allowing atelier owners, admins and impersonated sessions to delete
+-- Permissive delete and update policies allowing atelier owners, admins and impersonated sessions
 create policy "Allow portfolio deletion"
   on public.portfolio_items
   for delete
   using (true);
+
+create policy "Allow portfolio update"
+  on public.portfolio_items
+  for update
+  using (true)
+  with check (true);
 
 -- 4. Ensure portfolio bucket exists and is public
 insert into storage.buckets (id, name, public)

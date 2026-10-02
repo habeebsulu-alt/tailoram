@@ -491,6 +491,9 @@ export default function HomePage() {
           const deletedIds: string[] = typeof window !== 'undefined'
             ? JSON.parse(localStorage.getItem('tailoram_deleted_portfolio_items') || '[]')
             : [];
+          const updatedMap: Record<string, any> = typeof window !== 'undefined'
+            ? JSON.parse(localStorage.getItem('tailoram_updated_portfolio_items') || '{}')
+            : {};
 
           // Process ratings and reviews
           const processed = (data as any[]).map((d) => {
@@ -501,9 +504,9 @@ export default function HomePage() {
                 ? revs.reduce((acc: number, r: any) => acc + (r.rating || 0), 0) / reviewCount
                 : 0;
 
-            const filteredItems = (d.portfolio_items || []).filter(
-              (p: any) => !deletedIds.includes(p.id)
-            );
+            const filteredItems = (d.portfolio_items || [])
+              .filter((p: any) => !deletedIds.includes(p.id))
+              .map((p: any) => (updatedMap[p.id] ? { ...p, ...updatedMap[p.id] } : p));
 
             const localAvatar = typeof window !== 'undefined'
               ? localStorage.getItem(`tailoram_avatar_${d.id}`)
