@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { OutfitRequest, Review } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { saveLocalUserReview } from '@/lib/ratingsManager';
+import { saveLocalUserReview, resolveReviewClientName } from '@/lib/ratingsManager';
 import {
   X,
   Star,
@@ -18,6 +18,7 @@ interface OrderReviewModalProps {
   onClose: () => void;
   request: OutfitRequest;
   reviewerId: string;
+  reviewerName?: string;
   revieweeId: string;
   revieweeName: string;
   isClientReviewingDesigner: boolean;
@@ -29,6 +30,7 @@ export default function OrderReviewModal({
   onClose,
   request,
   reviewerId,
+  reviewerName,
   revieweeId,
   revieweeName,
   isClientReviewingDesigner,
@@ -55,6 +57,12 @@ export default function OrderReviewModal({
       setError(null);
 
       const reviewId = `rev-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+      // Resolve actual client name instead of generic 'Client'
+      const resolvedClientName = isClientReviewingDesigner
+        ? (reviewerName || request.client?.full_name || resolveReviewClientName({ reviewer_id: reviewerId, client_id: reviewerId }))
+        : (request.client?.full_name || resolveReviewClientName({ client_id: revieweeId }) || revieweeName);
+
       const reviewRecord: Review = {
         id: reviewId,
         request_id: request.id,
@@ -65,9 +73,12 @@ export default function OrderReviewModal({
         rating,
         comment: comment.trim() || null,
         created_at: new Date().toISOString(),
-        client: isClientReviewingDesigner
-          ? (request.client || { id: reviewerId, full_name: 'Client', role: 'client', created_at: '' })
-          : { id: revieweeId, full_name: revieweeName || 'Client', role: 'client', created_at: '' },
+        client: {
+          id: isClientReviewingDesigner ? reviewerId : revieweeId,
+          full_name: resolvedClientName,
+          role: 'client',
+          created_at: new Date().toISOString(),
+        },
         designer: request.designer || { business_name: revieweeName || 'Studio' },
       };
 

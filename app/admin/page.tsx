@@ -23,6 +23,7 @@ import {
   removeManualRating,
   computeEffectiveRating,
   mergeWithLocalReviews,
+  resolveReviewClientName,
   ManualRatingData,
 } from '@/lib/ratingsManager';
 import {
@@ -1953,7 +1954,7 @@ export default function AdminPage() {
                         ))}
                       </div>
                       <h4 className="font-bold text-white text-xs mt-1">
-                        By {rev.client?.full_name || 'Client'} for{' '}
+                        By {resolveReviewClientName(rev)} for{' '}
                         <span className="text-amber-300 font-extrabold">
                           {rev.designer?.business_name || 'Designer'}
                         </span>

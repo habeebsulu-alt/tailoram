@@ -17,7 +17,7 @@ import {
   StoreProduct,
   STORE_CATEGORIES,
 } from '@/lib/types';
-import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, ManualRatingData } from '@/lib/ratingsManager';
+import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
 import {
   markOrderReadyForBalance,
   getLocalRequestOverrides,
@@ -2096,7 +2096,7 @@ export default function DesignerDashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-bold text-stone-900 text-sm">
-                        {rev.client?.full_name || 'Client'}
+                        {resolveReviewClientName(rev)}
                       </p>
                       <span className="text-[10px] text-stone-400 font-medium">
                         {new Date(rev.created_at).toLocaleDateString()}
@@ -3383,6 +3383,7 @@ export default function DesignerDashboard() {
           }}
           request={targetReviewRequest}
           reviewerId={user.id}
+          reviewerName={designerProfile?.business_name || profile?.full_name || 'Atelier'}
           revieweeId={targetReviewRequest.client_id}
           revieweeName={targetReviewRequest.client?.full_name || 'Client'}
           isClientReviewingDesigner={false}

@@ -825,6 +825,7 @@ export default function MessageChatPage() {
           onClose={() => setReviewModalOpen(false)}
           request={request}
           reviewerId={user.id}
+          reviewerName={profile?.full_name || user.user_metadata?.full_name || 'Client'}
           revieweeId={isClient ? (designer?.user_id || request.designer_id) : request.client_id}
           revieweeName={isClient ? (designer?.business_name || 'Atelier') : (clientProfile?.full_name || 'Client')}
           isClientReviewingDesigner={isClient}

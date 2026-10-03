@@ -15,7 +15,7 @@ import {
   getDesignerGender,
 } from '@/lib/types';
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
-import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, ManualRatingData } from '@/lib/ratingsManager';
+import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
 import {
   Scissors,
   MapPin,
@@ -964,7 +964,7 @@ export default function DesignerProfilePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-bold text-stone-900 text-sm">
-                      {rev.client?.full_name || 'Client'}
+                      {resolveReviewClientName(rev)}
                     </p>
                     <span className="text-[10px] text-stone-400 font-medium">
                       {new Date(rev.created_at).toLocaleDateString()}

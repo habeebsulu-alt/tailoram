@@ -459,6 +459,7 @@ export default function ClientRequestsPage() {
           onClose={() => setReviewModalOpen(false)}
           request={targetReviewRequest}
           reviewerId={user.id}
+          reviewerName={profile?.full_name || user.user_metadata?.full_name || 'Client'}
           revieweeId={targetReviewRequest.designer_id}
           revieweeName={targetReviewRequest.designer?.business_name || 'Atelier'}
           isClientReviewingDesigner={true}
