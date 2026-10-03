@@ -8,6 +8,9 @@ export interface EmailSettings {
   api_key?: string;
   smtp_host?: string;
   smtp_port?: number;
+  smtp_user?: string;
+  smtp_pass?: string;
+  smtp_secure?: boolean;
   notify_on_new_request: boolean;
   notify_on_quote_received: boolean;
   notify_on_deposit_paid: boolean;
@@ -23,8 +26,11 @@ export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   sender_email: 'notifications@tailoram.com',
   sender_name: 'Tailoram Nigeria',
   api_key: '',
-  smtp_host: 'smtp.mailgun.org',
-  smtp_port: 587,
+  smtp_host: 'mail.spacemail.com',
+  smtp_port: 465,
+  smtp_user: '',
+  smtp_pass: '',
+  smtp_secure: true,
   notify_on_new_request: true,
   notify_on_quote_received: true,
   notify_on_deposit_paid: true,
@@ -227,6 +233,66 @@ export async function triggerEmailNotification(params: {
 
   logEmailNotification(logEntry);
 
+  const emailHtml = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px; color: #1c1917; border: 1px solid #e7e5e4; border-radius: 20px; background-color: #ffffff;">
+      <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #fef3c7;">
+        <span style="display: inline-block; font-size: 28px; line-height: 1;">🧵</span>
+        <h1 style="color: #b45309; margin: 8px 0 0; font-size: 24px; font-weight: 900; letter-spacing: -0.5px;">Tailoram Nigeria</h1>
+        <p style="color: #78716c; font-size: 12px; margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Nigeria's Premier Bespoke Fashion Network</p>
+      </div>
+      <p style="font-size: 16px; line-height: 1.6; color: #1c1917;">Hello <strong>${params.recipientName || 'there'}</strong>,</p>
+      <div style="font-size: 15px; line-height: 1.6; background-color: #fafaf9; padding: 18px 20px; border-radius: 14px; border-left: 4px solid #f59e0b; margin: 18px 0; color: #292524;">
+        ${params.previewText}
+      </div>
+      ${params.ctaLink ? `
+        <div style="text-align: center; margin: 32px 0;">
+          <a href="${params.ctaLink}" style="background-color: #b45309; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 14px; font-weight: 800; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.25);">
+            Open on Tailoram
+          </a>
+        </div>
+      ` : ''}
+      <hr style="border: none; border-top: 1px solid #f5f5f4; margin: 28px 0;" />
+      <p style="font-size: 11px; color: #a8a29e; text-align: center; line-height: 1.5;">
+        Sent securely via Tailoram platform email service.<br />
+        To manage notification preferences, visit your studio or admin control panel.
+      </p>
+    </div>
+  `;
+
+  // Dispatch via SMTP (Spacemail / Custom Mail Server)
+  if (settings.provider === 'smtp') {
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: params.recipientEmail,
+          subject: params.subject,
+          html: emailHtml,
+          fromName: settings.sender_name,
+          fromEmail: settings.sender_email,
+          settings: {
+            smtp_host: settings.smtp_host || 'mail.spacemail.com',
+            smtp_port: settings.smtp_port || 465,
+            smtp_user: settings.smtp_user || settings.sender_email,
+            smtp_pass: settings.smtp_pass || settings.api_key,
+          },
+        }),
+      });
+
+      const resData = await response.json();
+      if (response.ok && resData.success) {
+        return { status: 'sent', message: 'Email dispatched successfully via Spacemail (SMTP)!' };
+      } else {
+        console.warn('SMTP dispatch failed:', resData.error);
+        return { status: 'failed', message: resData.error || 'SMTP delivery failed.' };
+      }
+    } catch (err: any) {
+      console.warn('SMTP fetch exception:', err);
+      return { status: 'failed', message: err.message };
+    }
+  }
+
   // If real API key is configured with Resend, trigger fetch call
   if (settings.provider === 'resend' && settings.api_key) {
     try {
@@ -240,29 +306,7 @@ export async function triggerEmailNotification(params: {
           from: `${settings.sender_name} <${settings.sender_email}>`,
           to: [params.recipientEmail],
           subject: params.subject,
-          html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1c1917; border: 1px solid #e7e5e4; border-radius: 16px;">
-              <div style="text-align: center; margin-bottom: 24px;">
-                <h1 style="color: #b45309; margin: 0; font-size: 24px;">Tailoram Nigeria</h1>
-                <p style="color: #78716c; font-size: 12px; margin-top: 4px;">Nigeria's Premier Bespoke Fashion Network</p>
-              </div>
-              <p style="font-size: 15px; line-height: 1.6;">Hello ${params.recipientName || 'there'},</p>
-              <p style="font-size: 14px; line-height: 1.6; background-color: #fafaf9; padding: 16px; border-radius: 12px; border-left: 4px solid #f59e0b;">
-                ${params.previewText}
-              </p>
-              ${params.ctaLink ? `
-                <div style="text-align: center; margin: 28px 0;">
-                  <a href="${params.ctaLink}" style="background-color: #b45309; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 14px; display: inline-block;">
-                    View on Tailoram
-                  </a>
-                </div>
-              ` : ''}
-              <hr style="border: none; border-top: 1px solid #f5f5f4; margin: 24px 0;" />
-              <p style="font-size: 11px; color: #a8a29e; text-align: center;">
-                Sent automatically by Tailoram Nigeria. You can manage notifications anytime in your account.
-              </p>
-            </div>
-          `,
+          html: emailHtml,
         }),
       });
 

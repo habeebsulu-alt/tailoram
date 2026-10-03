@@ -2426,11 +2426,11 @@ export default function AdminPage() {
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   {[
+                    { id: 'smtp', label: 'Spaceship Spacemail (SMTP)', desc: 'Direct delivery via mail.spacemail.com' },
                     { id: 'simulated', label: 'Simulated Mode', desc: 'Zero config; logs to audit trail below' },
                     { id: 'resend', label: 'Resend API', desc: 'Recommended for Next.js & Vercel' },
                     { id: 'sendgrid', label: 'SendGrid', desc: 'Twilio SendGrid transactional API' },
                     { id: 'postmark', label: 'Postmark', desc: 'High deliverability transactional' },
-                    { id: 'smtp', label: 'Custom SMTP', desc: 'Standard Mailgun/SES/Custom server' },
                   ].map((prov) => {
                     const isSelected = emailSettings.provider === prov.id;
                     return (
@@ -2441,6 +2441,13 @@ export default function AdminPage() {
                           setEmailSettings({
                             ...emailSettings,
                             provider: prov.id as any,
+                            ...(prov.id === 'smtp'
+                              ? {
+                                  smtp_host: emailSettings.smtp_host || 'mail.spacemail.com',
+                                  smtp_port: emailSettings.smtp_port || 465,
+                                  smtp_user: emailSettings.smtp_user || emailSettings.sender_email,
+                                }
+                              : {}),
                           })
                         }
                         className={`p-3 rounded-2xl border text-left transition-all ${
@@ -2482,7 +2489,7 @@ export default function AdminPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
-                    Sender Email Address
+                    Sender Email Address (From)
                   </label>
                   <input
                     type="email"
@@ -2491,68 +2498,198 @@ export default function AdminPage() {
                       setEmailSettings({
                         ...emailSettings,
                         sender_email: e.target.value,
+                        ...(emailSettings.provider === 'smtp' && !emailSettings.smtp_user
+                          ? { smtp_user: e.target.value }
+                          : {}),
                       })
                     }
-                    placeholder="e.g. notifications@tailoram.com"
+                    placeholder="e.g. notifications@yourdomain.com"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
                   />
                 </div>
               </div>
 
-              {/* Admin Notification Email & API Key */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
-                    Admin Notification Email
-                  </label>
-                  <input
-                    type="email"
-                    value={emailSettings.admin_notification_email || ''}
-                    onChange={(e) =>
-                      setEmailSettings({
-                        ...emailSettings,
-                        admin_notification_email: e.target.value,
-                      })
-                    }
-                    placeholder="e.g. admin@tailoram.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
-                  />
-                </div>
+              {/* Dynamic Credentials Area based on Provider */}
+              {emailSettings.provider === 'smtp' ? (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-black text-amber-300 flex items-center gap-1.5 uppercase tracking-wide">
+                        <span>🚀 Spaceship Spacemail SMTP Configuration</span>
+                      </h4>
+                      <p className="text-[11px] text-stone-400 mt-0.5">
+                        Connect your custom domain mailbox hosted on Spaceship Spacemail
+                      </p>
+                    </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider">
-                      Provider API Key / Token
-                    </label>
                     <button
                       type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="text-[11px] text-amber-400 hover:underline flex items-center gap-1"
+                      onClick={() =>
+                        setEmailSettings({
+                          ...emailSettings,
+                          smtp_host: 'mail.spacemail.com',
+                          smtp_port: 465,
+                          smtp_user: emailSettings.sender_email || emailSettings.smtp_user,
+                        })
+                      }
+                      className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-bold border border-amber-500/40 transition-colors self-start sm:self-auto"
                     >
-                      {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                      <span>{showApiKey ? 'Hide' : 'Show'}</span>
+                      Fill Spacemail Defaults
                     </button>
                   </div>
-                  <input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={emailSettings.api_key || ''}
-                    onChange={(e) =>
-                      setEmailSettings({
-                        ...emailSettings,
-                        api_key: e.target.value,
-                      })
-                    }
-                    placeholder={
-                      emailSettings.provider === 'resend'
-                        ? 're_123456789...'
-                        : emailSettings.provider === 'sendgrid'
-                        ? 'SG.123456789...'
-                        : 'Optional in simulated mode'
-                    }
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
-                  />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="md:col-span-2">
+                      <label className="block text-[11px] font-bold text-stone-300 uppercase tracking-wider mb-1">
+                        SMTP Host Server
+                      </label>
+                      <input
+                        type="text"
+                        value={emailSettings.smtp_host || 'mail.spacemail.com'}
+                        onChange={(e) =>
+                          setEmailSettings({
+                            ...emailSettings,
+                            smtp_host: e.target.value,
+                          })
+                        }
+                        placeholder="mail.spacemail.com"
+                        className="w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-300 uppercase tracking-wider mb-1">
+                        SMTP Port
+                      </label>
+                      <select
+                        value={emailSettings.smtp_port || 465}
+                        onChange={(e) =>
+                          setEmailSettings({
+                            ...emailSettings,
+                            smtp_port: Number(e.target.value),
+                          })
+                        }
+                        className="w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                      >
+                        <option value={465}>465 (SSL / Recommended)</option>
+                        <option value={587}>587 (TLS / STARTTLS)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-300 uppercase tracking-wider mb-1">
+                        Mailbox Username
+                      </label>
+                      <input
+                        type="email"
+                        value={emailSettings.smtp_user || emailSettings.sender_email || ''}
+                        onChange={(e) =>
+                          setEmailSettings({
+                            ...emailSettings,
+                            smtp_user: e.target.value,
+                          })
+                        }
+                        placeholder="user@domain.com"
+                        className="w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-stone-300 uppercase tracking-wider">
+                        Spacemail Mailbox Password
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="text-[11px] text-amber-400 hover:underline flex items-center gap-1"
+                      >
+                        {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        <span>{showApiKey ? 'Hide' : 'Show'}</span>
+                      </button>
+                    </div>
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={emailSettings.smtp_pass || emailSettings.api_key || ''}
+                      onChange={(e) =>
+                        setEmailSettings({
+                          ...emailSettings,
+                          smtp_pass: e.target.value,
+                          api_key: e.target.value,
+                        })
+                      }
+                      placeholder="Enter your Spacemail mailbox password"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                    />
+                  </div>
+
+                  {/* Cheatsheet callout */}
+                  <div className="p-3 rounded-xl bg-stone-950/80 border border-stone-800/80 text-[11px] text-stone-400 space-y-1">
+                    <p className="font-semibold text-stone-300">💡 Quick Spacemail Settings Reference:</p>
+                    <ul className="list-disc list-inside space-y-0.5 text-stone-400 font-mono">
+                      <li>Outgoing Mail Server: <strong className="text-amber-300">mail.spacemail.com</strong></li>
+                      <li>Port: <strong className="text-amber-300">465</strong> (SSL) or <strong className="text-amber-300">587</strong> (STARTTLS)</li>
+                      <li>Username: <span className="text-stone-300">Your full Spacemail address</span></li>
+                      <li>Password: <span className="text-stone-300">Your Spacemail mailbox password</span></li>
+                    </ul>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
+                      Admin Notification Email
+                    </label>
+                    <input
+                      type="email"
+                      value={emailSettings.admin_notification_email || ''}
+                      onChange={(e) =>
+                        setEmailSettings({
+                          ...emailSettings,
+                          admin_notification_email: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. admin@tailoram.com"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider">
+                        Provider API Key / Token
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="text-[11px] text-amber-400 hover:underline flex items-center gap-1"
+                      >
+                        {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        <span>{showApiKey ? 'Hide' : 'Show'}</span>
+                      </button>
+                    </div>
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={emailSettings.api_key || ''}
+                      onChange={(e) =>
+                        setEmailSettings({
+                          ...emailSettings,
+                          api_key: e.target.value,
+                        })
+                      }
+                      placeholder={
+                        emailSettings.provider === 'resend'
+                          ? 're_123456789...'
+                          : emailSettings.provider === 'sendgrid'
+                          ? 'SG.123456789...'
+                          : 'Optional in simulated mode'
+                      }
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Card 2: Granular Notification Event Triggers */}
