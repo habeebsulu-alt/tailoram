@@ -156,7 +156,7 @@ export async function resolveBankAccount({
   const mockNames = [
     'ADEKUNLE OLUMIDE ENTERPRISES',
     'CHUKWUDI EZE COUTURE',
-    'FATIMA BELLO ATELIER',
+    'FATIMA BELLO COUTURE',
     'YUSUF OLAWALE BESPOKE',
     'BLESSING OKON DESIGNS',
     'IBRAHIM DANLAMI APPAREL',
@@ -202,7 +202,7 @@ export async function createDesignerSubaccount({
           settlement_bank: bankCode,
           account_number: cleanAccount,
           percentage_charge: commissionPercentage, // Paystack deducts this platform fee automatically
-          description: `Tailoram Atelier Subaccount for ${businessName}`,
+          description: `Tailoram Designer Subaccount for ${businessName}`,
         }),
       });
 

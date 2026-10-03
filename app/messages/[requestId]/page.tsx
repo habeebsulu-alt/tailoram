@@ -272,7 +272,7 @@ export default function MessageChatPage() {
           const isClientSending = user.id === request?.client_id;
           const targetUserId = isClientSending ? designer?.user_id : request?.client_id;
           const recipientName = isClientSending
-            ? (designer?.business_name || 'Designer Atelier')
+            ? (designer?.business_name || 'Designer Profile')
             : (clientProfile?.full_name || 'Fashion Client');
           const targetEmail = resolveUserEmail(
             targetUserId,
@@ -369,7 +369,7 @@ export default function MessageChatPage() {
   const isClient = user?.id === request.client_id;
   const isDesigner = designer?.user_id === user?.id;
   const partnerName = isClient
-    ? designer?.business_name || 'Designer Atelier'
+    ? designer?.business_name || 'Designer Profile'
     : clientProfile?.full_name || 'Fashion Client';
 
   const breakdown = calculatePaymentBreakdown(request.quoted_price || request.budget_min);
@@ -510,7 +510,7 @@ export default function MessageChatPage() {
                 <p className="text-stone-500">
                   {isDesigner
                     ? 'Review the client request, fabrics, and measurements to submit a formal price quote.'
-                    : 'The atelier is reviewing your outfit request and will issue a formal price quote shortly.'}
+                    : 'The designer is reviewing your outfit request and will issue a formal price quote shortly.'}
                 </p>
               </div>
 
@@ -615,7 +615,7 @@ export default function MessageChatPage() {
                 <p className="text-stone-500">
                   {isDesigner
                     ? 'Outfit is actively being tailored. Once ready for delivery, mark it ready for final balance.'
-                    : 'The atelier is sewing your garment. Discuss fittings, measurements, or progress updates in chat below.'}
+                    : 'The designer is sewing your garment. Discuss fittings, measurements, or progress updates in chat below.'}
                 </p>
               </div>
 
@@ -686,7 +686,7 @@ export default function MessageChatPage() {
                   className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black shadow-md shadow-amber-500/20 active:scale-95 transition-all shrink-0 cursor-pointer"
                 >
                   <Star className="w-4 h-4 fill-stone-950" />
-                  <span>{isClient ? 'Rate Atelier' : 'Rate Client'}</span>
+                  <span>{isClient ? 'Rate Designer' : 'Rate Client'}</span>
                 </button>
               )}
             </>
@@ -856,7 +856,7 @@ export default function MessageChatPage() {
           reviewerId={user.id}
           reviewerName={profile?.full_name || user.user_metadata?.full_name || 'Client'}
           revieweeId={isClient ? (designer?.user_id || request.designer_id) : request.client_id}
-          revieweeName={isClient ? (designer?.business_name || 'Atelier') : (clientProfile?.full_name || 'Client')}
+          revieweeName={isClient ? (designer?.business_name || 'Designer') : (clientProfile?.full_name || 'Client')}
           isClientReviewingDesigner={isClient}
           onReviewSubmitted={() => {
             setHasReviewed(true);

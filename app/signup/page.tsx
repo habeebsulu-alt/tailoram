@@ -325,7 +325,7 @@ export default function SignUpPage() {
                       Full Studio / Business Address
                     </label>
                     <span className="text-[10px] text-stone-400">
-                      Physical atelier location
+                      Physical studio/shop location
                     </span>
                   </div>
                   <input

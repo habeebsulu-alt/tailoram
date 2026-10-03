@@ -330,7 +330,7 @@ export default function ClientRequestsPage() {
 
                   <div>
                     <h3 className="font-bold text-stone-900 text-base sm:text-lg">
-                      {req.designer?.business_name || 'Designer Atelier'}
+                      {req.designer?.business_name || 'Designer Profile'}
                     </h3>
                     <p className="text-xs text-stone-500 flex items-center gap-1 font-medium">
                       <MapPin className="w-3.5 h-3.5 text-brand-600" />
@@ -468,14 +468,14 @@ export default function ClientRequestsPage() {
                     <span>Chat Consultation</span>
                   </Link>
 
-                  {/* Completed: Rate Atelier */}
+                  {/* Completed: Rate Designer */}
                   {req.status === 'completed' && !hasReviewed && (
                     <button
                       onClick={() => handleOpenReview(req)}
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs transition-all shadow-sm cursor-pointer"
                     >
                       <Star className="w-3.5 h-3.5 fill-stone-950" />
-                      <span>Rate Atelier</span>
+                      <span>Rate Designer</span>
                     </button>
                   )}
 
@@ -528,7 +528,7 @@ export default function ClientRequestsPage() {
                 </div>
                 <h4 className="font-bold text-stone-900 text-sm">No payment records found</h4>
                 <p className="text-xs text-stone-500 max-w-sm mx-auto">
-                  When you accept an atelier&apos;s quote and pay the initial 40% deposit or final balance, your official payment receipts will appear here.
+                  When you accept a designer&apos;s quote and pay the initial 40% deposit or final balance, your official payment receipts will appear here.
                 </p>
               </div>
             ) : (
@@ -627,7 +627,7 @@ export default function ClientRequestsPage() {
           reviewerId={user.id}
           reviewerName={profile?.full_name || user.user_metadata?.full_name || 'Client'}
           revieweeId={targetReviewRequest.designer_id}
-          revieweeName={targetReviewRequest.designer?.business_name || 'Atelier'}
+          revieweeName={targetReviewRequest.designer?.business_name || 'Designer'}
           isClientReviewingDesigner={true}
           onReviewSubmitted={() => {
             if (user) fetchRequests(user.id);

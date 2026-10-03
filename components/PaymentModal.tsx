@@ -188,9 +188,9 @@ export default function PaymentModal({
             {/* Summary & Breakdown */}
             <div className="space-y-2 text-xs">
               <div className="flex justify-between text-stone-600">
-                <span>Atelier / Designer:</span>
+                <span>Designer:</span>
                 <span className="font-bold text-stone-900 truncate max-w-[200px]">
-                  {request.designer?.business_name || 'Bespoke Atelier'}
+                  {request.designer?.business_name || 'Bespoke Designer'}
                 </span>
               </div>
               <div className="flex justify-between text-stone-600">

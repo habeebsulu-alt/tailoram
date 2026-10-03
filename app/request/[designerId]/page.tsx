@@ -345,7 +345,7 @@ function RequestForm() {
         },
       });
 
-      // Dispatch email notification to designer atelier
+      // Dispatch email notification to designer
       try {
         const designerEmail = resolveUserEmail(
           designer?.user_id,

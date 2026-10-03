@@ -578,7 +578,7 @@ export default function DesignerDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           designerId: designerProfile.id,
-          businessName: designerProfile.business_name || profile?.full_name || 'Tailoram Atelier',
+          businessName: designerProfile.business_name || profile?.full_name || 'Tailoram Studio',
           bankName,
           bankCode: selectedBankCode,
           accountNumber: cleanAccount,
@@ -1304,7 +1304,7 @@ export default function DesignerDashboard() {
     }
 
     if (!raiseTargetDesignerId) {
-      setRaiseOrderError('Please select a designer atelier to commission.');
+      setRaiseOrderError('Please select a designer to commission.');
       return;
     }
 
@@ -1433,7 +1433,7 @@ export default function DesignerDashboard() {
           recipientEmail: targetEmail,
           recipientName: targetDesigner?.business_name || 'Master Designer',
           subject: `🧵 New Bespoke Commission from ${designerProfile?.business_name || profile?.full_name || 'Designer'}`,
-          previewText: `${designerProfile?.business_name || profile?.full_name || 'A designer'} has commissioned an outfit from your atelier: "${raiseStyleDescription.trim()}". Budget: ₦${minBudget.toLocaleString()}.`,
+          previewText: `${designerProfile?.business_name || profile?.full_name || 'A designer'} has commissioned an outfit from your brand: "${raiseStyleDescription.trim()}". Budget: ₦${minBudget.toLocaleString()}.`,
           ctaLink: `https://tailoram.vercel.app/messages/${finalRequestId}`,
           metadata: { requestId: finalRequestId },
         });
@@ -1441,7 +1441,7 @@ export default function DesignerDashboard() {
 
       setMyRaisedRequests((prev) => [newOrderObj, ...prev]);
       setRequestViewMode('raised');
-      setRaiseOrderSuccess('Bespoke commission raised successfully! The atelier has been notified.');
+      setRaiseOrderSuccess('Bespoke commission raised successfully! The designer has been notified.');
 
       setRaiseStyleDescription('');
       setRaiseFabric('');
@@ -1488,7 +1488,7 @@ export default function DesignerDashboard() {
       const safeWhatsapp = (whatsapp || '').trim() || null;
 
       const updatePayload: any = {
-        business_name: safeBusinessName || designerProfile.business_name || 'Tailoram Atelier',
+        business_name: safeBusinessName || designerProfile.business_name || 'Tailoram Studio',
         bio: safeBio,
         state: selectedState || 'Lagos',
         city: selectedState || 'Lagos',
@@ -2025,7 +2025,7 @@ export default function DesignerDashboard() {
                   type="button"
                   onClick={() => setDashboardShareModalOpen(true)}
                   className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-amber-300 text-stone-900 bg-amber-50/70 hover:bg-amber-100/80 text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer active:scale-95"
-                  title="Share your unique atelier link on WhatsApp, Instagram, Twitter, and more"
+                  title="Share your unique profile link on WhatsApp, Instagram, Twitter, and more"
                 >
                   <Share2 className="w-4 h-4 text-amber-600" />
                   <span>Share Profile Link</span>
@@ -2762,7 +2762,7 @@ export default function DesignerDashboard() {
                   {myRaisedRequests.map((req) => {
                     const breakdown = calculatePaymentBreakdown(req.quoted_price || req.budget_min);
                     const isActionLoading = actionLoadingId === req.id;
-                    const atelier = req.designer;
+                    const targetDesigner = req.designer;
 
                     return (
                       <div
@@ -2772,17 +2772,17 @@ export default function DesignerDashboard() {
                         {/* Card Header */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="flex items-start gap-3.5">
-                            {/* Atelier Avatar */}
+                            {/* Designer Avatar */}
                             <div className="w-12 h-12 rounded-2xl bg-stone-900 border border-stone-200 overflow-hidden flex items-center justify-center shrink-0">
-                              {atelier?.profile_image_url ? (
+                              {targetDesigner?.profile_image_url ? (
                                 <img
-                                  src={atelier.profile_image_url}
-                                  alt={atelier.business_name}
+                                  src={targetDesigner.profile_image_url}
+                                  alt={targetDesigner.business_name}
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
                                 <span className="font-black text-amber-400 text-lg">
-                                  {atelier?.business_name ? atelier.business_name.charAt(0) : 'T'}
+                                  {targetDesigner?.business_name ? targetDesigner.business_name.charAt(0) : 'T'}
                                 </span>
                               )}
                             </div>
@@ -2815,12 +2815,12 @@ export default function DesignerDashboard() {
 
                               <div className="flex items-center gap-2">
                                 <h3 className="font-bold text-stone-900 text-base">
-                                  {atelier?.business_name || 'Commissioned Atelier'}
+                                  {targetDesigner?.business_name || 'Commissioned Designer'}
                                 </h3>
-                                {atelier?.state && (
+                                {targetDesigner?.state && (
                                   <span className="text-xs text-stone-500 flex items-center gap-1">
                                     <MapPin className="w-3 h-3 text-brand-600" />
-                                    <span>{atelier.area ? `${atelier.area}, ` : ''}{atelier.state}</span>
+                                    <span>{targetDesigner.area ? `${targetDesigner.area}, ` : ''}{targetDesigner.state}</span>
                                   </span>
                                 )}
                               </div>
@@ -2972,7 +2972,7 @@ export default function DesignerDashboard() {
                                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 text-xs font-bold shadow-sm transition-all cursor-pointer"
                               >
                                 <Star className="w-3.5 h-3.5 text-amber-400" />
-                                <span>Review Atelier</span>
+                                <span>Review Designer</span>
                               </button>
                             )}
                           </div>
@@ -3096,7 +3096,7 @@ export default function DesignerDashboard() {
                   </div>
 
                   <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight pt-1">
-                    Atelier Wallet &amp; Net Earnings
+                    Designer Wallet &amp; Net Earnings
                   </h2>
                   <p className="text-xs sm:text-sm text-stone-400 max-w-xl">
                     Track client deposits (40%) and completion balances (60%). Funds settle directly to your verified commercial bank account via Paystack Subaccount codes.
@@ -3601,7 +3601,7 @@ export default function DesignerDashboard() {
                   <div className="flex items-center gap-2">
                     <Share2 className="w-4 h-4 text-amber-600" />
                     <span className="text-xs font-black text-stone-900 uppercase tracking-wider">
-                      Your Unique Tailoram Atelier Link
+                      Your Unique Tailoram Profile Link
                     </span>
                   </div>
                   <span className="text-[10px] font-bold bg-amber-200/70 text-amber-950 px-2 py-0.5 rounded-full">
@@ -3761,7 +3761,7 @@ export default function DesignerDashboard() {
                   Full Studio / Business Address
                 </label>
                 <span className="text-[10px] text-stone-400">
-                  Physical atelier location
+                  Physical studio/shop location
                 </span>
               </div>
               <input
@@ -4809,7 +4809,7 @@ export default function DesignerDashboard() {
                     Start homepage badge with this photo (Homepage Cover)
                   </span>
                   <span className="text-stone-500 block text-[11px] mt-0.5">
-                    This photo will be the leading image displayed on your atelier card on the Tailoram marketplace homepage.
+                    This photo will be the leading image displayed on your designer card on the Tailoram marketplace homepage.
                   </span>
                 </label>
               </div>
@@ -4938,7 +4938,7 @@ export default function DesignerDashboard() {
           }}
           request={targetReviewRequest}
           reviewerId={user.id}
-          reviewerName={designerProfile?.business_name || profile?.full_name || 'Atelier'}
+          reviewerName={designerProfile?.business_name || profile?.full_name || 'Designer'}
           revieweeId={targetReviewRequest.client_id}
           revieweeName={targetReviewRequest.client?.full_name || 'Client'}
           isClientReviewingDesigner={false}
@@ -4993,7 +4993,7 @@ export default function DesignerDashboard() {
                   <span>Raise New Bespoke Order</span>
                 </h3>
                 <p className="text-xs text-stone-500 mt-0.5">
-                  Commission custom tailoring from a master atelier on Tailoram
+                  Commission custom tailoring from a master designer on Tailoram
                 </p>
               </div>
               <button
@@ -5020,10 +5020,10 @@ export default function DesignerDashboard() {
             )}
 
             <form onSubmit={handleSubmitRaiseOrder} className="space-y-4">
-              {/* Select Target Designer Atelier */}
+              {/* Select Target Designer */}
               <div>
                 <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                  Select Designer Atelier <span className="text-red-500">*</span>
+                  Select Designer <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={raiseTargetDesignerId}
@@ -5031,7 +5031,7 @@ export default function DesignerDashboard() {
                   required
                   className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs sm:text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
                 >
-                  <option value="">-- Choose a Master Tailor or Atelier --</option>
+                  <option value="">-- Choose a Master Tailor or Designer --</option>
                   {allDesignersList.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.business_name} ({d.area ? `${d.area}, ` : ''}{d.state})
@@ -5247,12 +5247,12 @@ export default function DesignerDashboard() {
         </div>
       )}
 
-      {/* Share Atelier Profile Modal */}
+      {/* Share Profile Modal */}
       {designerProfile && (
         <ShareModal
           isOpen={dashboardShareModalOpen}
           onClose={() => setDashboardShareModalOpen(false)}
-          title={`Share ${designerProfile.business_name || 'My Atelier'}`}
+          title={`Share ${designerProfile.business_name || 'My Profile'}`}
           designerName={designerProfile.business_name || profile?.full_name || 'My Tailoram Studio'}
           url={
             typeof window !== 'undefined'

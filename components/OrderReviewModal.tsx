@@ -149,7 +149,7 @@ export default function OrderReviewModal({
             </div>
             <div>
               <h3 className="font-black text-lg text-stone-900">
-                {isClientReviewingDesigner ? 'Rate Your Atelier' : 'Rate Your Client'}
+                {isClientReviewingDesigner ? 'Rate Your Designer' : 'Rate Your Client'}
               </h3>
               <p className="text-xs text-stone-500">
                 {revieweeName} • Order #{request.id.slice(0, 8)}

@@ -119,11 +119,11 @@ export default function ShareModal({
             Share {designerName}
           </h3>
           <p className="text-xs text-stone-500">
-            Share this atelier profile with clients across WhatsApp, Instagram bio, Twitter, and Facebook.
+            Share this profile with clients across WhatsApp, Instagram bio, Twitter, and Facebook.
           </p>
         </div>
 
-        {/* Atelier Preview Mini Card */}
+        {/* Profile Preview Mini Card */}
         <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200/80 flex items-center gap-3">
           {imageUrl ? (
             <img
@@ -288,7 +288,7 @@ export default function ShareModal({
                 />
               </div>
               <p className="text-[11px] text-stone-500 font-medium">
-                Clients can scan this QR code with any phone camera to view your atelier profile instantly. Perfect for business cards, fabric tags, or salon displays.
+                Clients can scan this QR code with any phone camera to view your profile instantly. Perfect for business cards, fabric tags, or salon displays.
               </p>
             </div>
           )}

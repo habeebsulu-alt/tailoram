@@ -1,6 +1,6 @@
 # Tailoram - Project Architecture & Operational Memory
 
-> **Tailoram** is Nigeria's Premier Bespoke Fashion Marketplace & Ready-to-Wear (RTW) Platform, connecting clients across all 36 Nigerian states and the diaspora with top master tailors and fashion ateliers (Agbada, Aso Ebi, Senator suits, Ankara, Bridal, Kaftan).
+> **Tailoram** is Nigeria's Premier Bespoke Fashion Marketplace & Ready-to-Wear (RTW) Platform, connecting clients across all 36 Nigerian states and the diaspora with top master tailors and fashion designers (Agbada, Aso Ebi, Senator suits, Ankara, Bridal, Kaftan).
 
 ---
 
@@ -40,7 +40,7 @@ Tailoram/
 │   └── imageCompressor.ts       # Client-side image compression for fast uploads
 └── supabase/
     ├── schema.sql               # Base database schema & RLS policies
-    ├── seed_demo_data.sql       # Initial seed data for Lagos, Abuja, Port Harcourt, Ibadan, Kano, and Enugu ateliers
+    ├── seed_demo_data.sql       # Initial seed data for Lagos, Abuja, Port Harcourt, Ibadan, Kano, and Enugu designers
     └── add_admin_password_reset.sql # RPC function for admin password management
 ```
 
@@ -88,7 +88,7 @@ Tailoram/
 - **Real Users**: Standard Supabase Email/Password authentication.
 - **Demo Users**:
   - `dele.couture@demo.tailoram.com` (Lagos Agbada & Senator master)
-  - `maryam.bello@demo.tailoram.com` (Abuja Bridal & Aso Ebi atelier)
+  - `maryam.bello@demo.tailoram.com` (Abuja Bridal & Aso Ebi studio)
   - `emeka.craft@demo.tailoram.com` (Port Harcourt Bespoke craft)
   - `yewande.adire@demo.tailoram.com` (Ibadan Adire & contemporary)
   - `zainab.kaftan@demo.tailoram.com` (Kano Babban Riga & Kaftan)
@@ -97,8 +97,8 @@ Tailoram/
   - **Preset Password**: `Tailoram2026!`
 - **Seamless Fallback**: In `contexts/AuthContext.tsx`, if Supabase returns unhashed credentials, the client falls back to synthetic session persistence (`localStorage.getItem('tailoram_demo_session')`), loading full profiles instantly without throwing errors.
 - **Admin Password Reset**: Admins can reset any user password in `/admin`. Changes are saved immediately into `platform_settings.user_passwords` for instant, global recognition.
-- **Admin Studio Impersonation (Passwordless Access)**: Admins in `/admin` can click "Login as Designer" on any atelier to instantly assume that designer's session without entering their password. Enables admins to directly modify portfolio photos, upload/delete images, edit RTW store garments, and update studio profiles. Includes an omnipresent top banner with a 1-click "Return to Admin Panel" button.
-- **Admin Designer Rating Override**: Admins in `/admin` can manually override any atelier's star rating (1.0 to 5.0) and displayed review count. Changes persist globally in `platform_settings.designer_ratings` and locally in `localStorage` (`tailoram_designer_ratings`). The marketplace directory, public profile, and studio dashboard compute effective ratings using `computeEffectiveRating`, dynamically adjusting ranking scores and display badges. Admins can revert back to natural client reviews at any time.
+- **Admin Studio Impersonation (Passwordless Access)**: Admins in `/admin` can click "Login as Designer" on any designer to instantly assume that designer's session without entering their password. Enables admins to directly modify portfolio photos, upload/delete images, edit RTW store garments, and update studio profiles. Includes an omnipresent top banner with a 1-click "Return to Admin Panel" button.
+- **Admin Designer Rating Override**: Admins in `/admin` can manually override any designer's star rating (1.0 to 5.0) and displayed review count. Changes persist globally in `platform_settings.designer_ratings` and locally in `localStorage` (`tailoram_designer_ratings`). The marketplace directory, public profile, and studio dashboard compute effective ratings using `computeEffectiveRating`, dynamically adjusting ranking scores and display badges. Admins can revert back to natural client reviews at any time.
 - **Login UI Rule**: Login page must remain strictly clean and customer-facing. Never expose SQL scripts, migration instructions, or developer debugging text to users.
 
 ---

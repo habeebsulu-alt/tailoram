@@ -628,7 +628,7 @@ export default function DesignerProfilePage() {
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs transition-all cursor-pointer active:scale-95"
             >
               <Share2 className="w-3.5 h-3.5 text-amber-600" />
-              <span>Share Atelier Link</span>
+              <span>Share Profile Link</span>
             </button>
           </div>
 
@@ -1507,7 +1507,7 @@ export default function DesignerProfilePage() {
           >
             <div className="space-y-1">
               <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                {designer?.business_name || 'Designer Atelier'}
+                {designer?.business_name || 'Designer Profile'}
               </h3>
               <p className="text-xs text-stone-400">
                 Official Studio Profile Photo • {designer?.area}, {designer?.state}
@@ -1534,7 +1534,7 @@ export default function DesignerProfilePage() {
         </div>
       )}
 
-      {/* Share Atelier Profile Modal */}
+      {/* Share Profile Modal */}
       {designer && (
         <ShareModal
           isOpen={shareModalOpen}

@@ -457,7 +457,7 @@ export async function collectPayment({
   // 5. Post automatic system confirmation message to chat thread
   try {
     const systemNotice = isDeposit
-      ? `💳 Deposit Paid: ₦${amount.toLocaleString()} (40% initial commitment). Payment reference: ${reference}. Atelier production has officially commenced!`
+      ? `💳 Deposit Paid: ₦${amount.toLocaleString()} (40% initial commitment). Payment reference: ${reference}. Tailoring production has officially commenced!`
       : `🎉 Balance Paid: ₦${amount.toLocaleString()} (60% final balance). Payment reference: ${reference}. Order is fully paid and completed!`;
 
     const { data: currentAuth } = await supabase.auth.getUser();
@@ -507,7 +507,7 @@ export async function collectPayment({
       await triggerEmailNotification({
         event: 'deposit_paid',
         recipientEmail: targetEmail,
-        recipientName: participants.designerName || 'Designer Atelier',
+        recipientName: participants.designerName || 'Designer',
         subject: `💳 40% Deposit Received (₦${amount.toLocaleString()}) - Start Production`,
         previewText: `${clientName} has confirmed payment of the 40% initial commitment deposit (₦${amount.toLocaleString()}). Payment reference: ${reference}. Production can now begin!`,
         ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
@@ -517,7 +517,7 @@ export async function collectPayment({
       await triggerEmailNotification({
         event: 'balance_paid',
         recipientEmail: targetEmail,
-        recipientName: participants.designerName || 'Designer Atelier',
+        recipientName: participants.designerName || 'Designer',
         subject: `🎉 60% Balance Paid (₦${amount.toLocaleString()}) - Commission Completed`,
         previewText: `${clientName} has paid the remaining 60% completion balance (₦${amount.toLocaleString()}). Payment reference: ${reference}. Order is fully settled and ready for handover!`,
         ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
@@ -619,8 +619,8 @@ export async function submitQuote({
       event: 'quote_received',
       recipientEmail: targetEmail,
       recipientName: participants.clientName || 'Fashion Client',
-      subject: `📋 Studio Quote Received: ₦${breakdown.quotedPrice.toLocaleString()} - ${participants.designerName || 'Tailoram Atelier'}`,
-      previewText: `${participants.designerName || 'The atelier'} has submitted a quote of ₦${breakdown.quotedPrice.toLocaleString()} (40% deposit: ₦${breakdown.depositAmount.toLocaleString()}) for your bespoke request. Estimated delivery: ${new Date(quoteDeadline).toLocaleDateString()}.`,
+      subject: `📋 Studio Quote Received: ₦${breakdown.quotedPrice.toLocaleString()} - ${participants.designerName || 'Tailoram Designer'}`,
+      previewText: `${participants.designerName || 'The designer'} has submitted a quote of ₦${breakdown.quotedPrice.toLocaleString()} (40% deposit: ₦${breakdown.depositAmount.toLocaleString()}) for your bespoke request. Estimated delivery: ${new Date(quoteDeadline).toLocaleDateString()}.`,
       ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
       metadata: { requestId, quotedPrice: breakdown.quotedPrice, quoteDeadline },
     });
@@ -714,7 +714,7 @@ export async function markOrderReadyForBalance({
       {
         request_id: requestId,
         sender_id: designerUserId,
-        content: `✨ Outfit Tailoring Completed! The atelier has marked your garment ready. Please proceed to pay the remaining 60% balance to finalize your commission and arrange delivery.`,
+        content: `✨ Outfit Tailoring Completed! The designer has marked your garment ready. Please proceed to pay the remaining 60% balance to finalize your commission and arrange delivery.`,
       },
     ]);
   } catch (msgErr) {
@@ -730,7 +730,7 @@ export async function markOrderReadyForBalance({
       recipientEmail: targetEmail,
       recipientName: participants.clientName || 'Fashion Client',
       subject: `✨ Your Bespoke Outfit is Ready! Complete Balance on Tailoram`,
-      previewText: `Great news! ${participants.designerName || 'The atelier'} has completed tailoring your garment. Please review and pay the remaining 60% balance to finalize delivery.`,
+      previewText: `Great news! ${participants.designerName || 'The designer'} has completed tailoring your garment. Please review and pay the remaining 60% balance to finalize delivery.`,
       ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
       metadata: { requestId },
     });

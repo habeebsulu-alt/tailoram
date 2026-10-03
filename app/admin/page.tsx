@@ -544,7 +544,7 @@ export default function AdminPage() {
 
   // --- ACTIONS: USERS ---
   const handleDeleteUser = async (userId: string, name: string) => {
-    if (!confirm(`Are you sure you want to permanently delete user account "${name}"? This removes their profile, requests, and any associated atelier data.`)) {
+    if (!confirm(`Are you sure you want to permanently delete user account "${name}"? This removes their profile, requests, and any associated designer data.`)) {
       return;
     }
     try {
@@ -850,7 +850,7 @@ export default function AdminPage() {
         },
         quote_received: {
           subject: '📋 [TEST] Studio Price Quote Received: ₦95,000',
-          preview: 'Dele Couture Atelier submitted an official quote of ₦95,000 (40% deposit: ₦38,000) with completion in 10 days.',
+          preview: 'Dele Couture Studio submitted an official quote of ₦95,000 (40% deposit: ₦38,000) with completion in 10 days.',
         },
         deposit_paid: {
           subject: '💳 [TEST] 40% Deposit Received (₦38,000) - Production Commenced',
@@ -2471,7 +2471,7 @@ export default function AdminPage() {
                   </h2>
                 </div>
                 <p className="text-xs text-stone-400 max-w-2xl leading-relaxed">
-                  Control real-time transactional emails for bespoke quotes, client deposits, atelier progress, and chat alerts. Simulated logging mode is active out-of-the-box; connect Resend or SMTP to deliver live emails directly to user inboxes.
+                  Control real-time transactional emails for bespoke quotes, client deposits, designer progress, and chat alerts. Simulated logging mode is active out-of-the-box; connect Resend or SMTP to deliver live emails directly to user inboxes.
                 </p>
               </div>
 
@@ -2802,7 +2802,7 @@ export default function AdminPage() {
                   {
                     key: 'notify_on_new_request' as const,
                     title: 'New Bespoke Request',
-                    recipient: 'Notifies Designer Atelier',
+                    recipient: 'Notifies Designer',
                     desc: 'Dispatched when a client commissions a new custom garment with specs & measurements.',
                     icon: Scissors,
                   },
@@ -2816,7 +2816,7 @@ export default function AdminPage() {
                   {
                     key: 'notify_on_deposit_paid' as const,
                     title: '40% Commitment Deposit Paid',
-                    recipient: 'Notifies Designer Atelier',
+                    recipient: 'Notifies Designer',
                     desc: 'Dispatched when client completes the 40% initial commitment deposit to begin sewing.',
                     icon: CheckCircle2,
                   },
@@ -2824,13 +2824,13 @@ export default function AdminPage() {
                     key: 'notify_on_order_ready' as const,
                     title: 'Garment Ready for Balance',
                     recipient: 'Notifies Client',
-                    desc: 'Dispatched when the atelier completes tailoring and requests the 60% completion balance.',
+                    desc: 'Dispatched when the designer completes tailoring and requests the 60% completion balance.',
                     icon: Sparkles,
                   },
                   {
                     key: 'notify_on_balance_paid' as const,
                     title: '60% Balance Paid / Completed',
-                    recipient: 'Notifies Designer Atelier',
+                    recipient: 'Notifies Designer',
                     desc: 'Dispatched when client clears final balance. Order is marked complete for dispatch.',
                     icon: Package,
                   },
@@ -3274,7 +3274,7 @@ export default function AdminPage() {
                 type="text"
                 value={ratingNotesInput}
                 onChange={(e) => setRatingNotesInput(e.target.value)}
-                placeholder="e.g. Verified Master Atelier quality inspection score"
+                placeholder="e.g. Verified Master Designer quality inspection score"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-stone-200 text-xs focus:outline-none focus:border-amber-400"
               />
             </div>

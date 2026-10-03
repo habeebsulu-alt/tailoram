@@ -1001,7 +1001,7 @@ export default function HomePage() {
                 <Link
                   href={`/designer/${heroSlides[activeSlideIndex].designerId}`}
                   className="text-white font-bold hover:text-amber-300 transition-colors inline-flex items-center gap-1 group/author"
-                  title="View this atelier's profile & portfolio"
+                  title="View this designer's profile & portfolio"
                 >
                   <span className="underline decoration-amber-400/40 group-hover/author:decoration-amber-300 underline-offset-2">
                     {heroSlides[activeSlideIndex].designerName}
@@ -1345,7 +1345,7 @@ export default function HomePage() {
                 Are you a Master Tailor or Fashion Lover?
               </h2>
               <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-normal">
-                Register your tailoring atelier to showcase your bespoke Agbada, Senator suits, and bridal couture to thousands of clients nationwide. Or create a client account to commission custom fits and order ready-to-wear pieces with confidence.
+                Register your tailoring brand to showcase your bespoke Agbada, Senator suits, and bridal couture to thousands of clients nationwide. Or create a client account to commission custom fits and order ready-to-wear pieces with confidence.
               </p>
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <Link

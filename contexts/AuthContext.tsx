@@ -467,7 +467,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const matchedDemoEmail = Object.entries(DEMO_USERS_MAP).find(([_, u]) => u.id === targetUserId)?.[0];
       const targetEmail =
         matchedDemoEmail ||
-        `${businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}@atelier.tailoram.com`;
+        `${businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}@designer.tailoram.com`;
 
       const syntheticUser: User = {
         id: targetUserId,
