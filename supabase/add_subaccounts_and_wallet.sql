@@ -62,7 +62,29 @@ create policy "Transactions can be updated"
 
 grant all on public.transactions to anon, authenticated, service_role;
 
--- 3. Initialize default platform commission settings in platform_settings (default 10%)
+-- 3. Ensure platform_settings table exists for commission and platform configurations
+create table if not exists public.platform_settings (
+  key text primary key,
+  value jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.platform_settings enable row level security;
+
+drop policy if exists "Platform settings are viewable by everyone" on public.platform_settings;
+create policy "Platform settings are viewable by everyone"
+  on public.platform_settings for select
+  using (true);
+
+drop policy if exists "Platform settings can be updated by all" on public.platform_settings;
+create policy "Platform settings can be updated by all"
+  on public.platform_settings for all
+  using (true)
+  with check (true);
+
+grant all on public.platform_settings to anon, authenticated, service_role;
+
+-- 4. Initialize default platform commission settings in platform_settings (default 10%)
 insert into public.platform_settings (key, value, updated_at)
 values (
   'commission_settings',
