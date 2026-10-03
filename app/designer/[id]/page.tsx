@@ -15,6 +15,7 @@ import {
   getDesignerGender,
 } from '@/lib/types';
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
+import { normalizePhoneForWhatsApp } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
 import {
   Scissors,
@@ -381,7 +382,7 @@ export default function DesignerProfilePage() {
   const effectiveReviewCount = effective.reviewCount;
 
   // Format WhatsApp Link
-  const cleanPhone = designer.whatsapp?.replace(/[^0-9]/g, '');
+  const cleanPhone = normalizePhoneForWhatsApp(designer.whatsapp);
   const whatsappUrl = cleanPhone
     ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
         `Hello ${designer.business_name}, I discovered your portfolio on Tailoram and would like to inquire about getting an outfit made.`
@@ -841,7 +842,7 @@ export default function DesignerProfilePage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {storeProducts.map((product, pIdx) => {
-                const cleanPhone = designer.whatsapp?.replace(/[^0-9]/g, '');
+                const cleanPhone = normalizePhoneForWhatsApp(designer.whatsapp);
 
                 return (
                   <div
@@ -1170,7 +1171,7 @@ export default function DesignerProfilePage() {
       {/* Interactive Swipable Store Product Modal */}
       {selectedStoreIndex !== null && storeProducts[selectedStoreIndex] && (() => {
         const activeProduct = storeProducts[selectedStoreIndex];
-        const cleanPhone = designer.whatsapp?.replace(/[^0-9]/g, '');
+        const cleanPhone = normalizePhoneForWhatsApp(designer.whatsapp);
 
         return (
           <div

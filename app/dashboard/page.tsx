@@ -17,6 +17,7 @@ import {
   StoreProduct,
   STORE_CATEGORIES,
 } from '@/lib/types';
+import { formatNigerianPhoneForInput } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
 import {
   markOrderReadyForBalance,
@@ -2276,16 +2277,24 @@ export default function DesignerDashboard() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1">
-                WhatsApp Phone Number
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-stone-700">
+                  WhatsApp Phone Number
+                </label>
+                <span className="text-[10px] text-stone-400 font-medium">
+                  Auto-formats to +234
+                </span>
+              </div>
               <input
                 type="tel"
                 value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
-                placeholder="e.g. +234 801 234 5678"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                onChange={(e) => setWhatsapp(formatNigerianPhoneForInput(e.target.value))}
+                placeholder="+234 801 234 5678"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
               />
+              <p className="text-[11px] text-stone-500 mt-1">
+                Enter local number (e.g. 080...); country code is added automatically.
+              </p>
             </div>
 
             <div>

@@ -15,6 +15,7 @@ import {
   getDesignerGender,
 } from '@/lib/types';
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
+import { normalizePhoneForWhatsApp } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating } from '@/lib/ratingsManager';
 import {
   Scissors,
@@ -1307,7 +1308,7 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7">
             {filteredAndRankedDesigners.map((designer: any, index: number) => {
-              const cleanPhone = designer.whatsapp?.replace(/[^0-9]/g, '');
+              const cleanPhone = normalizePhoneForWhatsApp(designer.whatsapp);
               const isTopThree = index < 3 && designer.avg_rating >= 4.0;
               const genderFocus = getDesignerGender(designer);
               const genderBadge = GENDER_FOCUS_OPTIONS.find((g) => g.id === genderFocus);

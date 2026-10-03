@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { StoreProduct, STORE_CATEGORIES } from '@/lib/types';
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
+import { normalizePhoneForWhatsApp } from '@/lib/phoneUtils';
 import {
   ShoppingBag,
   Search,
@@ -211,7 +212,7 @@ export default function ShopPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredProducts.map((product) => {
                 const designer = product.designer;
-                const cleanPhone = designer?.whatsapp?.replace(/[^0-9]/g, '');
+                const cleanPhone = normalizePhoneForWhatsApp(designer?.whatsapp);
 
                 return (
                   <div
@@ -401,7 +402,7 @@ export default function ShopPage() {
                 <div className="flex items-center gap-2 pt-1">
                   {whatsappEnabled && selectedProduct.designer?.whatsapp && (
                     <a
-                      href={`https://wa.me/${selectedProduct.designer.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hello ${selectedProduct.designer.business_name}, I want to purchase "${selectedProduct.title}" (${formatNaira(selectedProduct.price)}) from your Tailoram store.`)}`}
+                      href={`https://wa.me/${normalizePhoneForWhatsApp(selectedProduct.designer.whatsapp)}?text=${encodeURIComponent(`Hello ${selectedProduct.designer.business_name}, I want to purchase "${selectedProduct.title}" (${formatNaira(selectedProduct.price)}) from your Tailoram store.`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm"
