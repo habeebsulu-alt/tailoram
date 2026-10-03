@@ -186,16 +186,19 @@ export function resolveUserEmail(userId?: string, fallback?: string): string {
  * - 'balance_paid': Client pays 60% balance -> notifies Designer
  * - 'new_message': New message sent in chat -> notifies recipient
  */
-export async function triggerEmailNotification(params: {
-  event: 'new_request' | 'quote_received' | 'deposit_paid' | 'order_ready' | 'balance_paid' | 'new_message';
-  recipientEmail: string;
-  recipientName?: string;
-  subject: string;
-  previewText: string;
-  ctaLink?: string;
-  metadata?: Record<string, any>;
-}): Promise<{ status: 'sent' | 'simulated' | 'failed' | 'disabled'; message?: string }> {
-  const settings = await getEmailSettings();
+export async function triggerEmailNotification(
+  params: {
+    event: 'new_request' | 'quote_received' | 'deposit_paid' | 'order_ready' | 'balance_paid' | 'new_message';
+    recipientEmail: string;
+    recipientName?: string;
+    subject: string;
+    previewText: string;
+    ctaLink?: string;
+    metadata?: Record<string, any>;
+  },
+  overrideSettings?: EmailSettings
+): Promise<{ status: 'sent' | 'simulated' | 'failed' | 'disabled'; message?: string }> {
+  const settings = overrideSettings ? { ...overrideSettings } : await getEmailSettings();
 
   if (!settings.enabled) {
     return { status: 'disabled', message: 'Email notifications are turned off in Admin settings.' };

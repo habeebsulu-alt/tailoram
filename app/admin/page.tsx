@@ -851,15 +851,18 @@ export default function AdminPage() {
 
       const template = eventLabels[testEmailEvent] || eventLabels.new_request;
 
-      const result = await triggerEmailNotification({
-        event: testEmailEvent,
-        recipientEmail: testEmailRecipient.trim(),
-        recipientName: 'Valued Tailoram Member',
-        subject: template.subject,
-        previewText: template.preview,
-        ctaLink: 'https://tailoram.vercel.app',
-        metadata: { is_admin_test: true, provider: emailSettings.provider },
-      });
+      const result = await triggerEmailNotification(
+        {
+          event: testEmailEvent,
+          recipientEmail: testEmailRecipient.trim(),
+          recipientName: 'Valued Tailoram Member',
+          subject: template.subject,
+          previewText: template.preview,
+          ctaLink: 'https://tailoram.vercel.app',
+          metadata: { is_admin_test: true, provider: emailSettings.provider },
+        },
+        emailSettings
+      );
 
       // Refresh local logs
       const updatedLogs = getEmailLogs();
@@ -868,7 +871,9 @@ export default function AdminPage() {
       if (result.status === 'disabled') {
         showNotice(result.message || 'Notification was not sent because emails or this event are disabled.', 'error');
       } else if (result.status === 'sent') {
-        showNotice(`Test email successfully dispatched to ${testEmailRecipient} via ${emailSettings.provider.toUpperCase()}!`);
+        showNotice(`✅ Test email successfully dispatched to ${testEmailRecipient} via ${emailSettings.provider.toUpperCase()}! Please check your Inbox and Spam/Junk folder.`);
+      } else if (result.status === 'failed') {
+        showNotice(`❌ Delivery Failed: ${result.message || 'Could not send email. Please check your credentials.'}`, 'error');
       } else {
         showNotice(`[Simulated] Notification logged for ${testEmailRecipient}. View in Audit Logs below.`);
       }
