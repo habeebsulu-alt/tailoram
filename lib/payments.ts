@@ -1,7 +1,12 @@
 import { supabase } from '@/lib/supabase';
-import { Payment, RequestStatus, OutfitRequest } from '@/lib/types';
+import { Payment, RequestStatus, OutfitRequest, WalletTransaction } from '@/lib/types';
 import { logEvent } from '@/lib/analytics';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
+import {
+  getCommissionSettings,
+  calculatePaymentSplit,
+  recordWalletTransaction,
+} from '@/lib/paystack';
 
 /**
  * =========================================================================================
@@ -239,23 +244,29 @@ export async function getPaymentsForRequest(requestId: string): Promise<Payment[
  */
 export async function getRequestParticipants(requestId: string): Promise<{
   clientId?: string;
+  designerId?: string;
   designerUserId?: string;
   designerName?: string;
+  subaccountCode?: string;
   clientName?: string;
+  styleDescription?: string;
 }> {
   try {
     const { data } = await supabase
       .from('requests')
-      .select('client_id, designer_id, client:client_id(full_name), designer:designer_id(business_name, user_id)')
+      .select('client_id, designer_id, style_description, client:client_id(full_name), designer:designer_id(id, business_name, user_id, subaccount_code)')
       .eq('id', requestId)
       .maybeSingle();
 
     if (data) {
       return {
         clientId: data.client_id,
+        designerId: data.designer_id,
         designerUserId: (data.designer as any)?.user_id,
         designerName: (data.designer as any)?.business_name,
+        subaccountCode: (data.designer as any)?.subaccount_code,
         clientName: (data.client as any)?.full_name,
+        styleDescription: data.style_description,
       };
     }
   } catch (err) {
@@ -267,9 +278,12 @@ export async function getRequestParticipants(requestId: string): Promise<{
   if (localReq) {
     return {
       clientId: localReq.client_id,
+      designerId: localReq.designer_id,
       designerUserId: (localReq.designer as any)?.user_id,
       designerName: localReq.designer?.business_name,
+      subaccountCode: (localReq.designer as any)?.subaccount_code,
       clientName: (localReq.client as any)?.full_name,
+      styleDescription: localReq.style_description,
     };
   }
 
@@ -374,6 +388,41 @@ export async function collectPayment({
 
   // 2. Persist payment
   await recordPayment(paymentRecord);
+
+  // 2b. Compute Paystack split and record Wallet Transaction
+  try {
+    const participants = await getRequestParticipants(requestId);
+    const commSettings = await getCommissionSettings();
+    const split = calculatePaymentSplit(amount, commSettings.commission_percentage);
+
+    const walletTxn: WalletTransaction = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `txn-${Date.now()}`,
+      order_id: requestId,
+      client_id: customer.userId || participants.clientId || 'client',
+      designer_id: metadata.designer_id || participants.designerId || 'designer',
+      gross_amount: split.grossAmount,
+      commission_rate: split.commissionRate,
+      platform_commission_amount: split.platformCommission,
+      designer_net_amount: split.designerNet,
+      payment_stage: type,
+      status: 'pending', // Pending settlement to designer's verified bank account
+      paystack_reference: reference,
+      receipt_url: `https://checkout.paystack.com/receipt/${reference}`,
+      client_name: customer.name || participants.clientName || 'Valued Client',
+      style_description: metadata.style || participants.styleDescription,
+      metadata: {
+        gateway: 'paystack',
+        subaccount_code: participants.subaccountCode || metadata.subaccount_code,
+        bearer: 'account',
+        note: 'Automated Paystack Subaccount Split - non-custodial direct settlement',
+      },
+      created_at: paidAt,
+    };
+
+    await recordWalletTransaction(walletTxn);
+  } catch (walletErr) {
+    console.warn('Wallet transaction recording error:', walletErr);
+  }
 
   // 3. Update requests table in Supabase
   try {

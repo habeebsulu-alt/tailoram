@@ -18,6 +18,7 @@ import {
   STORE_CATEGORIES,
   DesignerProfile,
   ClientMeasurements,
+  WalletTransaction,
 } from '@/lib/types';
 import { formatNigerianPhoneForInput } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
@@ -31,6 +32,14 @@ import {
   respondToQuote,
   PaymentResult,
 } from '@/lib/payments';
+import {
+  NIGERIAN_BANKS,
+  getDesignerWalletTransactions,
+  computeWalletSummary,
+  resolveBankAccount,
+  createDesignerSubaccount,
+  getCommissionSettings,
+} from '@/lib/paystack';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
 import QuoteModal from '@/components/QuoteModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
@@ -77,13 +86,22 @@ import {
   ChevronDown,
   ChevronUp,
   CreditCard,
+  Wallet,
+  Landmark,
+  Building2,
+  Receipt,
+  Coins,
+  BadgePercent,
+  ArrowDownRight,
+  ShieldAlert,
+  DollarSign,
 } from 'lucide-react';
 
 export default function DesignerDashboard() {
   const router = useRouter();
   const { user, profile, designerProfile, refreshProfile, loading: authLoading, isImpersonating } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'portfolio' | 'requests' | 'reviews' | 'profile' | 'store'>('portfolio');
+  const [activeTab, setActiveTab] = useState<'portfolio' | 'requests' | 'wallet' | 'payout' | 'reviews' | 'profile' | 'store'>('portfolio');
 
   // Portfolio items state
   const [items, setItems] = useState<PortfolioItem[]>([]);
@@ -133,6 +151,21 @@ export default function DesignerDashboard() {
   const [loadingRaisedRequests, setLoadingRaisedRequests] = useState(true);
   const [requestViewMode, setRequestViewMode] = useState<'received' | 'raised'>('received');
   const [allDesignersList, setAllDesignersList] = useState<DesignerProfile[]>([]);
+
+  // Wallet & Split-Payment State
+  const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([]);
+  const [loadingWallet, setLoadingWallet] = useState(false);
+  const [commissionRate, setCommissionRate] = useState<number>(10);
+
+  // Bank & Paystack Subaccount Onboarding State
+  const [selectedBankCode, setSelectedBankCode] = useState<string>('058');
+  const [accountNumberInput, setAccountNumberInput] = useState<string>('');
+  const [resolvedAccountName, setResolvedAccountName] = useState<string>('');
+  const [isResolvingAccount, setIsResolvingAccount] = useState<boolean>(false);
+  const [resolveError, setResolveError] = useState<string>('');
+  const [isSavingPayout, setIsSavingPayout] = useState<boolean>(false);
+  const [payoutSuccessMsg, setPayoutSuccessMsg] = useState<string>('');
+  const [payoutErrorMsg, setPayoutErrorMsg] = useState<string>('');
 
   // Raised orders payment & action states
   const [raisedPaymentModalOpen, setRaisedPaymentModalOpen] = useState(false);
@@ -280,6 +313,21 @@ export default function DesignerDashboard() {
       } else {
         setAvatarFitMode('cover');
       }
+
+      // Populate Payout Bank Details
+      const localBankCode = typeof window !== 'undefined'
+        ? localStorage.getItem(`tailoram_payout_bank_${designerProfile.id}`)
+        : null;
+      const localAccNum = typeof window !== 'undefined'
+        ? localStorage.getItem(`tailoram_payout_acc_${designerProfile.id}`)
+        : null;
+      const localAccName = typeof window !== 'undefined'
+        ? localStorage.getItem(`tailoram_payout_name_${designerProfile.id}`)
+        : null;
+
+      setSelectedBankCode(designerProfile.bank_code || localBankCode || '058');
+      setAccountNumberInput(designerProfile.account_number || localAccNum || '');
+      setResolvedAccountName(designerProfile.account_name || localAccName || '');
     }
   }, [designerProfile]);
 
@@ -449,6 +497,120 @@ export default function DesignerDashboard() {
     }
   };
 
+  // Load wallet transactions & commission rate
+  const loadWallet = async (designerId: string) => {
+    try {
+      setLoadingWallet(true);
+      const [txns, comm] = await Promise.all([
+        getDesignerWalletTransactions(designerId),
+        getCommissionSettings(),
+      ]);
+      setWalletTransactions(txns);
+      if (comm?.commission_percentage) {
+        setCommissionRate(comm.commission_percentage);
+      }
+    } catch (err) {
+      console.error('Failed to load wallet data:', err);
+    } finally {
+      setLoadingWallet(false);
+    }
+  };
+
+  // Paystack bank account resolution handler
+  const handleResolveAccount = async () => {
+    const cleanAccount = accountNumberInput.trim().replace(/\D/g, '');
+    if (cleanAccount.length !== 10) {
+      setResolveError('Nigerian NUBAN account number must be exactly 10 digits.');
+      return;
+    }
+    setResolveError('');
+    setIsResolvingAccount(true);
+
+    try {
+      const res = await resolveBankAccount({
+        accountNumber: cleanAccount,
+        bankCode: selectedBankCode,
+      });
+
+      if (res.success && res.accountName) {
+        setResolvedAccountName(res.accountName);
+        setResolveError('');
+      } else {
+        setResolvedAccountName('');
+        setResolveError(res.error || 'Could not verify account name. Please check your bank and account number.');
+      }
+    } catch (err: any) {
+      setResolveError(err.message || 'Error communicating with bank verification server.');
+    } finally {
+      setIsResolvingAccount(false);
+    }
+  };
+
+  // Save payout details and link Paystack subaccount
+  const handleSavePayoutDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!designerProfile) return;
+
+    const cleanAccount = accountNumberInput.trim().replace(/\D/g, '');
+    if (cleanAccount.length !== 10) {
+      setPayoutErrorMsg('Please provide a valid 10-digit account number.');
+      return;
+    }
+    if (!resolvedAccountName) {
+      setPayoutErrorMsg('Please verify the account name before saving.');
+      return;
+    }
+
+    setIsSavingPayout(true);
+    setPayoutErrorMsg('');
+    setPayoutSuccessMsg('');
+
+    try {
+      const selectedBankObj = NIGERIAN_BANKS.find((b) => b.code === selectedBankCode);
+      const bankName = selectedBankObj?.name || 'Commercial Bank';
+
+      // Call API route to create/update Paystack subaccount
+      const response = await fetch('/api/paystack/subaccount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          designerId: designerProfile.id,
+          businessName: designerProfile.business_name || profile?.full_name || 'Tailoram Atelier',
+          bankName,
+          bankCode: selectedBankCode,
+          accountNumber: cleanAccount,
+          accountName: resolvedAccountName,
+        }),
+      });
+
+      const resData = await response.json();
+      if (!response.ok || !resData.success) {
+        throw new Error(resData.error || 'Failed to link payout account with Paystack.');
+      }
+
+      // Persist in localStorage for instant fallback
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`tailoram_payout_bank_${designerProfile.id}`, selectedBankCode);
+        localStorage.setItem(`tailoram_payout_bankname_${designerProfile.id}`, bankName);
+        localStorage.setItem(`tailoram_payout_acc_${designerProfile.id}`, cleanAccount);
+        localStorage.setItem(`tailoram_payout_name_${designerProfile.id}`, resolvedAccountName);
+        localStorage.setItem(`tailoram_payout_subaccount_${designerProfile.id}`, resData.subaccountCode);
+        localStorage.setItem(`tailoram_payout_verified_${designerProfile.id}`, 'true');
+      }
+
+      await refreshProfile();
+      setPayoutSuccessMsg('Bank account verified & Paystack Subaccount linked successfully! You are now eligible to receive commissions and client payments.');
+      setTimeout(() => {
+        setPayoutSuccessMsg('');
+      }, 5000);
+    } catch (err: any) {
+      console.error('Error saving payout details:', err);
+      setPayoutErrorMsg(err.message || 'Failed to save payout settings.');
+    } finally {
+      setIsSavingPayout(false);
+    }
+  };
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
@@ -458,6 +620,7 @@ export default function DesignerDashboard() {
         loadRequests(designerProfile.id);
         loadReviews(designerProfile.id);
         loadStoreProducts(designerProfile.id);
+        loadWallet(designerProfile.id);
         fetchManualRatings().then(setManualRatings);
       }
       if (user?.id) {
@@ -1898,6 +2061,39 @@ export default function DesignerDashboard() {
         </div>
       </div>
 
+      {/* Payout Details Warning / Setup Banner */}
+      {!designerProfile?.payout_verified && !designerProfile?.subaccount_code && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-2 border-dashed border-amber-400/80 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500 text-stone-950 flex items-center justify-center shrink-0 shadow-md">
+              <Landmark className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-sm sm:text-base text-stone-900">
+                  Bank Payout Setup Required
+                </span>
+                <span className="text-[10px] bg-amber-500 text-stone-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  Action Required
+                </span>
+              </div>
+              <p className="text-xs text-stone-600 font-medium mt-0.5 max-w-2xl leading-relaxed">
+                Link your commercial bank account via Paystack Subaccount to receive client deposit &amp; balance split payments directly. You cannot send price quotes to clients until verified.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('payout')}
+            className="px-5 py-2.5 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-black text-xs sm:text-sm shadow-md transition-all active:scale-95 shrink-0 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <CreditCard className="w-4 h-4 text-amber-400" />
+            <span>Set Up Bank Payouts &rarr;</span>
+          </button>
+        </div>
+      )}
+
       {/* Modern Navigation Tabs */}
       <div className="flex border-b border-stone-200 gap-6 sm:gap-8 overflow-x-auto no-scrollbar">
         <button
@@ -1936,6 +2132,33 @@ export default function DesignerDashboard() {
           }`}
         >
           Ratings &amp; Reviews ({reviews.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('wallet')}
+          className={`pb-3 text-sm font-bold transition-all relative flex-shrink-0 flex items-center gap-2 ${
+            activeTab === 'wallet'
+              ? 'text-brand-700 border-b-2 border-brand-600'
+              : 'text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          <Wallet className="w-4 h-4 text-amber-500" />
+          <span>Wallet &amp; Earnings</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('payout')}
+          className={`pb-3 text-sm font-bold transition-all relative flex-shrink-0 flex items-center gap-2 ${
+            activeTab === 'payout'
+              ? 'text-brand-700 border-b-2 border-brand-600'
+              : 'text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          <Landmark className="w-4 h-4 text-stone-500" />
+          <span>Payout Details</span>
+          {!designerProfile?.payout_verified && !designerProfile?.subaccount_code && (
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Setup needed" />
+          )}
         </button>
 
         <button
@@ -2372,6 +2595,12 @@ export default function DesignerDashboard() {
                             <button
                               type="button"
                               onClick={() => {
+                                const hasPayout = designerProfile?.payout_verified || designerProfile?.subaccount_code || (typeof window !== 'undefined' && localStorage.getItem(`tailoram_payout_subaccount_${designerProfile?.id}`));
+                                if (!hasPayout) {
+                                  alert('⚠️ Please complete your Bank Payout details first. Linking your Paystack subaccount ensures client payments settle directly to your bank account.');
+                                  setActiveTab('payout');
+                                  return;
+                                }
                                 setTargetQuoteRequest(req);
                                 setQuoteModalOpen(true);
                               }}
@@ -2383,12 +2612,20 @@ export default function DesignerDashboard() {
 
                             <button
                               type="button"
-                              onClick={() => handleUpdateStatus(req.id, 'accepted')}
+                              onClick={() => {
+                                const hasPayout = designerProfile?.payout_verified || designerProfile?.subaccount_code || (typeof window !== 'undefined' && localStorage.getItem(`tailoram_payout_subaccount_${designerProfile?.id}`));
+                                if (!hasPayout) {
+                                  alert('⚠️ Please complete your Bank Payout details first before accepting custom orders.');
+                                  setActiveTab('payout');
+                                  return;
+                                }
+                                handleUpdateStatus(req.id, 'accepted');
+                              }}
                               disabled={isUpdatingThis}
                               className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-bold transition-all disabled:opacity-50"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              Accept Direct
+                              <span>Accept Direct</span>
                             </button>
 
                             <button
@@ -2810,6 +3047,502 @@ export default function DesignerDashboard() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* TAB: WALLET & EARNINGS                               */}
+      {/* ---------------------------------------------------- */}
+      {activeTab === 'wallet' && (() => {
+        const summary = computeWalletSummary(walletTransactions);
+        return (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Header Performance & Account Summary */}
+            <div className="bg-gradient-to-br from-stone-900 via-stone-950 to-stone-900 border border-stone-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 -mr-12 -mt-12 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-stone-800/80">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Non-Custodial Split Payments
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-stone-400 bg-stone-800/60 px-2.5 py-0.5 rounded-full">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Direct Paystack Settlement</span>
+                    </span>
+                  </div>
+
+                  <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight pt-1">
+                    Atelier Wallet &amp; Net Earnings
+                  </h2>
+                  <p className="text-xs sm:text-sm text-stone-400 max-w-xl">
+                    Track client deposits (40%) and completion balances (60%). Funds settle directly to your verified commercial bank account via Paystack Subaccount codes.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (designerProfile?.id) loadWallet(designerProfile.id);
+                    }}
+                    disabled={loadingWallet}
+                    className="px-4 py-2.5 rounded-2xl bg-stone-800 hover:bg-stone-700 active:scale-95 text-stone-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingWallet ? 'animate-spin text-amber-400' : 'text-stone-400'}`} />
+                    <span>{loadingWallet ? 'Syncing...' : 'Refresh Wallet'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('payout')}
+                    className="px-5 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-black text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Landmark className="w-4 h-4 text-stone-950" />
+                    <span>Payout Bank Settings &rarr;</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Financial Balances Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-6">
+                {/* 1. Pending Balance */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-stone-950/70 border border-stone-800/90 space-y-1 relative">
+                  <div className="flex items-center justify-between text-stone-400">
+                    <span className="text-[11px] font-bold uppercase tracking-wider">
+                      Pending Payout
+                    </span>
+                    <Clock className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-amber-400">
+                    ₦{summary.pendingBalance.toLocaleString()}
+                  </p>
+                  <p className="text-[10px] text-stone-400 leading-snug">
+                    Paid by client • Awaiting bank settlement cycle
+                  </p>
+                </div>
+
+                {/* 2. Settled Balance */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-stone-950/70 border border-stone-800/90 space-y-1 relative">
+                  <div className="flex items-center justify-between text-stone-400">
+                    <span className="text-[11px] font-bold uppercase tracking-wider">
+                      Settled to Bank
+                    </span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-emerald-400">
+                    ₦{summary.settledBalance.toLocaleString()}
+                  </p>
+                  <p className="text-[10px] text-stone-400 leading-snug">
+                    Disbursed directly to your commercial bank
+                  </p>
+                </div>
+
+                {/* 3. Total Net Earned */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-stone-950/70 border border-stone-800/90 space-y-1 relative">
+                  <div className="flex items-center justify-between text-stone-400">
+                    <span className="text-[11px] font-bold uppercase tracking-wider">
+                      Total Net Earned
+                    </span>
+                    <TrendingUp className="w-4 h-4 text-amber-300" />
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-white">
+                    ₦{summary.totalNetEarned.toLocaleString()}
+                  </p>
+                  <p className="text-[10px] text-stone-400 leading-snug">
+                    Your clean take-home revenue (after {commissionRate}% commission)
+                  </p>
+                </div>
+
+                {/* 4. Gross Processed */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-stone-950/70 border border-stone-800/90 space-y-1 relative">
+                  <div className="flex items-center justify-between text-stone-400">
+                    <span className="text-[11px] font-bold uppercase tracking-wider">
+                      Gross Volume
+                    </span>
+                    <Receipt className="w-4 h-4 text-stone-400" />
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-black text-stone-300">
+                    ₦{summary.totalGross.toLocaleString()}
+                  </p>
+                  <p className="text-[10px] text-stone-400 leading-snug">
+                    Total client payments • Platform fees absorbed
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Destination Payout Account Card & CBN Compliance Note */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="md:col-span-2 bg-white rounded-3xl border border-stone-200 p-6 space-y-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-black text-stone-900 flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-brand-600" />
+                    <span>Linked Settlement Bank Account</span>
+                  </h3>
+                  {designerProfile?.subaccount_code ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      Verified &amp; Active
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                      Setup Needed
+                    </span>
+                  )}
+                </div>
+
+                {designerProfile?.account_number ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                    <div className="p-3 bg-stone-50 rounded-xl border border-stone-100">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Commercial Bank</span>
+                      <p className="font-bold text-stone-900 text-xs sm:text-sm mt-0.5 truncate">{designerProfile.bank_name || 'Bank'}</p>
+                    </div>
+                    <div className="p-3 bg-stone-50 rounded-xl border border-stone-100">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">NUBAN Number</span>
+                      <p className="font-mono font-bold text-stone-900 text-xs sm:text-sm mt-0.5">{designerProfile.account_number}</p>
+                    </div>
+                    <div className="p-3 bg-stone-50 rounded-xl border border-stone-100">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Payee Name</span>
+                      <p className="font-bold text-stone-900 text-xs sm:text-sm mt-0.5 truncate">{designerProfile.account_name}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <p className="text-xs text-amber-900 font-medium">
+                      You haven&apos;t connected your commercial bank details yet. Add your account to ensure automated settlements.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('payout')}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs shrink-0 self-start sm:self-auto cursor-pointer"
+                    >
+                      Connect Now &rarr;
+                    </button>
+                  </div>
+                )}
+
+                {designerProfile?.subaccount_code && (
+                  <div className="flex items-center gap-2 pt-1 text-[11px] text-stone-500 font-mono">
+                    <span className="text-stone-400 font-sans">Paystack Subaccount:</span>
+                    <span className="bg-stone-100 px-2 py-0.5 rounded text-stone-800 font-bold">{designerProfile.subaccount_code}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Commission Transparency Card */}
+              <div className="bg-amber-50/50 border border-amber-200/80 rounded-3xl p-6 space-y-3 flex flex-col justify-between shadow-sm">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-amber-900 font-black text-xs uppercase tracking-wider">
+                    <BadgePercent className="w-4 h-4 text-amber-700" />
+                    <span>Transparent Commission</span>
+                  </div>
+                  <h4 className="text-2xl font-black text-stone-900">
+                    {100 - commissionRate}% Net Payout
+                  </h4>
+                  <p className="text-xs text-stone-600 leading-relaxed">
+                    Tailoram charges a standard {commissionRate}% platform facilitation fee on each transaction. Payment switch processing fees are fully absorbed by Tailoram.
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between text-[11px] font-bold text-amber-950">
+                  <span>Settlement Timing:</span>
+                  <span className="bg-amber-200/60 px-2.5 py-0.5 rounded-full">Next Business Day (T+1)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Itemized Transaction History Table */}
+            <div className="bg-white rounded-3xl border border-stone-200 overflow-hidden shadow-sm">
+              <div className="p-6 border-b border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-black text-lg text-stone-900 flex items-center gap-2">
+                    <Receipt className="w-5 h-5 text-brand-600" />
+                    <span>Itemized Transaction Ledger</span>
+                  </h3>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    Full itemized breakdown of gross amounts paid, platform commission deducted, and net amounts earned.
+                  </p>
+                </div>
+
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-stone-100 text-stone-700 self-start sm:self-auto">
+                  {walletTransactions.length} {walletTransactions.length === 1 ? 'Transaction' : 'Transactions'}
+                </span>
+              </div>
+
+              {loadingWallet ? (
+                <div className="py-16 text-center text-stone-500 flex flex-col items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+                  <p className="text-xs font-semibold">Loading ledger records...</p>
+                </div>
+              ) : walletTransactions.length === 0 ? (
+                <div className="p-12 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+                    <Receipt className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-bold text-stone-900 text-sm">No transaction records yet</h4>
+                  <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                    When clients pay a 40% commitment deposit or 60% completion balance on your bespoke orders, the itemized settlement record will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-stone-50/80 border-b border-stone-200 text-stone-500 uppercase tracking-wider font-bold text-[10px]">
+                        <th className="py-3.5 px-4 sm:px-6">Date &amp; Order</th>
+                        <th className="py-3.5 px-4">Stage</th>
+                        <th className="py-3.5 px-4">Gross Paid</th>
+                        <th className="py-3.5 px-4">Commission ({commissionRate}%)</th>
+                        <th className="py-3.5 px-4">Net Earned</th>
+                        <th className="py-3.5 px-4 sm:px-6">Settlement</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100 font-medium">
+                      {walletTransactions.map((txn) => (
+                        <tr key={txn.id} className="hover:bg-stone-50/60 transition-colors">
+                          <td className="py-4 px-4 sm:px-6">
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-stone-900 truncate max-w-xs">
+                                {txn.style_description || txn.client_name || 'Bespoke Outfit'}
+                              </p>
+                              <div className="flex items-center gap-2 text-[10px] text-stone-400">
+                                <span>{new Date(txn.created_at).toLocaleDateString()}</span>
+                                <span>•</span>
+                                <span className="font-mono">{txn.paystack_reference}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-4 px-4 whitespace-nowrap">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                txn.payment_stage === 'deposit'
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : 'bg-purple-50 text-purple-800 border border-purple-200'
+                              }`}
+                            >
+                              {txn.payment_stage === 'deposit' ? '40% Deposit' : '60% Balance'}
+                            </span>
+                          </td>
+
+                          <td className="py-4 px-4 whitespace-nowrap font-bold text-stone-900">
+                            ₦{Number(txn.gross_amount).toLocaleString()}
+                          </td>
+
+                          <td className="py-4 px-4 whitespace-nowrap text-red-600 font-semibold">
+                            -₦{Number(txn.platform_commission_amount).toLocaleString()}
+                            <span className="text-[10px] text-stone-400 block font-normal">
+                              ({txn.commission_rate}%)
+                            </span>
+                          </td>
+
+                          <td className="py-4 px-4 whitespace-nowrap font-black text-emerald-700 text-sm">
+                            ₦{Number(txn.designer_net_amount).toLocaleString()}
+                          </td>
+
+                          <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                txn.status === 'settled'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-100 text-amber-900'
+                              }`}
+                            >
+                              {txn.status === 'settled' ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Settled to Bank</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="w-3 h-3 text-amber-600" />
+                                  <span>Pending Settlement</span>
+                                </>
+                              )}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ---------------------------------------------------- */}
+      {/* TAB: PAYOUT DETAILS & BANK ONBOARDING                 */}
+      {/* ---------------------------------------------------- */}
+      {activeTab === 'payout' && (
+        <div className="max-w-2xl bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-sm space-y-6 animate-fadeIn">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-brand-50 text-brand-800 border border-brand-200">
+                Direct Banking
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                Paystack Subaccount
+              </span>
+            </div>
+            <h2 className="text-2xl font-black text-stone-900 tracking-tight mt-2">
+              Bank Payout Details
+            </h2>
+            <p className="text-xs sm:text-sm text-stone-500 mt-1">
+              Connect your commercial bank account. Client payments are automatically split by Paystack and disbursed directly to this account.
+            </p>
+          </div>
+
+          {payoutSuccessMsg && (
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm flex items-start gap-2.5 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <span>{payoutSuccessMsg}</span>
+            </div>
+          )}
+
+          {payoutErrorMsg && (
+            <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm flex items-start gap-2.5 animate-fadeIn">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <span>{payoutErrorMsg}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSavePayoutDetails} className="space-y-5">
+            {/* Bank Selector */}
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                Settlement Commercial Bank <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedBankCode}
+                onChange={(e) => {
+                  setSelectedBankCode(e.target.value);
+                  setResolvedAccountName('');
+                }}
+                className="w-full px-3.5 py-3 rounded-2xl border border-stone-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+              >
+                {NIGERIAN_BANKS.map((b) => (
+                  <option key={b.code} value={b.code}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* NUBAN Account Number Input */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                  NUBAN Account Number (10 Digits) <span className="text-red-500">*</span>
+                </label>
+                <span className="text-[10px] text-stone-400 font-medium">
+                  {accountNumberInput.length}/10 digits
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={accountNumberInput}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/\D/g, '');
+                    setAccountNumberInput(cleaned);
+                    if (resolvedAccountName) setResolvedAccountName('');
+                  }}
+                  placeholder="e.g. 0123456789"
+                  className="flex-1 px-3.5 py-3 rounded-2xl border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 tracking-wider"
+                />
+                <button
+                  type="button"
+                  onClick={handleResolveAccount}
+                  disabled={isResolvingAccount || accountNumberInput.length !== 10}
+                  className="px-4 py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 disabled:opacity-40 text-amber-300 font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                >
+                  {isResolvingAccount ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+                  )}
+                  <span>{isResolvingAccount ? 'Verifying...' : 'Verify Name'}</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-stone-500 mt-1">
+                Click &ldquo;Verify Name&rdquo; to validate this account number with NIBSS / Paystack.
+              </p>
+            </div>
+
+            {/* Resolved Account Name Display */}
+            {resolvedAccountName && (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 animate-fadeIn">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                    Verified Account Name
+                  </span>
+                  <p className="text-sm font-black text-emerald-950 font-mono">
+                    {resolvedAccountName}
+                  </p>
+                </div>
+                <span className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  ✓
+                </span>
+              </div>
+            )}
+
+            {resolveError && (
+              <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 animate-fadeIn">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>{resolveError}</span>
+              </div>
+            )}
+
+            {/* Current Subaccount status if exists */}
+            {designerProfile?.subaccount_code && (
+              <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                    Linked Paystack Subaccount Code
+                  </span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
+                    Active
+                  </span>
+                </div>
+                <p className="font-mono font-bold text-stone-900 text-xs">
+                  {designerProfile.subaccount_code}
+                </p>
+              </div>
+            )}
+
+            {/* Non-Custodial Compliance Notice */}
+            <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200/90 text-stone-600 text-xs space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-stone-900">
+                <ShieldCheck className="w-4 h-4 text-brand-600" />
+                <span>CBN Compliant Non-Custodial Split Payments</span>
+              </div>
+              <p className="text-[11px] text-stone-500 leading-relaxed">
+                Tailoram does not hold or custody your bespoke funds in pooled accounts. Payments are processed via Paystack and disbursed directly to your commercial bank.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSavingPayout || !resolvedAccountName}
+              className="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-95 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {isSavingPayout ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Connecting with Paystack...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Save &amp; Link Paystack Subaccount</span>
+                </>
+              )}
+            </button>
+          </form>
         </div>
       )}
 

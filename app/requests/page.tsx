@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { OutfitRequest, Review } from '@/lib/types';
+import { OutfitRequest, Review, WalletTransaction } from '@/lib/types';
 import {
   getLocalRequestOverrides,
   fetchCloudRequestOverrides,
@@ -14,6 +14,7 @@ import {
   respondToQuote,
   PaymentResult,
 } from '@/lib/payments';
+import { getClientWalletTransactions } from '@/lib/paystack';
 import PaymentModal from '@/components/PaymentModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
 import MeasurementsModal from '@/components/MeasurementsModal';
@@ -35,6 +36,9 @@ import {
   Check,
   Package,
   Ruler,
+  Receipt,
+  ExternalLink,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function ClientRequestsPage() {
@@ -43,6 +47,11 @@ export default function ClientRequestsPage() {
 
   const [requests, setRequests] = useState<OutfitRequest[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Tab mode & transactions state
+  const [activeView, setActiveView] = useState<'requests' | 'payments'>('requests');
+  const [clientTransactions, setClientTransactions] = useState<WalletTransaction[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   // Modals state
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -55,6 +64,18 @@ export default function ClientRequestsPage() {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [measurementsModalOpen, setMeasurementsModalOpen] = useState(false);
   const [selectedMeasurementsRequest, setSelectedMeasurementsRequest] = useState<OutfitRequest | null>(null);
+
+  const fetchTransactions = async (clientId: string) => {
+    try {
+      setLoadingTransactions(true);
+      const txns = await getClientWalletTransactions(clientId);
+      setClientTransactions(txns);
+    } catch (err) {
+      console.warn('Failed to load client payment history:', err);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
 
   const fetchRequests = async (clientId: string) => {
     try {
@@ -125,6 +146,7 @@ export default function ClientRequestsPage() {
         router.push('/login?redirect=/requests');
       } else {
         fetchRequests(user.id);
+        fetchTransactions(user.id);
       }
     }
   }, [user, authLoading, router]);
@@ -199,19 +221,51 @@ export default function ClientRequestsPage() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       
       {/* Header */}
-      <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-sm">
-        <div className="space-y-1">
-          <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-700">
-            Order Activity
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight pt-2">
-            My Custom Outfit Requests
-          </h1>
-          <p className="text-xs sm:text-sm text-stone-500">
-            Track quotes, pay 40% commitment deposits, oversee production, and settle final 60% balances.
-          </p>
+      <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-50 text-brand-700">
+              Client Portal
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight pt-1">
+              My Orders &amp; Payments
+            </h1>
+            <p className="text-xs sm:text-sm text-stone-500">
+              Track custom bespoke commissions, Paystack deposits (40%), and completion balances (60%).
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 bg-stone-100 p-1.5 rounded-2xl shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setActiveView('requests')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeView === 'requests'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-500 hover:text-stone-900'
+              }`}
+            >
+              Custom Orders ({requests.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView('payments')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeView === 'payments'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-500 hover:text-stone-900'
+              }`}
+            >
+              <Receipt className="w-3.5 h-3.5 text-brand-600" />
+              <span>Payment History ({clientTransactions.length})</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* VIEW 1: REQUESTS LIST */}
+      {activeView === 'requests' && (
+        <>
 
       {/* Requests List */}
       {requests.length === 0 ? (
@@ -436,6 +490,116 @@ export default function ClientRequestsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+      </>
+      )}
+
+      {/* VIEW 2: CLIENT PAYMENT HISTORY */}
+      {activeView === 'payments' && (
+        <div className="space-y-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-stone-200 overflow-hidden shadow-sm">
+            <div className="p-6 border-b border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-black text-lg text-stone-900 flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-brand-600" />
+                  <span>Verified Payment Receipts</span>
+                </h3>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Secure record of all 40% commitment deposits and 60% completion balances paid via Paystack.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-full text-xs font-bold shrink-0 self-start sm:self-auto">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>Protected by Paystack Escrow Split</span>
+              </div>
+            </div>
+
+            {loadingTransactions ? (
+              <div className="py-16 text-center text-stone-500 flex flex-col items-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+                <p className="text-xs font-semibold">Loading payment receipts...</p>
+              </div>
+            ) : clientTransactions.length === 0 ? (
+              <div className="p-12 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+                  <Receipt className="w-6 h-6" />
+                </div>
+                <h4 className="font-bold text-stone-900 text-sm">No payment records found</h4>
+                <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                  When you accept an atelier&apos;s quote and pay the initial 40% deposit or final balance, your official payment receipts will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-stone-50/80 border-b border-stone-200 text-stone-500 uppercase tracking-wider font-bold text-[10px]">
+                      <th className="py-3.5 px-4 sm:px-6">Date &amp; Outfit Description</th>
+                      <th className="py-3.5 px-4">Stage</th>
+                      <th className="py-3.5 px-4">Amount Paid</th>
+                      <th className="py-3.5 px-4">Status</th>
+                      <th className="py-3.5 px-4 sm:px-6 text-right">Receipt</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100 font-medium">
+                    {clientTransactions.map((txn) => (
+                      <tr key={txn.id} className="hover:bg-stone-50/60 transition-colors">
+                        <td className="py-4 px-4 sm:px-6">
+                          <div className="space-y-0.5">
+                            <p className="font-bold text-stone-900 truncate max-w-xs">
+                              {txn.style_description || 'Custom Bespoke Outfit'}
+                            </p>
+                            <div className="flex items-center gap-2 text-[10px] text-stone-400">
+                              <span>{new Date(txn.created_at).toLocaleDateString()}</span>
+                              <span>•</span>
+                              <span className="font-mono">{txn.paystack_reference}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              txn.payment_stage === 'deposit'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : 'bg-purple-50 text-purple-800 border border-purple-200'
+                            }`}
+                          >
+                            {txn.payment_stage === 'deposit' ? '40% Deposit' : '60% Balance'}
+                          </span>
+                        </td>
+
+                        <td className="py-4 px-4 whitespace-nowrap font-black text-stone-900 text-sm">
+                          ₦{Number(txn.gross_amount).toLocaleString()}
+                        </td>
+
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>Payment Verified</span>
+                          </span>
+                        </td>
+
+                        <td className="py-4 px-4 sm:px-6 whitespace-nowrap text-right">
+                          <a
+                            href={txn.receipt_url || `https://checkout.paystack.com/receipt/${txn.paystack_reference}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            <span>Receipt</span>
+                            <ExternalLink className="w-3 h-3 text-stone-400" />
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

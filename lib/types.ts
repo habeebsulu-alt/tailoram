@@ -27,6 +27,13 @@ export interface DesignerProfile {
   gender_focus?: 'male' | 'female' | 'unisex' | null;
   is_verified?: boolean;
   is_featured?: boolean;
+  bank_name?: string | null;
+  bank_code?: string | null;
+  account_number?: string | null;
+  account_name?: string | null;
+  subaccount_code?: string | null;
+  payout_verified?: boolean;
+  payout_updated_at?: string | null;
   created_at: string;
   // Joined from profiles
   profiles?: Profile;
@@ -697,4 +704,32 @@ export const PORTFOLIO_STYLE_CATEGORIES = [
   { id: 'ready_to_wear', label: 'Ready-to-Wear (RTW)' },
   { id: 'casual', label: 'Contemporary / Casual' },
 ] as const;
+
+export interface WalletTransaction {
+  id: string;
+  order_id: string;
+  client_id: string;
+  designer_id: string;
+  gross_amount: number;
+  commission_rate: number; // e.g. 10 (%)
+  platform_commission_amount: number;
+  designer_net_amount: number;
+  payment_stage: 'deposit' | 'balance';
+  status: 'pending' | 'settled';
+  paystack_reference: string;
+  receipt_url?: string | null;
+  client_name?: string | null;
+  style_description?: string | null;
+  metadata?: Record<string, any>;
+  created_at: string;
+  settled_at?: string | null;
+}
+
+export interface CommissionSettings {
+  commission_percentage: number;
+  bearer: 'account' | 'subaccount';
+  absorb_fees: boolean;
+  settlement_schedule: string;
+}
+
 

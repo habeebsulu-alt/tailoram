@@ -133,3 +133,30 @@ Tailoram/
   - Live sent email audit and telemetry log table.
 - **Persistence**: Dual-layer architecture storing in Supabase `platform_settings` (`key: 'email_settings'`) with local storage fallback (`tailoram_email_settings` and `tailoram_email_logs`).
 
+---
+
+## 7. Paystack Subaccounts & Non-Custodial Split Payments
+- **Central Modules**: `lib/paystack.ts`, `lib/payments.ts`, `app/api/paystack/resolve/route.ts`, `app/api/paystack/subaccount/route.ts`, `app/api/webhooks/paystack/route.ts`.
+- **Database Tables**:
+  - `transactions`: Ledger recording `order_id`, `client_id`, `designer_id`, `gross_amount`, `commission_rate`, `platform_commission_amount`, `designer_net_amount`, `payment_stage` (`deposit` | `balance`), `status` (`pending` | `settled`), `paystack_reference`, `receipt_url`.
+  - `designer_profiles`: Extended with `bank_name`, `bank_code`, `account_number`, `account_name`, `subaccount_code`, `payout_verified`.
+  - `platform_settings`: Key `'commission_settings'` with configurable commission percentage (default 10%), fee bearer (`'account'`), and settlement schedule.
+- **Designer Onboarding & NUBAN Verification**:
+  - Dedicated "Payout Details" tab in `/dashboard`.
+  - Verified across 20+ Nigerian commercial banks and digital banks (GTBank, Access, Zenith, Kuda, OPay, PalmPay, Moniepoint, etc.).
+  - Resolves account name via Paystack NUBAN resolve API (`/api/paystack/resolve`).
+  - Automatically generates Paystack Subaccount (`percentage_charge: commissionRate`) with fallback sandbox code (`ACCT_TLR_...`).
+  - Gating: Designers cannot send quotes or accept bespoke orders until payout details are verified.
+- **Transaction Split**:
+  - Both 40% initial commitment deposit and 60% completion balance are split independently using the designer's `subaccount_code`.
+  - `bearer: 'account'` guarantees the platform absorbs payment processing fees, providing designers with clean, predictable take-home payouts.
+- **Designer Wallet & Earnings View**:
+  - Dedicated "Wallet & Earnings" tab in `/dashboard`.
+  - Displays pending payout balance, settled balance, total net take-home earnings, and gross volume processed.
+  - Transparent itemized transaction table showing gross paid, commission rate %, platform fee deducted, and net earned.
+- **Client Payment History**:
+  - Tab in `/requests` showing order title, payment stage (Deposit / Balance), gross amount paid, and direct links to Paystack payment receipts.
+  - Platform commission and designer net payouts remain completely confidential.
+- **CBN Regulatory Compliance**:
+  - Strictly non-custodial: Client funds are never held or pooled in a central marketplace account. Direct Paystack split payment ensures immediate routing to the artisan's subaccount and commercial bank.
+

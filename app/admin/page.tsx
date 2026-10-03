@@ -80,6 +80,12 @@ import {
   triggerEmailNotification,
   DEFAULT_EMAIL_SETTINGS,
 } from '@/lib/emailNotifications';
+import {
+  getCommissionSettings,
+  saveCommissionSettings,
+  DEFAULT_COMMISSION_SETTINGS,
+} from '@/lib/paystack';
+import { CommissionSettings } from '@/lib/types';
 
 
 const DEMO_EMAILS_MAP: Record<string, string> = {
@@ -136,6 +142,10 @@ export default function AdminPage() {
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const [isSavingEmailSettings, setIsSavingEmailSettings] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+
+  // Platform Commission & Paystack Split Settings State
+  const [commissionSettings, setCommissionSettings] = useState<CommissionSettings>(DEFAULT_COMMISSION_SETTINGS);
+  const [isSavingCommission, setIsSavingCommission] = useState(false);
 
 
   // Core Data States
@@ -300,6 +310,10 @@ export default function AdminPage() {
       setEmailSettings(eSettings);
       const eLogs = getEmailLogs();
       setEmailLogs(eLogs);
+
+      // 10. Platform Commission & Split Payment Settings
+      const commSettings = await getCommissionSettings();
+      setCommissionSettings(commSettings);
     } catch (err) {
       console.error('Error fetching admin data:', err);
       showNotice('Failed to synchronize some marketplace records', 'error');
@@ -800,7 +814,8 @@ export default function AdminPage() {
         },
       ]);
       await saveEmailSettings(emailSettings);
-      showNotice('Platform and email settings saved and propagated successfully!');
+      await saveCommissionSettings(commissionSettings);
+      showNotice('Platform, email, and commission settings saved and propagated successfully!');
     } catch (err: any) {
       showNotice(`Failed to save settings: ${err.message}`, 'error');
     }
@@ -2333,6 +2348,73 @@ export default function AdminPage() {
                 <p className="text-[11px] text-stone-400 font-sans leading-relaxed">
                   If Supabase returns &quot;Invalid login credentials&quot;, click the button above or run <span className="text-stone-200 font-mono">supabase/add_admin_password_reset.sql</span> in your Supabase SQL editor.
                 </p>
+              </div>
+            </div>
+
+            {/* Platform Commission & Paystack Split Settings Card */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-4 shadow-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-base text-white flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-amber-400" />
+                    <span>Platform Commission &amp; Paystack Split Settings</span>
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Configure the platform commission percentage deducted on each transaction (both 40% deposit &amp; 60% balance).
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-800 shrink-0">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-[11px] font-bold text-stone-300">
+                    Non-Custodial Architecture
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider">
+                      Platform Facilitation Fee (%)
+                    </label>
+                    <span className="text-xs font-mono font-bold text-amber-400">
+                      {commissionSettings.commission_percentage}%
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    step={1}
+                    value={commissionSettings.commission_percentage}
+                    onChange={(e) =>
+                      setCommissionSettings({
+                        ...commissionSettings,
+                        commission_percentage: Math.max(1, Math.min(50, Number(e.target.value) || 10)),
+                      })
+                    }
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                  <p className="text-[11px] text-stone-500 mt-1">
+                    Applied separately to both deposit and balance. Designers receive {100 - commissionSettings.commission_percentage}% net.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
+                    Paystack Processing Fee Absorption
+                  </label>
+                  <div className="p-3 bg-stone-950 border border-stone-800 rounded-xl space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white">Platform Absorbs Fees</span>
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    </div>
+                    <p className="text-[11px] text-stone-400 leading-snug">
+                      Tailoram absorbs the payment switch processing charge (<code className="text-amber-400 font-mono text-[10px]">bearer: &apos;account&apos;</code>), ensuring artisans receive clean, predictable payouts.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
