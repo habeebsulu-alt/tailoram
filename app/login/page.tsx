@@ -4,14 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Scissors, AlertCircle, ArrowRight, Lock, Sparkles, Key, ShieldCheck } from 'lucide-react';
-
-const DEMO_PRESETS = [
-  { label: 'Dele Couture (Lagos Tailor)', email: 'dele.couture@demo.tailoram.com' },
-  { label: 'Maryam Bello (Abuja Bridal)', email: 'maryam.bello@demo.tailoram.com' },
-  { label: 'Emeka Bespoke (PH Senator)', email: 'emeka.craft@demo.tailoram.com' },
-  { label: 'Tunde Balogun (Client)', email: 'tunde.balogun@demo.tailoram.com' },
-];
+import { AlertCircle, ArrowRight, Lock } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,12 +14,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-
-  const handleSelectPreset = (presetEmail: string) => {
-    setEmail(presetEmail);
-    setPassword('Tailoram2026!');
-    setErrorMessage('');
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +87,6 @@ export default function LoginPage() {
               <label className="block text-xs font-bold text-stone-700">
                 Password
               </label>
-              <span className="text-[11px] text-stone-400">Demo: Tailoram2026!</span>
             </div>
             <input
               type="password"
@@ -127,31 +113,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        {/* 1-Click Quick Demo Account Picker */}
-        <div className="pt-3 border-t border-stone-100 space-y-2">
-          <div className="flex items-center justify-between text-[11px] text-stone-500 font-bold">
-            <span className="flex items-center gap-1 text-amber-700">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              1-Click Demo Logins:
-            </span>
-            <span className="text-[10px] text-stone-400">Autofills credentials</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-1.5">
-            {DEMO_PRESETS.map((p) => (
-              <button
-                key={p.email}
-                type="button"
-                onClick={() => handleSelectPreset(p.email)}
-                className="p-2 rounded-xl bg-stone-50 hover:bg-amber-50 hover:border-amber-200 border border-stone-200 text-stone-700 text-[10px] font-bold text-left transition-colors flex items-center justify-between group"
-              >
-                <span className="truncate">{p.label}</span>
-                <ArrowRight className="w-3 h-3 text-stone-400 group-hover:text-amber-600 shrink-0" />
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* Footer link to Sign Up */}
         <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs text-stone-600">

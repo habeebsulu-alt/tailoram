@@ -42,6 +42,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  LogIn,
+  UserPlus,
 } from 'lucide-react';
 
 const NIGERIAN_HUBS = [
@@ -946,6 +948,26 @@ export default function HomePage() {
             </Link>
           </div>
 
+          {/* Quick Account Access: Log In & Sign Up for Visitors */}
+          {!user && (
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+              <Link
+                href="/login"
+                className="h-10 px-5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/20 text-white text-xs font-bold backdrop-blur-md transition-all flex items-center gap-2 hover:border-amber-400/50 shadow-sm"
+              >
+                <LogIn className="w-3.5 h-3.5 text-amber-300" />
+                <span>Log In</span>
+              </Link>
+              <Link
+                href="/signup"
+                className="h-10 px-5 rounded-xl bg-gradient-to-r from-brand-600 to-amber-600 hover:from-brand-500 hover:to-amber-500 text-white text-xs font-black shadow-lg shadow-brand-900/40 transition-all flex items-center gap-2 border border-white/20 hover:scale-[1.02]"
+              >
+                <UserPlus className="w-3.5 h-3.5 text-white" />
+                <span>Sign Up / Create Account</span>
+              </Link>
+            </div>
+          )}
+
           {/* Interactive Slide Ticker & Switcher */}
           <div className="flex items-center justify-center gap-2.5 sm:gap-4 pt-1">
             <button
@@ -1293,6 +1315,43 @@ export default function HomePage() {
         )}
 
       </section>
+
+      {/* Guest Onboarding Banner */}
+      {!user && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-stone-900 via-stone-950 to-brand-950 text-white p-8 sm:p-12 border border-amber-500/20 shadow-xl">
+            <div className="absolute top-0 right-0 -mt-10 -mr-10 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative z-10 max-w-2xl space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 border border-amber-400/30 text-amber-300 text-xs font-bold">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Join Nigeria&apos;s Fashion Network</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+                Are you a Master Tailor or Fashion Lover?
+              </h2>
+              <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-normal">
+                Register your tailoring atelier to showcase your bespoke Agbada, Senator suits, and bridal couture to thousands of clients nationwide. Or create a client account to commission custom fits and order ready-to-wear pieces with confidence.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <Link
+                  href="/signup"
+                  className="px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-extrabold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Create Free Account</span>
+                </Link>
+                <Link
+                  href="/login"
+                  className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs sm:text-sm backdrop-blur-sm transition-all flex items-center gap-2"
+                >
+                  <LogIn className="w-4 h-4 text-amber-300" />
+                  <span>Log In to Your Account</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Location Picker Modal (Fallback / Manual City Select) */}
       {nearMeModalOpen && (

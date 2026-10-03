@@ -101,7 +101,7 @@ export default function SignUpPage() {
       setErrorMessage(error.message || 'Something went wrong during sign up. Please try again.');
     } else if (needsEmailConfirmation) {
       setSuccessNotice(
-        'Account created successfully! Please check your email to confirm your account, then log in. (Tip: You can turn off "Confirm email" in Supabase settings for instant login).'
+        'Account created successfully! Please check your email to confirm your account, then log in.'
       );
     } else {
       // Direct user according to role
