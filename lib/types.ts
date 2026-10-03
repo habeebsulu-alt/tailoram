@@ -16,6 +16,7 @@ export interface DesignerProfile {
   state: string;
   city: string;
   area: string;
+  address?: string | null;
   categories: string[];
   whatsapp: string | null;
   profile_image_url?: string | null;

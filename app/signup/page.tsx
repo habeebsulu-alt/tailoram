@@ -22,6 +22,7 @@ export default function SignUpPage() {
   const [selectedState, setSelectedState] = useState<string>('Lagos');
   const [area, setArea] = useState<string>(STATE_AREAS['Lagos'][0]);
   const [customArea, setCustomArea] = useState('');
+  const [address, setAddress] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['native_wear', 'ankara']);
   const [whatsapp, setWhatsapp] = useState('');
 
@@ -83,6 +84,7 @@ export default function SignUpPage() {
             state: selectedState,
             city: selectedState,
             area: finalArea,
+            address: address.trim() || undefined,
             categories: selectedCategories,
             whatsapp: whatsapp.trim() || undefined,
           }
@@ -315,6 +317,28 @@ export default function SignUpPage() {
                     />
                   </div>
                 )}
+
+                {/* Full Physical Business Address */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-stone-700">
+                      Full Studio / Business Address
+                    </label>
+                    <span className="text-[10px] text-stone-400">
+                      Physical atelier location
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="e.g. Suite 4, Admiralty Way, Lekki Phase 1 / 14 Allen Avenue, Ikeja"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  <p className="text-[11px] text-stone-500 mt-1">
+                    Helps clients locate your showroom, fitting studio, or workshop for in-person fittings and fabric drops.
+                  </p>
+                </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">

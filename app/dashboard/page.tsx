@@ -170,6 +170,7 @@ export default function DesignerDashboard() {
   const [bio, setBio] = useState('');
   const [selectedState, setSelectedState] = useState('Lagos');
   const [area, setArea] = useState('Ikeja');
+  const [address, setAddress] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
   const [genderFocus, setGenderFocus] = useState<'male' | 'female' | 'unisex'>('unisex');
@@ -192,6 +193,7 @@ export default function DesignerDashboard() {
       setBio(localUpdates.bio !== undefined ? localUpdates.bio : (designerProfile.bio || ''));
       setSelectedState(localUpdates.state || designerProfile.state || 'Lagos');
       setArea(localUpdates.area || designerProfile.area || 'Ikeja');
+      setAddress(localUpdates.address !== undefined ? localUpdates.address : (designerProfile.address || ''));
       setWhatsapp(localUpdates.whatsapp !== undefined ? localUpdates.whatsapp : (designerProfile.whatsapp || ''));
       setCategories(localUpdates.categories || designerProfile.categories || ['native_wear']);
 
@@ -974,6 +976,7 @@ export default function DesignerDashboard() {
         state: selectedState,
         city: selectedState,
         area: area,
+        address: address.trim() || null,
         whatsapp: whatsapp.trim() || null,
         categories: categories,
         gender_focus: genderFocus,
@@ -1004,28 +1007,45 @@ export default function DesignerDashboard() {
           new_state: updatePayload.state,
           new_city: updatePayload.city,
           new_area: updatePayload.area,
+          new_address: updatePayload.address,
           new_whatsapp: updatePayload.whatsapp,
           new_categories: updatePayload.categories,
           new_gender_focus: updatePayload.gender_focus,
         });
         if (!rpcErr) {
           rpcSucceeded = true;
+        } else {
+          // Retry without new_address if the RPC hasn't been re-created in SQL editor yet
+          const { error: rpcRetryErr } = await supabase.rpc('update_designer_profile', {
+            target_designer_id: designerProfile.id,
+            new_business_name: updatePayload.business_name,
+            new_bio: updatePayload.bio,
+            new_state: updatePayload.state,
+            new_city: updatePayload.city,
+            new_area: updatePayload.area,
+            new_whatsapp: updatePayload.whatsapp,
+            new_categories: updatePayload.categories,
+            new_gender_focus: updatePayload.gender_focus,
+          });
+          if (!rpcRetryErr) {
+            rpcSucceeded = true;
+          }
         }
       } catch (rpcErr) {
         console.warn('RPC update_designer_profile note:', rpcErr);
       }
 
-      // 4. Fallback to direct supabase update if RPC is not present
+      // 3. Fallback to direct supabase update if RPC is not present or failed
       if (!rpcSucceeded) {
         let { error } = await supabase
           .from('designer_profiles')
           .update(updatePayload)
           .eq('id', designerProfile.id);
 
-        // If gender_focus column doesn't exist yet in Supabase schema, retry update without it so profile save succeeds!
-        if (error && (error.message?.toLowerCase().includes('gender_focus') || error.code === 'PGRST204' || error.message?.toLowerCase().includes('column'))) {
-          console.warn('Note: gender_focus column not found in database, retrying update without it...', error.message);
-          const { gender_focus, ...safePayload } = updatePayload;
+        // If address or gender_focus column doesn't exist yet in Supabase schema, retry update without them
+        if (error && (error.message?.toLowerCase().includes('column') || error.code === 'PGRST204')) {
+          console.warn('Note: column not found in database, retrying update without address/gender...', error.message);
+          const { gender_focus, address: _, ...safePayload } = updatePayload;
           const retryResult = await supabase
             .from('designer_profiles')
             .update(safePayload)
@@ -1431,9 +1451,15 @@ export default function DesignerDashboard() {
                   Designer Studio
                 </span>
                 <span className="flex items-center gap-1 text-xs text-stone-500 font-medium bg-stone-100 px-3 py-1 rounded-full">
-                  <MapPin className="w-3.5 h-3.5 text-brand-600" />
-                  {designerProfile?.area || 'Lagos'}, {designerProfile?.state || 'Nigeria'}
+                  <MapPin className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                  <span>{designerProfile?.area || 'Lagos'}, {designerProfile?.state || 'Nigeria'}</span>
                 </span>
+                {(designerProfile?.address || address) && (
+                  <span className="flex items-center gap-1 text-xs text-stone-600 font-medium bg-stone-100/90 border border-stone-200/60 px-3 py-1 rounded-full max-w-md truncate" title={designerProfile?.address || address}>
+                    <span className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">Studio:</span>
+                    <span className="truncate">{designerProfile?.address || address}</span>
+                  </span>
+                )}
                 {(reviews.length > 0 || effectiveRating.isOverridden) && (
                   <span className="flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full">
                     <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
@@ -2261,6 +2287,28 @@ export default function DesignerDashboard() {
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Full Physical Business Address */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-stone-700">
+                  Full Studio / Business Address
+                </label>
+                <span className="text-[10px] text-stone-400">
+                  Physical atelier location
+                </span>
+              </div>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="e.g. Suite 4, Admiralty Way, Lekki Phase 1 / 14 Allen Avenue, Ikeja"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <p className="text-[11px] text-stone-500 mt-1">
+                Visible to clients booking consultations, custom fittings, or delivering fabrics.
+              </p>
             </div>
 
             <div>

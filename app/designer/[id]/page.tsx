@@ -458,9 +458,15 @@ export default function DesignerProfilePage() {
                   Verified Nigerian Tailor
                 </span>
                 <span className="flex items-center gap-1 text-xs text-stone-600 font-semibold bg-stone-100 px-3 py-1 rounded-full">
-                  <MapPin className="w-3.5 h-3.5 text-brand-600" />
-                  {designer.area}, {designer.state}
+                  <MapPin className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                  <span>{designer.area}, {designer.state}</span>
                 </span>
+                {designer.address && (
+                  <span className="flex items-center gap-1 text-xs text-stone-700 font-semibold bg-amber-50/80 border border-amber-200/60 px-3 py-1 rounded-full max-w-sm truncate" title={designer.address}>
+                    <span className="text-[10px] text-amber-800 font-extrabold uppercase tracking-wider">Studio:</span>
+                    <span className="truncate">{designer.address}</span>
+                  </span>
+                )}
 
                 {(() => {
                   const gFocus = getDesignerGender(designer);

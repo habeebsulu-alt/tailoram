@@ -1415,6 +1415,11 @@ export default function AdminPage() {
                         <td className="py-3 px-4">
                           <div className="font-medium text-stone-200">{designer.area}</div>
                           <div className="text-[11px] text-stone-400">{designer.state}</div>
+                          {designer.address && (
+                            <div className="text-[10px] text-amber-300/80 truncate max-w-[150px] mt-0.5" title={designer.address}>
+                              📍 {designer.address}
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3 px-4">

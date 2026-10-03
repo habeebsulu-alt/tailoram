@@ -25,6 +25,7 @@ interface AuthContextType {
       state: string;
       city?: string;
       area: string;
+      address?: string;
       categories: string[];
       whatsapp?: string;
     }
@@ -336,6 +337,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       state: string;
       city?: string;
       area: string;
+      address?: string;
       categories: string[];
       whatsapp?: string;
     }
@@ -355,6 +357,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             state: designerDetails?.state || 'Lagos',
             city: designerDetails?.city || designerDetails?.state || 'Lagos',
             area: designerDetails?.area || 'General',
+            address: designerDetails?.address || null,
             categories: designerDetails?.categories || ['native_wear', 'ankara'],
             whatsapp: designerDetails?.whatsapp || null,
           },
@@ -383,18 +386,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
 
         if (role === 'designer' && designerDetails) {
-          await supabase.from('designer_profiles').upsert(
-            {
-              user_id: newUserId,
-              business_name: designerDetails.businessName || fullName,
-              state: designerDetails.state || 'Lagos',
-              city: designerDetails.city || designerDetails.state || 'Lagos',
-              area: designerDetails.area || 'General',
-              categories: designerDetails.categories || ['native_wear', 'ankara'],
-              whatsapp: designerDetails.whatsapp || null,
-            },
+          const designerInsertPayload: any = {
+            user_id: newUserId,
+            business_name: designerDetails.businessName || fullName,
+            state: designerDetails.state || 'Lagos',
+            city: designerDetails.city || designerDetails.state || 'Lagos',
+            area: designerDetails.area || 'General',
+            address: designerDetails.address || null,
+            categories: designerDetails.categories || ['native_wear', 'ankara'],
+            whatsapp: designerDetails.whatsapp || null,
+          };
+
+          const { error: dUpsertError } = await supabase.from('designer_profiles').upsert(
+            designerInsertPayload,
             { onConflict: 'user_id' }
           );
+
+          // If address column doesn't exist yet in Supabase, retry without address so sign-up succeeds seamlessly
+          if (dUpsertError && (dUpsertError.message?.toLowerCase().includes('address') || dUpsertError.code === 'PGRST204')) {
+            const { address: _, ...safePayload } = designerInsertPayload;
+            await supabase.from('designer_profiles').upsert(safePayload, { onConflict: 'user_id' });
+          }
         }
       } catch (insertErr) {
         // Trigger on the database handles this automatically
