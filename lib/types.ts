@@ -210,7 +210,7 @@ export interface Message {
 
 export interface AnalyticsEvent {
   id?: string;
-  event_type: 'search' | 'profile_view' | 'request_sent' | 'request_status_change';
+  event_type: 'search' | 'profile_view' | 'request_sent' | 'request_status_change' | 'share_designer_profile';
   user_id?: string | null;
   designer_id?: string | null;
   metadata?: Record<string, any>;

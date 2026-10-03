@@ -17,6 +17,7 @@ import {
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import { normalizePhoneForWhatsApp } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
+import ShareModal from '@/components/ShareModal';
 import {
   Scissors,
   MapPin,
@@ -125,6 +126,7 @@ export default function DesignerProfilePage() {
   const [reviewSuccess, setReviewSuccess] = useState('');
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [zoomAvatarUrl, setZoomAvatarUrl] = useState<string | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const [manualRatings, setManualRatings] = useState<Record<string, ManualRatingData>>({});
 
   // Sort portfolio by category sequence so "All Styles" groups in sequence:
@@ -392,15 +394,32 @@ export default function DesignerProfilePage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
       
-      {/* Back button */}
-      <div>
+      {/* Back button & Share Bar */}
+      <div className="flex items-center justify-between gap-4">
         <Link
           href="/"
           className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-stone-600 hover:text-brand-600 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Browse
+          <span>Back to Browse</span>
         </Link>
+
+        <button
+          type="button"
+          onClick={() => {
+            logEvent({
+              event_type: 'share_designer_profile',
+              user_id: user?.id,
+              designer_id: designer.id,
+              metadata: { business_name: designer.business_name },
+            });
+            setShareModalOpen(true);
+          }}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-stone-50 border border-stone-200 text-stone-800 font-bold text-xs sm:text-sm shadow-xs hover:border-amber-400 transition-all cursor-pointer group active:scale-95"
+        >
+          <Share2 className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
+          <span>Share Profile</span>
+        </button>
       </div>
 
       {/* Designer Hero Banner Card */}
@@ -594,6 +613,23 @@ export default function DesignerProfilePage() {
                 Write a Review
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                logEvent({
+                  event_type: 'share_designer_profile',
+                  user_id: user?.id,
+                  designer_id: designer.id,
+                  metadata: { business_name: designer.business_name },
+                });
+                setShareModalOpen(true);
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs transition-all cursor-pointer active:scale-95"
+            >
+              <Share2 className="w-3.5 h-3.5 text-amber-600" />
+              <span>Share Atelier Link</span>
+            </button>
           </div>
 
         </div>
@@ -1496,6 +1532,24 @@ export default function DesignerProfilePage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Share Atelier Profile Modal */}
+      {designer && (
+        <ShareModal
+          isOpen={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          title={`Share ${designer.business_name}`}
+          designerName={designer.business_name}
+          url={
+            typeof window !== 'undefined'
+              ? `${window.location.origin}/designer/${designer.id}`
+              : `https://tailoram.vercel.app/designer/${designer.id}`
+          }
+          location={`${designer.area || 'City Center'}, ${designer.state || 'Nigeria'}`}
+          imageUrl={designer.profile_image_url}
+          categories={designer.categories}
+        />
       )}
 
     </div>

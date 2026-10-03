@@ -45,6 +45,7 @@ import QuoteModal from '@/components/QuoteModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
 import MeasurementsModal from '@/components/MeasurementsModal';
 import PaymentModal from '@/components/PaymentModal';
+import ShareModal from '@/components/ShareModal';
 
 import {
   Scissors,
@@ -95,6 +96,7 @@ import {
   ArrowDownRight,
   ShieldAlert,
   DollarSign,
+  Share2,
 } from 'lucide-react';
 
 export default function DesignerDashboard() {
@@ -244,6 +246,7 @@ export default function DesignerDashboard() {
   const [avatarError, setAvatarError] = useState('');
   const [avatarFitMode, setAvatarFitMode] = useState<'contain' | 'cover'>('cover');
   const [zoomAvatarUrl, setZoomAvatarUrl] = useState<string | null>(null);
+  const [dashboardShareModalOpen, setDashboardShareModalOpen] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const toggleAvatarFit = () => {
@@ -2015,15 +2018,27 @@ export default function DesignerDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {designerProfile && (
-              <Link
-                href={`/designer/${designerProfile.id}`}
-                className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-stone-300 text-stone-700 bg-white hover:bg-stone-50 text-xs sm:text-sm font-bold transition-all shadow-sm"
-              >
-                <Eye className="w-4 h-4 text-brand-600" />
-                Public Profile
-              </Link>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setDashboardShareModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-amber-300 text-stone-900 bg-amber-50/70 hover:bg-amber-100/80 text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+                  title="Share your unique atelier link on WhatsApp, Instagram, Twitter, and more"
+                >
+                  <Share2 className="w-4 h-4 text-amber-600" />
+                  <span>Share Profile Link</span>
+                </button>
+
+                <Link
+                  href={`/designer/${designerProfile.id}`}
+                  className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-stone-300 text-stone-700 bg-white hover:bg-stone-50 text-xs sm:text-sm font-bold transition-all shadow-sm"
+                >
+                  <Eye className="w-4 h-4 text-brand-600" />
+                  Public Profile
+                </Link>
+              </>
             )}
 
             <button
@@ -3557,14 +3572,67 @@ export default function DesignerDashboard() {
       {activeTab === 'profile' && (
         <div className="max-w-2xl bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-sm">
           <form onSubmit={handleSaveProfile} className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-stone-900">
-                Brand Profile Details
-              </h2>
-              <p className="text-xs text-stone-500 mt-0.5">
-                This information helps clients across Nigeria discover your tailoring studio.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-stone-900">
+                  Brand Profile Details
+                </h2>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  This information helps clients across Nigeria discover your tailoring studio.
+                </p>
+              </div>
+
+              {designerProfile && (
+                <button
+                  type="button"
+                  onClick={() => setDashboardShareModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs shadow-sm transition-all self-start sm:self-auto shrink-0 cursor-pointer active:scale-95"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Share My Profile</span>
+                </button>
+              )}
             </div>
+
+            {/* Unique Shareable Profile Link Card */}
+            {designerProfile && (
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-50/70 via-stone-50 to-amber-50/40 border border-amber-200/90 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Share2 className="w-4 h-4 text-amber-600" />
+                    <span className="text-xs font-black text-stone-900 uppercase tracking-wider">
+                      Your Unique Tailoram Atelier Link
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold bg-amber-200/70 text-amber-950 px-2 py-0.5 rounded-full">
+                    Social Ready
+                  </span>
+                </div>
+                <p className="text-xs text-stone-600">
+                  Put this link in your Instagram bio, TikTok, WhatsApp status, or business cards so clients can view your portfolio, prices, and commission bespoke attire directly.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="text"
+                    readOnly
+                    value={
+                      typeof window !== 'undefined'
+                        ? `${window.location.origin}/designer/${designerProfile.id}`
+                        : `https://tailoram.vercel.app/designer/${designerProfile.id}`
+                    }
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    className="flex-1 bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono text-stone-800 truncate focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setDashboardShareModalOpen(true)}
+                    className="px-3.5 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-bold text-xs shrink-0 cursor-pointer active:scale-95"
+                  >
+                    Share / QR Code
+                  </button>
+                </div>
+              </div>
+            )}
 
             {profileSuccess && (
               <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm flex items-center gap-2">
@@ -5179,6 +5247,23 @@ export default function DesignerDashboard() {
         </div>
       )}
 
+      {/* Share Atelier Profile Modal */}
+      {designerProfile && (
+        <ShareModal
+          isOpen={dashboardShareModalOpen}
+          onClose={() => setDashboardShareModalOpen(false)}
+          title={`Share ${designerProfile.business_name || 'My Atelier'}`}
+          designerName={designerProfile.business_name || profile?.full_name || 'My Tailoram Studio'}
+          url={
+            typeof window !== 'undefined'
+              ? `${window.location.origin}/designer/${designerProfile.id}`
+              : `https://tailoram.vercel.app/designer/${designerProfile.id}`
+          }
+          location={`${designerProfile.area || 'City Center'}, ${designerProfile.state || 'Nigeria'}`}
+          imageUrl={designerProfile.profile_image_url}
+          categories={designerProfile.categories}
+        />
+      )}
 
     </div>
   );
