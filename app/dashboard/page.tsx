@@ -518,7 +518,7 @@ export default function DesignerDashboard() {
 
   // Paystack bank account resolution handler
   const handleResolveAccount = async () => {
-    const cleanAccount = accountNumberInput.trim().replace(/\D/g, '');
+    const cleanAccount = (accountNumberInput || '').trim().replace(/\D/g, '');
     if (cleanAccount.length !== 10) {
       setResolveError('Nigerian NUBAN account number must be exactly 10 digits.');
       return;
@@ -551,12 +551,12 @@ export default function DesignerDashboard() {
     e.preventDefault();
     if (!designerProfile) return;
 
-    const cleanAccount = accountNumberInput.trim().replace(/\D/g, '');
+    const cleanAccount = (accountNumberInput || '').trim().replace(/\D/g, '');
     if (cleanAccount.length !== 10) {
       setPayoutErrorMsg('Please provide a valid 10-digit account number.');
       return;
     }
-    if (!resolvedAccountName) {
+    if (!(resolvedAccountName || '').trim()) {
       setPayoutErrorMsg('Please verify the account name before saving.');
       return;
     }
@@ -1479,16 +1479,21 @@ export default function DesignerDashboard() {
         localStorage.setItem(`tailoram_gender_focus_${designerProfile.id}`, genderFocus);
       }
 
+      const safeBusinessName = (businessName || '').trim();
+      const safeBio = (bio || '').trim() || null;
+      const safeAddress = (address || '').trim() || null;
+      const safeWhatsapp = (whatsapp || '').trim() || null;
+
       const updatePayload: any = {
-        business_name: businessName.trim(),
-        bio: bio.trim() || null,
-        state: selectedState,
-        city: selectedState,
-        area: area,
-        address: address.trim() || null,
-        whatsapp: whatsapp.trim() || null,
-        categories: categories,
-        gender_focus: genderFocus,
+        business_name: safeBusinessName || designerProfile.business_name || 'Tailoram Atelier',
+        bio: safeBio,
+        state: selectedState || 'Lagos',
+        city: selectedState || 'Lagos',
+        area: area || 'Ikeja',
+        address: safeAddress,
+        whatsapp: safeWhatsapp,
+        categories: categories || ['native_wear'],
+        gender_focus: genderFocus || 'unisex',
       };
 
       // 1. Immediately persist to localStorage so updates survive refreshes even in synthetic/admin sessions
@@ -1583,17 +1588,19 @@ export default function DesignerDashboard() {
       setSavingStoreSettings(true);
       setStoreMessage(null);
 
+      const safeStoreName = (storeName || '').trim();
+
       // Save locally for instant reflection
       if (typeof window !== 'undefined') {
         localStorage.setItem(`tailoram_has_store_${designerProfile.id}`, String(hasStore));
-        localStorage.setItem(`tailoram_store_name_${designerProfile.id}`, storeName.trim());
+        localStorage.setItem(`tailoram_store_name_${designerProfile.id}`, safeStoreName);
       }
 
       let { error } = await supabase
         .from('designer_profiles')
         .update({
           has_store: hasStore,
-          store_name: storeName.trim() || null,
+          store_name: safeStoreName || null,
         })
         .eq('id', designerProfile.id);
 
