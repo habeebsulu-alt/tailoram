@@ -124,7 +124,7 @@ export default function DesignerDashboard() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadMediaType, setUploadMediaType] = useState<'image' | 'video'>('image');
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
-  const [previewItems, setPreviewItems] = useState<{ id: string; file: File; url: string; isVideo: boolean }[]>([]);
+  const [previewItems, setPreviewItems] = useState<{ id: string; file: File; url: string; isVideo: boolean; caption?: string }[]>([]);
   const [uploadProgressText, setUploadProgressText] = useState('');
   const [caption, setCaption] = useState('');
   const [uploadCategory, setUploadCategory] = useState('agbada');
@@ -533,6 +533,13 @@ export default function DesignerDashboard() {
     }
   };
 
+  // Update caption for an individual photo in multi-upload
+  const updatePreviewCaption = (id: string, newCaption: string) => {
+    setPreviewItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, caption: newCaption } : item))
+    );
+  };
+
   // Upload Portfolio Items (handles single or batch multi-photo upload)
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -559,6 +566,11 @@ export default function DesignerDashboard() {
 
       for (let i = 0; i < total; i++) {
         const file = uploadFiles[i];
+        const previewItem = previewItems.find((p) => p.file === file) || previewItems[i];
+        const itemCaption = (previewItem?.caption !== undefined && previewItem.caption !== '')
+          ? previewItem.caption.trim()
+          : (caption.trim() || null);
+
         const isVideo = file.type.startsWith('video/') || uploadMediaType === 'video';
         const mediaType = isVideo ? 'video' : 'image';
 
@@ -603,7 +615,7 @@ export default function DesignerDashboard() {
           designer_id: designerProfile.id,
           media_url: publicUrl,
           media_type: mediaType,
-          caption: caption.trim() || null,
+          caption: itemCaption || null,
           category: uploadCategory,
         });
       }
@@ -2697,7 +2709,7 @@ export default function DesignerDashboard() {
       {/* UPLOAD MODAL (Supports Multiple Photos or Single Video Reel) */}
       {uploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-stone-200 my-8">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-stone-200 my-8">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
               <h3 className="font-bold text-lg text-stone-900 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-brand-600" />
@@ -2800,9 +2812,9 @@ export default function DesignerDashboard() {
                 </p>
               </div>
 
-              {/* Multi-Photo Preview Gallery */}
+              {/* Multi-Photo Preview Gallery with Individual Captioning */}
               {previewItems.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-3 pt-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-stone-800 flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5 text-brand-600" />
@@ -2826,31 +2838,58 @@ export default function DesignerDashboard() {
                       <video src={previewItems[0].url} controls playsInline className="w-full h-full object-cover" />
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-52 overflow-y-auto p-1.5 rounded-2xl bg-stone-50 border border-stone-200">
+                    <div className="space-y-2.5 max-h-72 overflow-y-auto p-2 rounded-2xl bg-stone-50 border border-stone-200 divide-y divide-stone-200/70">
                       {previewItems.map((item, idx) => (
                         <div
                           key={item.id}
-                          className="relative aspect-square rounded-xl overflow-hidden border border-stone-200 group bg-stone-900"
+                          className="pt-2 first:pt-0 flex items-center gap-3 group"
                         >
-                          <img
-                            src={item.url}
-                            alt={`Preview ${idx + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removePreviewItem(item.id)}
-                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center text-[10px] shadow-md transition-transform active:scale-90"
-                            title="Remove this photo"
-                          >
-                            ✕
-                          </button>
-                          <span className="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-[9px] font-bold text-white">
-                            #{idx + 1}
-                          </span>
+                          {/* Thumbnail with remove button overlay */}
+                          <div className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-xl overflow-hidden border border-stone-200 bg-stone-900 shrink-0">
+                            <img
+                              src={item.url}
+                              alt={`Photo ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removePreviewItem(item.id)}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center text-[10px] shadow-md transition-transform active:scale-90"
+                              title="Remove this photo"
+                            >
+                              ✕
+                            </button>
+                            <span className="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/75 text-[9px] font-black text-white">
+                              #{idx + 1}
+                            </span>
+                          </div>
+
+                          {/* Individual Caption Input */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-[11px] font-bold text-stone-700 truncate">
+                                Caption for Photo #{idx + 1}
+                              </label>
+                              <span className="text-[10px] text-stone-400 truncate max-w-[120px]">
+                                {item.file.name}
+                              </span>
+                            </div>
+                            <input
+                              type="text"
+                              value={item.caption ?? ''}
+                              onChange={(e) => updatePreviewCaption(item.id, e.target.value)}
+                              placeholder={caption.trim() ? `Default: "${caption.trim()}"` : `e.g. Front embroidery details, matching fila cap...`}
+                              className="w-full px-3 py-1.5 rounded-lg border border-stone-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder:text-stone-400 placeholder:italic"
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
+                  )}
+                  {uploadMediaType === 'image' && previewItems.length > 1 && (
+                    <p className="text-[11px] text-stone-500">
+                      💡 <strong>Tip:</strong> You can give each photo its own distinct caption above, or set a general caption below to apply to any photos left blank.
+                    </p>
                   )}
                 </div>
               )}
@@ -2876,9 +2915,15 @@ export default function DesignerDashboard() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  Caption / Style Description
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-stone-700">
+                    {uploadMediaType === 'video'
+                      ? 'Video Reel Caption / Style Description'
+                      : previewItems.length > 1
+                      ? 'General / Default Caption (Applied to photos without individual captions)'
+                      : 'Caption / Style Description'}
+                  </label>
+                </div>
                 <input
                   type="text"
                   value={caption}
