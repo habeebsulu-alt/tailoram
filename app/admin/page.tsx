@@ -65,7 +65,21 @@ import {
   X,
   Volume2,
   Loader2,
+  Mail,
+  Send,
+  EyeOff,
 } from 'lucide-react';
+import {
+  getEmailSettings,
+  saveEmailSettings,
+  getEmailLogs,
+  clearEmailLogs,
+  EmailSettings,
+  EmailNotificationLog,
+  triggerEmailNotification,
+  DEFAULT_EMAIL_SETTINGS,
+} from '@/lib/emailNotifications';
+
 
 const DEMO_EMAILS_MAP: Record<string, string> = {
   '11111111-1111-1111-1111-111111111101': 'dele.couture@demo.tailoram.com',
@@ -108,8 +122,20 @@ export default function AdminPage() {
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
-    'analytics' | 'designers' | 'users' | 'requests' | 'products' | 'reviews' | 'events' | 'settings'
+    'analytics' | 'designers' | 'users' | 'requests' | 'products' | 'reviews' | 'events' | 'emails' | 'settings'
   >('analytics');
+
+  // Email Notifications State
+  const [emailSettings, setEmailSettings] = useState<EmailSettings>(DEFAULT_EMAIL_SETTINGS);
+  const [emailLogs, setEmailLogs] = useState<EmailNotificationLog[]>([]);
+  const [testEmailRecipient, setTestEmailRecipient] = useState<string>('admin@tailoram.com');
+  const [testEmailEvent, setTestEmailEvent] = useState<
+    'new_request' | 'quote_received' | 'deposit_paid' | 'order_ready' | 'balance_paid' | 'new_message'
+  >('new_request');
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [isSavingEmailSettings, setIsSavingEmailSettings] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+
 
   // Core Data States
   const [loading, setLoading] = useState(true);
@@ -262,6 +288,12 @@ export default function AdminPage() {
       // 8. Manual Designer Ratings
       const ratings = await fetchManualRatings();
       setManualRatings(ratings);
+
+      // 9. Email Notification Settings & Logs
+      const eSettings = await getEmailSettings();
+      setEmailSettings(eSettings);
+      const eLogs = getEmailLogs();
+      setEmailLogs(eLogs);
     } catch (err) {
       console.error('Error fetching admin data:', err);
       showNotice('Failed to synchronize some marketplace records', 'error');
@@ -761,11 +793,100 @@ export default function AdminPage() {
           updated_at: new Date().toISOString(),
         },
       ]);
-      showNotice('Platform settings saved and propagated successfully!');
+      await saveEmailSettings(emailSettings);
+      showNotice('Platform and email settings saved and propagated successfully!');
     } catch (err: any) {
       showNotice(`Failed to save settings: ${err.message}`, 'error');
     }
   };
+
+  // --- ACTIONS: EMAIL NOTIFICATIONS ---
+  const handleSaveEmailSettings = async () => {
+    try {
+      setIsSavingEmailSettings(true);
+      await saveEmailSettings(emailSettings);
+      showNotice('Email notification settings updated and saved globally!');
+    } catch (err: any) {
+      showNotice(`Failed to save email settings: ${err.message}`, 'error');
+    } finally {
+      setIsSavingEmailSettings(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailRecipient.trim()) {
+      showNotice('Please enter a destination recipient email address.', 'error');
+      return;
+    }
+
+    try {
+      setIsSendingTestEmail(true);
+
+      const eventLabels: Record<string, { subject: string; preview: string }> = {
+        new_request: {
+          subject: '🧵 [TEST] New Bespoke Commission Request from Funke Alabi',
+          preview: 'Funke Alabi submitted a bespoke tailoring commission for an Emerald Green Silk Agbada. Estimated budget: ₦85,000.',
+        },
+        quote_received: {
+          subject: '📋 [TEST] Studio Price Quote Received: ₦95,000',
+          preview: 'Dele Couture Atelier submitted an official quote of ₦95,000 (40% deposit: ₦38,000) with completion in 10 days.',
+        },
+        deposit_paid: {
+          subject: '💳 [TEST] 40% Deposit Received (₦38,000) - Production Commenced',
+          preview: 'Client Funke Alabi paid the initial 40% commitment deposit of ₦38,000. Payment reference: TLR-TEST-1092.',
+        },
+        order_ready: {
+          subject: '✨ [TEST] Your Bespoke Outfit is Ready for Dispatch!',
+          preview: 'Your bespoke garment is completely sewn and quality checked! Please proceed to pay the 60% balance to finalize handover.',
+        },
+        balance_paid: {
+          subject: '🎉 [TEST] 60% Final Balance Settled (₦57,000) - Order Complete',
+          preview: 'Client paid the final balance of ₦57,000. The commission is fully paid and ready for immediate delivery.',
+        },
+        new_message: {
+          subject: '💬 [TEST] New Message from Dele Couture on Tailoram',
+          preview: 'Dele Couture: "Hello! We have sourced the authentic Aso Oke fabric and started cutting your pattern."',
+        },
+      };
+
+      const template = eventLabels[testEmailEvent] || eventLabels.new_request;
+
+      const result = await triggerEmailNotification({
+        event: testEmailEvent,
+        recipientEmail: testEmailRecipient.trim(),
+        recipientName: 'Valued Tailoram Member',
+        subject: template.subject,
+        previewText: template.preview,
+        ctaLink: 'https://tailoram.vercel.app',
+        metadata: { is_admin_test: true, provider: emailSettings.provider },
+      });
+
+      // Refresh local logs
+      const updatedLogs = getEmailLogs();
+      setEmailLogs(updatedLogs);
+
+      if (result.status === 'disabled') {
+        showNotice(result.message || 'Notification was not sent because emails or this event are disabled.', 'error');
+      } else if (result.status === 'sent') {
+        showNotice(`Test email successfully dispatched to ${testEmailRecipient} via ${emailSettings.provider.toUpperCase()}!`);
+      } else {
+        showNotice(`[Simulated] Notification logged for ${testEmailRecipient}. View in Audit Logs below.`);
+      }
+    } catch (err: any) {
+      showNotice(`Error dispatching test notification: ${err.message}`, 'error');
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
+  const handleClearEmailLogs = () => {
+    if (confirm('Are you sure you want to clear all email notification history logs?')) {
+      clearEmailLogs();
+      setEmailLogs([]);
+      showNotice('Email notification logs cleared.');
+    }
+  };
+
 
   // --- EXPORT PLATFORM AUDIT REPORT ---
   const handleExportAudit = () => {
@@ -1102,6 +1223,7 @@ export default function AdminPage() {
             { id: 'products', label: `Shop Catalog (${productsList.length})`, icon: ShoppingBag },
             { id: 'reviews', label: `Reviews (${reviewsList.length})`, icon: Star },
             { id: 'events', label: 'Live Telemetry', icon: Activity },
+            { id: 'emails', label: 'Email Settings', icon: Mail },
             { id: 'settings', label: 'Settings & Alerts', icon: Settings },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -2203,6 +2325,29 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* Email Notifications Hub Shortcut */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-3 shadow-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-base text-white flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-amber-400" />
+                    <span>Transactional Email System</span>
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Configure transactional emails, provider API credentials (Resend, SendGrid, SMTP), and inspect live email telemetry.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('emails')}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs shadow-md transition-all flex items-center gap-1.5 self-start sm:self-auto shrink-0"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Configure Emails &rarr;</span>
+                </button>
+              </div>
+            </div>
+
             {/* Save Button */}
             <button
               onClick={handleSavePlatformSettings}
@@ -2214,6 +2359,463 @@ export default function AdminPage() {
 
           </div>
         )}
+
+        {/* ---------------------------------------------------- */}
+        {/* TAB: EMAIL NOTIFICATIONS & GATEWAY SETTINGS          */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'emails' && (
+          <div className="space-y-6 animate-fadeIn max-w-4xl pb-12">
+            
+            {/* Header Summary Card */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 sm:p-7 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-lg font-black text-white">
+                    Email Notifications &amp; Delivery Gateway
+                  </h2>
+                </div>
+                <p className="text-xs text-stone-400 max-w-2xl leading-relaxed">
+                  Control real-time transactional emails for bespoke quotes, client deposits, atelier progress, and chat alerts. Simulated logging mode is active out-of-the-box; connect Resend or SMTP to deliver live emails directly to user inboxes.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 bg-stone-950 px-4 py-2 rounded-2xl border border-stone-800 shrink-0">
+                <span className={`w-2.5 h-2.5 rounded-full ${emailSettings.enabled ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+                <span className="text-xs font-bold text-stone-300">
+                  {emailSettings.enabled ? `Active (${emailSettings.provider.toUpperCase()})` : 'Notifications Disabled'}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 1: Master Controls & Gateway Configuration */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-6 shadow-lg">
+              <div className="flex items-center justify-between border-b border-stone-800/80 pb-4">
+                <div>
+                  <h3 className="font-black text-sm text-white flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                    <span>Master Notification Switch</span>
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Toggle all automated platform email transmissions globally ON or OFF
+                  </p>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={emailSettings.enabled}
+                    onChange={(e) =>
+                      setEmailSettings({
+                        ...emailSettings,
+                        enabled: e.target.checked,
+                      })
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-stone-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500" />
+                </label>
+              </div>
+
+              {/* Provider Selection */}
+              <div>
+                <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-2">
+                  Delivery Provider / Gateway
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {[
+                    { id: 'simulated', label: 'Simulated Mode', desc: 'Zero config; logs to audit trail below' },
+                    { id: 'resend', label: 'Resend API', desc: 'Recommended for Next.js & Vercel' },
+                    { id: 'sendgrid', label: 'SendGrid', desc: 'Twilio SendGrid transactional API' },
+                    { id: 'postmark', label: 'Postmark', desc: 'High deliverability transactional' },
+                    { id: 'smtp', label: 'Custom SMTP', desc: 'Standard Mailgun/SES/Custom server' },
+                  ].map((prov) => {
+                    const isSelected = emailSettings.provider === prov.id;
+                    return (
+                      <button
+                        key={prov.id}
+                        type="button"
+                        onClick={() =>
+                          setEmailSettings({
+                            ...emailSettings,
+                            provider: prov.id as any,
+                          })
+                        }
+                        className={`p-3 rounded-2xl border text-left transition-all ${
+                          isSelected
+                            ? 'bg-amber-500/15 border-amber-500/80 text-white'
+                            : 'bg-stone-950 border-stone-800 text-stone-400 hover:border-stone-700 hover:text-stone-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-white">{prov.label}</span>
+                          {isSelected && <span className="w-2 h-2 rounded-full bg-amber-400" />}
+                        </div>
+                        <p className="text-[11px] text-stone-400 mt-1 leading-snug">{prov.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Sender Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
+                    Sender Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={emailSettings.sender_name}
+                    onChange={(e) =>
+                      setEmailSettings({
+                        ...emailSettings,
+                        sender_name: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. Tailoram Nigeria"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
+                    Sender Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={emailSettings.sender_email}
+                    onChange={(e) =>
+                      setEmailSettings({
+                        ...emailSettings,
+                        sender_email: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. notifications@tailoram.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Admin Notification Email & API Key */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
+                    Admin Notification Email
+                  </label>
+                  <input
+                    type="email"
+                    value={emailSettings.admin_notification_email || ''}
+                    onChange={(e) =>
+                      setEmailSettings({
+                        ...emailSettings,
+                        admin_notification_email: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. admin@tailoram.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider">
+                      Provider API Key / Token
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="text-[11px] text-amber-400 hover:underline flex items-center gap-1"
+                    >
+                      {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showApiKey ? 'Hide' : 'Show'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={emailSettings.api_key || ''}
+                    onChange={(e) =>
+                      setEmailSettings({
+                        ...emailSettings,
+                        api_key: e.target.value,
+                      })
+                    }
+                    placeholder={
+                      emailSettings.provider === 'resend'
+                        ? 're_123456789...'
+                        : emailSettings.provider === 'sendgrid'
+                        ? 'SG.123456789...'
+                        : 'Optional in simulated mode'
+                    }
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Granular Notification Event Triggers */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-4 shadow-lg">
+              <div>
+                <h3 className="font-black text-sm text-white flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-amber-400" />
+                  <span>Notification Event Triggers</span>
+                </h3>
+                <p className="text-xs text-stone-400 mt-0.5">
+                  Select which marketplace activities trigger automatic email notifications
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                {[
+                  {
+                    key: 'notify_on_new_request' as const,
+                    title: 'New Bespoke Request',
+                    recipient: 'Notifies Designer Atelier',
+                    desc: 'Dispatched when a client commissions a new custom garment with specs & measurements.',
+                    icon: Scissors,
+                  },
+                  {
+                    key: 'notify_on_quote_received' as const,
+                    title: 'Price Quote Submitted',
+                    recipient: 'Notifies Client',
+                    desc: 'Dispatched when a designer provides an official price breakdown and delivery timeline.',
+                    icon: DollarSign,
+                  },
+                  {
+                    key: 'notify_on_deposit_paid' as const,
+                    title: '40% Commitment Deposit Paid',
+                    recipient: 'Notifies Designer Atelier',
+                    desc: 'Dispatched when client completes the 40% initial commitment deposit to begin sewing.',
+                    icon: CheckCircle2,
+                  },
+                  {
+                    key: 'notify_on_order_ready' as const,
+                    title: 'Garment Ready for Balance',
+                    recipient: 'Notifies Client',
+                    desc: 'Dispatched when the atelier completes tailoring and requests the 60% completion balance.',
+                    icon: Sparkles,
+                  },
+                  {
+                    key: 'notify_on_balance_paid' as const,
+                    title: '60% Balance Paid / Completed',
+                    recipient: 'Notifies Designer Atelier',
+                    desc: 'Dispatched when client clears final balance. Order is marked complete for dispatch.',
+                    icon: Package,
+                  },
+                  {
+                    key: 'notify_on_new_message' as const,
+                    title: 'Consultation Chat Messages',
+                    recipient: 'Notifies Message Recipient',
+                    desc: 'Dispatched when a participant posts a new message in the bespoke order chat thread.',
+                    icon: MessageSquare,
+                  },
+                ].map((evt) => {
+                  const Icon = evt.icon;
+                  const isChecked = emailSettings[evt.key];
+                  return (
+                    <div
+                      key={evt.key}
+                      onClick={() =>
+                        setEmailSettings({
+                          ...emailSettings,
+                          [evt.key]: !isChecked,
+                        })
+                      }
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
+                        isChecked
+                          ? 'bg-stone-950 border-amber-500/50 hover:border-amber-400'
+                          : 'bg-stone-950/60 border-stone-800/80 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-xl mt-0.5 ${isChecked ? 'bg-amber-500/20 text-amber-400' : 'bg-stone-800 text-stone-400'}`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-bold text-white">{evt.title}</h4>
+                            <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                              {evt.recipient}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-stone-400 mt-1 leading-snug">
+                            {evt.desc}
+                          </p>
+                        </div>
+                      </div>
+
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {}}
+                        className="rounded bg-stone-800 border-stone-700 text-amber-500 focus:ring-amber-400 mt-1 pointer-events-none"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Card 3: Interactive Test Email Dispatcher */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-4 shadow-lg">
+              <div>
+                <h3 className="font-black text-sm text-white flex items-center gap-2">
+                  <Send className="w-4 h-4 text-amber-400" />
+                  <span>Send Test Email Notification</span>
+                </h3>
+                <p className="text-xs text-stone-400 mt-0.5">
+                  Simulate or dispatch an instant test email to verify your templates, provider delivery, and telemetry logging
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
+                    Event Template
+                  </label>
+                  <select
+                    value={testEmailEvent}
+                    onChange={(e) => setTestEmailEvent(e.target.value as any)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400"
+                  >
+                    <option value="new_request">New Bespoke Request</option>
+                    <option value="quote_received">Quote Submitted</option>
+                    <option value="deposit_paid">40% Deposit Paid</option>
+                    <option value="order_ready">Garment Ready for Balance</option>
+                    <option value="balance_paid">60% Balance Paid</option>
+                    <option value="new_message">Chat Message</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-1.5">
+                    Destination Email Address
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={testEmailRecipient}
+                      onChange={(e) => setTestEmailRecipient(e.target.value)}
+                      placeholder="e.g. admin@tailoram.com or your personal email"
+                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendTestEmail}
+                      disabled={isSendingTestEmail}
+                      className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-stone-950 font-black text-xs transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                    >
+                      {isSendingTestEmail ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                      <span>{isSendingTestEmail ? 'Sending...' : 'Send Test'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Email Telemetry & Sent Logs History */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-4 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-sm text-white flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    <span>Sent Notification Telemetry ({emailLogs.length})</span>
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Live audit log of recent notifications dispatched across the platform
+                  </p>
+                </div>
+
+                {emailLogs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearEmailLogs}
+                    className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear Logs</span>
+                  </button>
+                )}
+              </div>
+
+              {emailLogs.length === 0 ? (
+                <div className="p-8 text-center bg-stone-950 rounded-2xl border border-stone-800/80 space-y-2">
+                  <Mail className="w-8 h-8 text-stone-600 mx-auto" />
+                  <p className="text-xs text-stone-400">
+                    No email notifications logged in this session yet.
+                  </p>
+                  <p className="text-[11px] text-stone-500">
+                    Submit a quote, commission an outfit, pay a deposit, or click &quot;Send Test&quot; above to view live telemetry.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                  {emailLogs.map((log) => {
+                    const statusColors = {
+                      sent: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+                      simulated: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+                      disabled: 'bg-stone-700/30 text-stone-400 border-stone-600/30',
+                      failed: 'bg-red-500/20 text-red-400 border-red-500/30',
+                    };
+                    return (
+                      <div
+                        key={log.id}
+                        className="p-3.5 rounded-2xl bg-stone-950 border border-stone-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-white">{log.subject}</span>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${
+                                statusColors[log.status] || statusColors.simulated
+                              }`}
+                            >
+                              {log.status}
+                            </span>
+                            <span className="text-[10px] text-stone-400 font-mono bg-stone-800/60 px-2 py-0.5 rounded-full">
+                              {log.event}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-stone-400 text-[11px]">
+                            <span>To: <strong className="text-stone-300 font-mono">{log.recipient_email}</strong></span>
+                            {log.recipient_name && <span>({log.recipient_name})</span>}
+                          </div>
+                        </div>
+
+                        <div className="text-[11px] text-stone-500 whitespace-nowrap self-start sm:self-auto font-mono">
+                          {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Save Button */}
+            <button
+              type="button"
+              onClick={handleSaveEmailSettings}
+              disabled={isSavingEmailSettings}
+              className="w-full py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-stone-950 font-black text-sm shadow-xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isSavingEmailSettings ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              <span>{isSavingEmailSettings ? 'Saving Configuration...' : 'Save Email Notification Settings'}</span>
+            </button>
+
+          </div>
+        )}
+
 
       </main>
 

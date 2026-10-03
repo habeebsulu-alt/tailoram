@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { Payment, RequestStatus, OutfitRequest } from '@/lib/types';
 import { logEvent } from '@/lib/analytics';
+import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
 
 /**
  * =========================================================================================
@@ -181,6 +182,48 @@ export async function getPaymentsForRequest(requestId: string): Promise<Payment[
 }
 
 /**
+ * Helper to fetch request client and designer contact details for notifications
+ */
+export async function getRequestParticipants(requestId: string): Promise<{
+  clientId?: string;
+  designerUserId?: string;
+  designerName?: string;
+  clientName?: string;
+}> {
+  try {
+    const { data } = await supabase
+      .from('requests')
+      .select('client_id, designer_id, client:client_id(full_name), designer:designer_id(business_name, user_id)')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (data) {
+      return {
+        clientId: data.client_id,
+        designerUserId: (data.designer as any)?.user_id,
+        designerName: (data.designer as any)?.business_name,
+        clientName: (data.client as any)?.full_name,
+      };
+    }
+  } catch (err) {
+    // Non-blocking fallback
+  }
+
+  // Check locally created requests fallback
+  const localReq = getLocalCreatedRequests().find((r) => r.id === requestId);
+  if (localReq) {
+    return {
+      clientId: localReq.client_id,
+      designerUserId: (localReq.designer as any)?.user_id,
+      designerName: localReq.designer?.business_name,
+      clientName: (localReq.client as any)?.full_name,
+    };
+  }
+
+  return {};
+}
+
+/**
  * Save a payment record locally and to Supabase
  */
 async function recordPayment(payment: Payment): Promise<void> {
@@ -336,6 +379,40 @@ export async function collectPayment({
     console.warn('Analytics event error:', evErr);
   }
 
+  // 7. Dispatch automatic email notification
+  try {
+    const participants = await getRequestParticipants(requestId);
+    const targetEmail = resolveUserEmail(
+      participants.designerUserId,
+      'designer@tailoram.com'
+    );
+    const clientName = customer.name || customer.email || participants.clientName || 'A Tailoram Client';
+
+    if (isDeposit) {
+      await triggerEmailNotification({
+        event: 'deposit_paid',
+        recipientEmail: targetEmail,
+        recipientName: participants.designerName || 'Designer Atelier',
+        subject: `💳 40% Deposit Received (₦${amount.toLocaleString()}) - Start Production`,
+        previewText: `${clientName} has confirmed payment of the 40% initial commitment deposit (₦${amount.toLocaleString()}). Payment reference: ${reference}. Production can now begin!`,
+        ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
+        metadata: { requestId, amount, reference, type: 'deposit' },
+      });
+    } else {
+      await triggerEmailNotification({
+        event: 'balance_paid',
+        recipientEmail: targetEmail,
+        recipientName: participants.designerName || 'Designer Atelier',
+        subject: `🎉 60% Balance Paid (₦${amount.toLocaleString()}) - Commission Completed`,
+        previewText: `${clientName} has paid the remaining 60% completion balance (₦${amount.toLocaleString()}). Payment reference: ${reference}. Order is fully settled and ready for handover!`,
+        ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
+        metadata: { requestId, amount, reference, type: 'balance' },
+      });
+    }
+  } catch (emailErr) {
+    console.warn('Payment notification error:', emailErr);
+  }
+
   return {
     success: true,
     transactionId,
@@ -417,6 +494,23 @@ export async function submitQuote({
     ]);
   } catch (msgErr) {
     console.warn('Could not post quote message to chat:', msgErr);
+  }
+
+  // 4. Dispatch email notification to client
+  try {
+    const participants = await getRequestParticipants(requestId);
+    const targetEmail = resolveUserEmail(participants.clientId, 'client@tailoram.com');
+    await triggerEmailNotification({
+      event: 'quote_received',
+      recipientEmail: targetEmail,
+      recipientName: participants.clientName || 'Fashion Client',
+      subject: `📋 Studio Quote Received: ₦${breakdown.quotedPrice.toLocaleString()} - ${participants.designerName || 'Tailoram Atelier'}`,
+      previewText: `${participants.designerName || 'The atelier'} has submitted a quote of ₦${breakdown.quotedPrice.toLocaleString()} (40% deposit: ₦${breakdown.depositAmount.toLocaleString()}) for your bespoke request. Estimated delivery: ${new Date(quoteDeadline).toLocaleDateString()}.`,
+      ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
+      metadata: { requestId, quotedPrice: breakdown.quotedPrice, quoteDeadline },
+    });
+  } catch (emailErr) {
+    console.warn('Quote email notification error:', emailErr);
   }
 
   return { success: true };
@@ -510,6 +604,23 @@ export async function markOrderReadyForBalance({
     ]);
   } catch (msgErr) {
     console.warn('Could not post ready_for_balance message to chat:', msgErr);
+  }
+
+  // Dispatch email notification to client
+  try {
+    const participants = await getRequestParticipants(requestId);
+    const targetEmail = resolveUserEmail(participants.clientId, 'client@tailoram.com');
+    await triggerEmailNotification({
+      event: 'order_ready',
+      recipientEmail: targetEmail,
+      recipientName: participants.clientName || 'Fashion Client',
+      subject: `✨ Your Bespoke Outfit is Ready! Complete Balance on Tailoram`,
+      previewText: `Great news! ${participants.designerName || 'The atelier'} has completed tailoring your garment. Please review and pay the remaining 60% balance to finalize delivery.`,
+      ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
+      metadata: { requestId },
+    });
+  } catch (emailErr) {
+    console.warn('Ready notification error:', emailErr);
   }
 
   return { success: true };

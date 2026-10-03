@@ -113,3 +113,23 @@ Tailoram/
     3. `[ 🛍️ Explore the Shop  RTW ]`
 - **Geolocation**: Supports automatic GPS location matching against Nigerian fashion hubs (Lagos, Abuja, Port Harcourt, Ibadan, Kano, Enugu, Kaduna, Benin City, Calabar, Asaba, etc.).
 - **Admin Page Security**: `/admin` is protected by passkey (`tailoram` / `tailoram2026`) and role elevation. No public links in the footer or public navigation.
+
+---
+
+## 6. Email Notification System & Gateway Architecture
+- **Central Module**: `lib/emailNotifications.ts`
+- **Supported Providers**: Resend API (`api.resend.com`), SendGrid, Postmark, Custom SMTP, and Simulated Mode (zero-config, logs directly to local audit trail).
+- **Admin Control Center**: Dedicated tab (`/admin` -> Email Settings) and Platform Settings quick card:
+  - Master toggle to enable/disable emails platform-wide.
+  - Delivery provider selector, custom sender name & sender email address, provider API key input.
+  - Granular event toggles:
+    - `notify_on_new_request`: Notifies designer when a client commissions custom attire.
+    - `notify_on_quote_received`: Notifies client when designer submits official quote and timeline.
+    - `notify_on_deposit_paid`: Notifies designer when 40% initial commitment deposit is paid.
+    - `notify_on_order_ready`: Notifies client when garment is tailored and ready for balance.
+    - `notify_on_balance_paid`: Notifies designer when 60% completion balance is paid.
+    - `notify_on_new_message`: Notifies recipient on new chat message in consultation thread.
+  - Interactive test email dispatcher with instant status feedback.
+  - Live sent email audit and telemetry log table.
+- **Persistence**: Dual-layer architecture storing in Supabase `platform_settings` (`key: 'email_settings'`) with local storage fallback (`tailoram_email_settings` and `tailoram_email_logs`).
+

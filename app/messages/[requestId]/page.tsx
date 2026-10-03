@@ -16,6 +16,7 @@ import {
   DEPOSIT_PERCENTAGE,
   BALANCE_PERCENTAGE,
 } from '@/lib/payments';
+import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
 import PaymentModal from '@/components/PaymentModal';
 import QuoteModal from '@/components/QuoteModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
@@ -263,6 +264,32 @@ export default function MessageChatPage() {
           if (prev.some((m) => m.id === data.id)) return prev;
           return [...prev, data as Message];
         });
+
+        // Trigger new message notification to counterpart
+        try {
+          const isClientSending = user.id === request?.client_id;
+          const targetUserId = isClientSending ? designer?.user_id : request?.client_id;
+          const recipientName = isClientSending
+            ? (designer?.business_name || 'Designer Atelier')
+            : (clientProfile?.full_name || 'Fashion Client');
+          const targetEmail = resolveUserEmail(
+            targetUserId,
+            isClientSending ? 'designer@tailoram.com' : 'client@tailoram.com'
+          );
+          const senderName = profile?.full_name || (isClientSending ? 'Your Client' : 'Your Designer');
+
+          triggerEmailNotification({
+            event: 'new_message',
+            recipientEmail: targetEmail,
+            recipientName,
+            subject: `💬 New Message from ${senderName} on Tailoram`,
+            previewText: `${senderName}: "${messageText.length > 120 ? messageText.slice(0, 117) + '...' : messageText}"`,
+            ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
+            metadata: { requestId, messageId: data.id },
+          });
+        } catch (emErr) {
+          // Non-blocking
+        }
       }
     } catch (err: any) {
       console.error('Failed to send message:', err);
