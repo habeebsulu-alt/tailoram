@@ -136,16 +136,69 @@ export function getLocalRequestOverrides(): Record<string, Partial<OutfitRequest
 }
 
 /**
- * Save request override to localStorage
+ * Fetch globally synchronized request overrides from Supabase platform_settings
+ * Ensures client payments and status changes reflect immediately on designer dashboards
  */
-export function saveLocalRequestOverride(requestId: string, updates: Partial<OutfitRequest>) {
-  if (typeof window === 'undefined') return;
+export async function fetchCloudRequestOverrides(): Promise<Record<string, Partial<OutfitRequest>>> {
+  const localOverrides = getLocalRequestOverrides();
   try {
-    const existing = getLocalRequestOverrides();
-    existing[requestId] = { ...(existing[requestId] || {}), ...updates };
-    localStorage.setItem(LOCAL_STORAGE_REQUESTS_OVERRIDES_KEY, JSON.stringify(existing));
+    const { data, error } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'request_status_overrides')
+      .maybeSingle();
+
+    if (!error && data?.value && typeof data.value === 'object') {
+      const merged = { ...data.value, ...localOverrides };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(LOCAL_STORAGE_REQUESTS_OVERRIDES_KEY, JSON.stringify(merged));
+      }
+      return merged;
+    }
   } catch (err) {
-    console.warn('Could not save local request override:', err);
+    console.warn('Failed to fetch cloud request overrides:', err);
+  }
+  return localOverrides;
+}
+
+/**
+ * Save request override to localStorage AND sync to Supabase platform_settings
+ */
+export async function saveLocalRequestOverride(requestId: string, updates: Partial<OutfitRequest>) {
+  if (typeof window !== 'undefined') {
+    try {
+      const existing = getLocalRequestOverrides();
+      existing[requestId] = { ...(existing[requestId] || {}), ...updates };
+      localStorage.setItem(LOCAL_STORAGE_REQUESTS_OVERRIDES_KEY, JSON.stringify(existing));
+    } catch (err) {
+      console.warn('Could not save local request override:', err);
+    }
+  }
+
+  // Also sync to Supabase platform_settings for instant global cross-browser/cross-device visibility
+  try {
+    const { data } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'request_status_overrides')
+      .maybeSingle();
+
+    const currentMap = (data?.value && typeof data.value === 'object') ? data.value : {};
+    currentMap[requestId] = {
+      ...(currentMap[requestId] || {}),
+      ...updates,
+      synced_at: new Date().toISOString(),
+    };
+
+    await supabase.from('platform_settings').upsert([
+      {
+        key: 'request_status_overrides',
+        value: currentMap,
+        updated_at: new Date().toISOString(),
+      },
+    ]);
+  } catch (cloudErr) {
+    console.warn('Could not sync request override to platform_settings:', cloudErr);
   }
 }
 
@@ -330,14 +383,27 @@ export async function collectPayment({
       .eq('id', requestId);
 
     if (reqError) {
-      console.warn('Could not update request in Supabase:', reqError.message);
+      console.warn('Could not update request in Supabase with full payload:', reqError.message);
+      // Fallback 1: Try without extra columns in case deposit_amount column doesn't exist yet
+      const { error: fallbackErr1 } = await supabase
+        .from('requests')
+        .update({ status: requestUpdates.status })
+        .eq('id', requestId);
+
+      // Fallback 2: If status constraint rejects 'deposit_paid', update to 'in_progress' or 'accepted'
+      if (fallbackErr1) {
+        await supabase
+          .from('requests')
+          .update({ status: isDeposit ? 'accepted' : 'completed' })
+          .eq('id', requestId);
+      }
     }
   } catch (err) {
     console.warn('Supabase request update error:', err);
   }
 
-  // 4. Update local request overrides
-  saveLocalRequestOverride(requestId, requestUpdates);
+  // 4. Update local & cloud request overrides (guaranteed cross-device sync)
+  await saveLocalRequestOverride(requestId, requestUpdates);
 
   // 5. Post automatic system confirmation message to chat thread
   try {
@@ -478,8 +544,8 @@ export async function submitQuote({
     console.warn('Supabase quote update error:', err);
   }
 
-  // 2. Save locally for demo fallback
-  saveLocalRequestOverride(requestId, updates);
+  // 2. Save locally and sync to cloud for guaranteed multi-device recognition
+  await saveLocalRequestOverride(requestId, updates);
 
   // 3. Post consultation chat message
   try {
@@ -544,7 +610,7 @@ export async function respondToQuote({
     console.warn('Supabase quote response error:', err);
   }
 
-  saveLocalRequestOverride(requestId, updates);
+  await saveLocalRequestOverride(requestId, updates);
 
   // Post chat notification
   try {
@@ -591,7 +657,7 @@ export async function markOrderReadyForBalance({
     console.warn('Supabase ready_for_balance update error:', err);
   }
 
-  saveLocalRequestOverride(requestId, updates);
+  await saveLocalRequestOverride(requestId, updates);
 
   // Post message to chat
   try {

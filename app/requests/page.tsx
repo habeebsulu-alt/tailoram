@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { OutfitRequest, Review } from '@/lib/types';
 import {
   getLocalRequestOverrides,
+  fetchCloudRequestOverrides,
   getLocalCreatedRequests,
   calculatePaymentBreakdown,
   respondToQuote,
@@ -68,7 +69,8 @@ export default function ClientRequestsPage() {
         console.warn('Could not load requests from Supabase:', error.message);
       }
 
-      const overrides = getLocalRequestOverrides();
+      const cloudOverrides = await fetchCloudRequestOverrides();
+      const overrides = { ...cloudOverrides, ...getLocalRequestOverrides() };
       const rawList = (data as OutfitRequest[]) || [];
 
       // Include locally created requests for this client

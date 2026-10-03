@@ -10,6 +10,7 @@ import {
   respondToQuote,
   markOrderReadyForBalance,
   getLocalRequestOverrides,
+  fetchCloudRequestOverrides,
   getLocalCreatedRequests,
   calculatePaymentBreakdown,
   PaymentResult,
@@ -113,7 +114,8 @@ export default function MessageChatPage() {
         console.warn('Could not fetch request from Supabase:', reqError.message);
       }
 
-      const overrides = getLocalRequestOverrides();
+      const cloudOverrides = await fetchCloudRequestOverrides();
+      const overrides = { ...cloudOverrides, ...getLocalRequestOverrides() };
       const localOverride = overrides[requestId] || {};
       const localCreated = getLocalCreatedRequests().find((r) => r.id === requestId);
       const baseReq = reqData || localCreated;

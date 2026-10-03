@@ -26,6 +26,7 @@ import {
   resolveReviewClientName,
   ManualRatingData,
 } from '@/lib/ratingsManager';
+import { fetchCloudRequestOverrides } from '@/lib/payments';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -232,7 +233,12 @@ export default function AdminPage() {
         .order('created_at', { ascending: false });
 
       if (!rErr && rData) {
-        setRequestsList(rData as OutfitRequest[]);
+        const cloudOverrides = await fetchCloudRequestOverrides();
+        const mergedReqs = (rData as OutfitRequest[]).map((r) => ({
+          ...r,
+          ...(cloudOverrides[r.id] || {}),
+        }));
+        setRequestsList(mergedReqs);
       }
 
       // 4. Products (RTW)

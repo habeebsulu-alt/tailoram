@@ -24,6 +24,7 @@ import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, reso
 import {
   markOrderReadyForBalance,
   getLocalRequestOverrides,
+  fetchCloudRequestOverrides,
   getLocalCreatedRequests,
   calculatePaymentBreakdown,
   saveLocalCreatedRequest,
@@ -327,7 +328,8 @@ export default function DesignerDashboard() {
         console.warn('Could not load requests from Supabase:', error.message);
       }
 
-      const overrides = getLocalRequestOverrides();
+      const cloudOverrides = await fetchCloudRequestOverrides();
+      const overrides = { ...cloudOverrides, ...getLocalRequestOverrides() };
       const rawList = (data as OutfitRequest[]) || [];
       const localCreated = getLocalCreatedRequests().filter((r) => r.designer_id === designerId);
       const existingIds = new Set(rawList.map((r) => r.id));
@@ -370,7 +372,8 @@ export default function DesignerDashboard() {
         console.warn('Could not load raised requests from Supabase:', error.message);
       }
 
-      const overrides = getLocalRequestOverrides();
+      const cloudOverrides = await fetchCloudRequestOverrides();
+      const overrides = { ...cloudOverrides, ...getLocalRequestOverrides() };
       const rawList = (data as OutfitRequest[]) || [];
       const localCreated = getLocalCreatedRequests().filter((r) => r.client_id === userId);
       const existingIds = new Set(rawList.map((r) => r.id));
