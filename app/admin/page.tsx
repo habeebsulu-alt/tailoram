@@ -2928,6 +2928,11 @@ export default function AdminPage() {
                             <span>To: <strong className="text-stone-300 font-mono">{log.recipient_email}</strong></span>
                             {log.recipient_name && <span>({log.recipient_name})</span>}
                           </div>
+                          {log.status === 'failed' && log.metadata?.error && (
+                            <div className="text-[11px] text-red-400 font-mono bg-red-950/40 px-2.5 py-1 rounded-xl border border-red-900/50 mt-1 flex items-center gap-1.5">
+                              <span>⚠️ Error: {log.metadata.error}</span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="text-[11px] text-stone-500 whitespace-nowrap self-start sm:self-auto font-mono">

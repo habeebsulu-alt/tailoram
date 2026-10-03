@@ -234,8 +234,6 @@ export async function triggerEmailNotification(
     },
   };
 
-  logEmailNotification(logEntry);
-
   const emailHtml = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px; color: #1c1917; border: 1px solid #e7e5e4; border-radius: 20px; background-color: #ffffff;">
       <div style="text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #fef3c7;">
@@ -285,13 +283,27 @@ export async function triggerEmailNotification(
 
       const resData = await response.json();
       if (response.ok && resData.success) {
+        logEmailNotification({
+          ...logEntry,
+          status: 'sent',
+          metadata: { ...logEntry.metadata, messageId: resData.messageId },
+        });
         return { status: 'sent', message: 'Email dispatched successfully via Spacemail (SMTP)!' };
       } else {
-        console.warn('SMTP dispatch failed:', resData.error);
-        return { status: 'failed', message: resData.error || 'SMTP delivery failed.' };
+        const errorMsg = resData.error || 'SMTP delivery failed.';
+        logEmailNotification({
+          ...logEntry,
+          status: 'failed',
+          metadata: { ...logEntry.metadata, error: errorMsg },
+        });
+        return { status: 'failed', message: errorMsg };
       }
     } catch (err: any) {
-      console.warn('SMTP fetch exception:', err);
+      logEmailNotification({
+        ...logEntry,
+        status: 'failed',
+        metadata: { ...logEntry.metadata, error: err.message },
+      });
       return { status: 'failed', message: err.message };
     }
   }
@@ -314,13 +326,22 @@ export async function triggerEmailNotification(
       });
 
       if (response.ok) {
+        logEmailNotification({ ...logEntry, status: 'sent' });
         return { status: 'sent', message: 'Email dispatched successfully via Resend.' };
+      } else {
+        const resData = await response.json().catch(() => ({}));
+        const errText = resData?.message || 'Resend API error';
+        logEmailNotification({ ...logEntry, status: 'failed', metadata: { ...logEntry.metadata, error: errText } });
+        return { status: 'failed', message: errText };
       }
     } catch (err: any) {
-      console.warn('Resend dispatch error:', err);
+      logEmailNotification({ ...logEntry, status: 'failed', metadata: { ...logEntry.metadata, error: err.message } });
+      return { status: 'failed', message: err.message };
     }
   }
 
+  // Fallback to simulated mode
+  logEmailNotification({ ...logEntry, status: 'simulated' });
   return {
     status: 'simulated',
     message: `[Simulated] Notification logged for ${params.recipientEmail}: "${params.subject}"`,
