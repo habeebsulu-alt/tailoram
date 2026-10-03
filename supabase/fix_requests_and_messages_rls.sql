@@ -1,10 +1,11 @@
 -- ==============================================================================
--- Tailoram - Fix Requests & Messages Row Level Security (RLS)
--- Fixes: "new row violates row-level security policy for table 'requests'"
+-- Tailoram - Fix Requests, Messages & Reviews Row Level Security (RLS)
+-- Supports: Bespoke Requests, Body Measurements, Realtime Chat, & Bidirectional Reviews
 -- Run this in your Supabase SQL Editor (Dashboard -> SQL Editor -> New Query)
 -- ==============================================================================
 
--- 1. Ensure public.requests has fully permissive RLS for client requests & demo sessions
+-- 1. Ensure public.requests has column for measurements and fully permissive RLS
+alter table public.requests add column if not exists measurements jsonb;
 alter table public.requests enable row level security;
 
 drop policy if exists "Clients can create requests" on public.requests;
@@ -40,7 +41,42 @@ create policy "Allow deleting requests"
 grant all on public.requests to anon, authenticated, service_role;
 
 
--- 2. Ensure public.messages has fully permissive RLS
+-- 2. Ensure public.reviews allows bidirectional order reviews (Client-to-Designer & Designer-to-Client)
+alter table public.reviews add column if not exists reviewer_id uuid;
+alter table public.reviews add column if not exists reviewee_id uuid;
+alter table public.reviews enable row level security;
+
+drop policy if exists "Reviews are viewable by everyone" on public.reviews;
+drop policy if exists "Clients can submit reviews" on public.reviews;
+drop policy if exists "Clients can update their own reviews" on public.reviews;
+drop policy if exists "Clients can delete their own reviews" on public.reviews;
+drop policy if exists "Participants can submit reviews" on public.reviews;
+drop policy if exists "Allow viewing reviews" on public.reviews;
+drop policy if exists "Allow inserting reviews" on public.reviews;
+drop policy if exists "Allow updating reviews" on public.reviews;
+drop policy if exists "Allow deleting reviews" on public.reviews;
+
+create policy "Allow viewing reviews"
+  on public.reviews for select
+  using (true);
+
+create policy "Allow inserting reviews"
+  on public.reviews for insert
+  with check (true);
+
+create policy "Allow updating reviews"
+  on public.reviews for update
+  using (true)
+  with check (true);
+
+create policy "Allow deleting reviews"
+  on public.reviews for delete
+  using (true);
+
+grant all on public.reviews to anon, authenticated, service_role;
+
+
+-- 3. Ensure public.messages has fully permissive RLS
 alter table public.messages enable row level security;
 
 drop policy if exists "Participants can read messages" on public.messages;
@@ -59,7 +95,7 @@ create policy "Allow sending messages"
 grant all on public.messages to anon, authenticated, service_role;
 
 
--- 3. Ensure public.payments has fully permissive RLS
+-- 4. Ensure public.payments has fully permissive RLS
 alter table if exists public.payments enable row level security;
 
 drop policy if exists "Participants can view request payments" on public.payments;
@@ -78,7 +114,7 @@ create policy "Allow inserting payments"
 grant all on public.payments to anon, authenticated, service_role;
 
 
--- 4. Ensure storage bucket 'requests' exists and allows image uploads
+-- 5. Ensure storage bucket 'requests' exists and allows image uploads
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'requests',
@@ -110,8 +146,7 @@ create policy "Allow delete requests bucket"
   using (bucket_id = 'requests');
 
 
--- 5. Security Definer RPC for Guaranteed Request Submission
--- This function bypasses all RLS checks directly on the database level
+-- 6. Security Definer RPC for Guaranteed Request Submission (with Body Measurements support)
 create or replace function public.create_custom_request(
   p_client_id uuid,
   p_designer_id uuid,
@@ -120,7 +155,8 @@ create or replace function public.create_custom_request(
   p_budget_min numeric default 0,
   p_budget_max numeric default null,
   p_deadline text default null,
-  p_reference_image_url text default null
+  p_reference_image_url text default null,
+  p_measurements jsonb default null
 )
 returns uuid
 language plpgsql
@@ -139,6 +175,7 @@ begin
     budget_max,
     deadline,
     reference_image_url,
+    measurements,
     status
   )
   values (
@@ -150,6 +187,7 @@ begin
     p_budget_max,
     case when p_deadline is not null and p_deadline <> '' then p_deadline::date else null end,
     p_reference_image_url,
+    p_measurements,
     'pending'
   )
   returning id into v_request_id;
@@ -159,7 +197,7 @@ end;
 $$;
 
 -- Grant execution permissions
-grant execute on function public.create_custom_request(uuid, uuid, text, text, numeric, numeric, text, text) to anon, authenticated, service_role;
+grant execute on function public.create_custom_request(uuid, uuid, text, text, numeric, numeric, text, text, jsonb) to anon, authenticated, service_role;
 
--- 6. Reload schema cache for PostgREST
+-- 7. Reload schema cache for PostgREST
 notify pgrst, 'reload schema';

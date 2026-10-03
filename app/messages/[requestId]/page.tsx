@@ -19,6 +19,7 @@ import {
 import PaymentModal from '@/components/PaymentModal';
 import QuoteModal from '@/components/QuoteModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
+import MeasurementsModal from '@/components/MeasurementsModal';
 import {
   ArrowLeft,
   Send,
@@ -39,6 +40,7 @@ import {
   ChevronRight,
   ShieldCheck,
   Package,
+  Ruler,
 } from 'lucide-react';
 
 export default function MessageChatPage() {
@@ -60,6 +62,7 @@ export default function MessageChatPage() {
   const [paymentType, setPaymentType] = useState<'deposit' | 'balance'>('deposit');
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [measurementsModalOpen, setMeasurementsModalOpen] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -408,6 +411,16 @@ export default function MessageChatPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {request.measurements && (
+            <button
+              type="button"
+              onClick={() => setMeasurementsModalOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+            >
+              <Ruler className="w-3.5 h-3.5 text-amber-700" />
+              <span>Measurements</span>
+            </button>
+          )}
           {isClient && designer && (
             <Link
               href={`/designer/${designer.id}`}
@@ -818,6 +831,17 @@ export default function MessageChatPage() {
           onReviewSubmitted={() => {
             setHasReviewed(true);
           }}
+        />
+      )}
+
+      {/* Modal 4: Client Measurements Modal */}
+      {request.measurements && (
+        <MeasurementsModal
+          isOpen={measurementsModalOpen}
+          onClose={() => setMeasurementsModalOpen(false)}
+          measurements={request.measurements}
+          clientName={clientProfile?.full_name || 'Client'}
+          orderNumber={request.id.slice(0, 8)}
         />
       )}
 

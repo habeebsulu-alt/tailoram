@@ -15,7 +15,7 @@ import {
   getDesignerGender,
 } from '@/lib/types';
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
-import { fetchManualRatings, computeEffectiveRating, ManualRatingData } from '@/lib/ratingsManager';
+import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, ManualRatingData } from '@/lib/ratingsManager';
 import {
   Scissors,
   MapPin,
@@ -263,11 +263,13 @@ export default function DesignerProfilePage() {
             .eq('designer_id', designerId)
             .order('created_at', { ascending: false });
 
-          if (rData) {
-            setReviews(rData as Review[]);
-          }
+          const rawRevs = (rData as Review[]) || [];
+          const mergedRevs = mergeWithLocalReviews(rawRevs, designerId);
+          setReviews(mergedRevs);
         } catch (revErr) {
           console.warn('Reviews table might not be initialized yet');
+          const mergedRevs = mergeWithLocalReviews([], designerId);
+          setReviews(mergedRevs);
         }
 
         // 4. Fetch store products if store enabled

@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { logEvent } from '@/lib/analytics';
 import { compressImage } from '@/lib/imageCompressor';
-import { DesignerProfile, OutfitRequest } from '@/lib/types';
+import { DesignerProfile, OutfitRequest, ClientMeasurements } from '@/lib/types';
 import { saveLocalCreatedRequest } from '@/lib/payments';
 import {
   ArrowLeft,
@@ -21,6 +21,9 @@ import {
   Scissors,
   Sparkles,
   X,
+  Ruler,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 function RequestForm() {
@@ -46,6 +49,23 @@ function RequestForm() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(inspoUrl || null);
   const [inspoPhotoUrl, setInspoPhotoUrl] = useState<string | null>(inspoUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Optional Body Measurements
+  const [showMeasurements, setShowMeasurements] = useState(false);
+  const [measurements, setMeasurements] = useState<ClientMeasurements>({
+    chest: '',
+    shoulder: '',
+    sleeve: '',
+    neck: '',
+    waist: '',
+    hips: '',
+    top_length: '',
+    trouser_length: '',
+    thigh: '',
+    agbada_length: '',
+    fit_preference: 'regular',
+    notes: '',
+  });
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -168,28 +188,73 @@ function RequestForm() {
       // Multi-tier resilient insert (Standard -> Security Definer RPC -> Local Persistence)
       let createdRequestId: string | null = null;
 
+      // Extract cleaned measurements if provided
+      const cleanedMeasurements: ClientMeasurements = {};
+      if (showMeasurements) {
+        if (measurements.chest?.trim()) cleanedMeasurements.chest = measurements.chest.trim();
+        if (measurements.shoulder?.trim()) cleanedMeasurements.shoulder = measurements.shoulder.trim();
+        if (measurements.sleeve?.trim()) cleanedMeasurements.sleeve = measurements.sleeve.trim();
+        if (measurements.neck?.trim()) cleanedMeasurements.neck = measurements.neck.trim();
+        if (measurements.waist?.trim()) cleanedMeasurements.waist = measurements.waist.trim();
+        if (measurements.hips?.trim()) cleanedMeasurements.hips = measurements.hips.trim();
+        if (measurements.top_length?.trim()) cleanedMeasurements.top_length = measurements.top_length.trim();
+        if (measurements.trouser_length?.trim()) cleanedMeasurements.trouser_length = measurements.trouser_length.trim();
+        if (measurements.thigh?.trim()) cleanedMeasurements.thigh = measurements.thigh.trim();
+        if (measurements.agbada_length?.trim()) cleanedMeasurements.agbada_length = measurements.agbada_length.trim();
+        if (measurements.fit_preference) cleanedMeasurements.fit_preference = measurements.fit_preference;
+        if (measurements.notes?.trim()) cleanedMeasurements.notes = measurements.notes.trim();
+      }
+      const hasMeasurements = Object.keys(cleanedMeasurements).length > 0;
+      const finalMeasurements = hasMeasurements ? cleanedMeasurements : null;
+
       // 1. Attempt standard Supabase insert
       try {
+        const insertPayload: any = {
+          client_id: user.id,
+          designer_id: designerId,
+          style_description: styleDescription.trim(),
+          fabric: fabric.trim() || null,
+          budget_min: minBudget,
+          budget_max: maxBudget,
+          deadline: deadline || null,
+          reference_image_url: referenceImageUrl,
+          status: 'pending',
+        };
+        if (finalMeasurements) {
+          insertPayload.measurements = finalMeasurements;
+        }
+
         const { data: requestData, error: requestError } = await supabase
           .from('requests')
-          .insert([{
-            client_id: user.id,
-            designer_id: designerId,
-            style_description: styleDescription.trim(),
-            fabric: fabric.trim() || null,
-            budget_min: minBudget,
-            budget_max: maxBudget,
-            deadline: deadline || null,
-            reference_image_url: referenceImageUrl,
-            status: 'pending',
-          }])
+          .insert([insertPayload])
           .select('id')
           .single();
 
         if (!requestError && requestData?.id) {
           createdRequestId = requestData.id;
         } else if (requestError) {
-          console.warn('Standard insert encountered an issue, testing RPC fallback:', requestError.message);
+          console.warn('Standard insert encountered an issue, testing fallback without measurements or with RPC:', requestError.message);
+          // If error was about missing measurements column, retry without measurements column
+          if (requestError.message?.includes('measurements')) {
+            const { data: retryData, error: retryError } = await supabase
+              .from('requests')
+              .insert([{
+                client_id: user.id,
+                designer_id: designerId,
+                style_description: styleDescription.trim(),
+                fabric: fabric.trim() || null,
+                budget_min: minBudget,
+                budget_max: maxBudget,
+                deadline: deadline || null,
+                reference_image_url: referenceImageUrl,
+                status: 'pending',
+              }])
+              .select('id')
+              .single();
+            if (!retryError && retryData?.id) {
+              createdRequestId = retryData.id;
+            }
+          }
         }
       } catch (insertErr) {
         console.warn('Insert exception:', insertErr);
@@ -207,6 +272,7 @@ function RequestForm() {
             p_budget_max: maxBudget,
             p_deadline: deadline || null,
             p_reference_image_url: referenceImageUrl,
+            p_measurements: finalMeasurements,
           });
 
           if (!rpcError && rpcId) {
@@ -233,6 +299,7 @@ function RequestForm() {
         budget_max: maxBudget ?? null,
         deadline: deadline || null,
         reference_image_url: referenceImageUrl || null,
+        measurements: finalMeasurements,
         status: 'pending',
         created_at: new Date().toISOString(),
         designer: designer || undefined,
@@ -240,13 +307,22 @@ function RequestForm() {
       };
       saveLocalCreatedRequest(localRequestObj);
 
-      // Post initial request message into consultation chat if possible
+      // Post initial request message into consultation chat with measurements summary
       try {
+        const measurementSummary = hasMeasurements
+          ? Object.entries(cleanedMeasurements)
+              .filter(([k, v]) => k !== 'fit_preference' && k !== 'notes' && v)
+              .map(([k, v]) => `• ${k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}: ${v}"`)
+              .join('\n')
+          : '';
+
+        const chatContent = `👋 New bespoke request submitted:\n"${styleDescription.trim()}"\nBudget: ₦${minBudget.toLocaleString()}${maxBudget ? ` - ₦${maxBudget.toLocaleString()}` : ''}${deadline ? `\nTarget Delivery: ${new Date(deadline).toLocaleDateString()}` : ''}${hasMeasurements ? `\n\n📐 Client Body Measurements (in):\n${measurementSummary}${cleanedMeasurements.fit_preference ? `\n• Fit Preference: ${cleanedMeasurements.fit_preference.toUpperCase()}` : ''}${cleanedMeasurements.notes ? `\n• Tailoring Notes: "${cleanedMeasurements.notes}"` : ''}` : ''}`;
+
         await supabase.from('messages').insert([
           {
             request_id: finalRequestId,
             sender_id: user.id,
-            content: `👋 New bespoke request submitted:\n"${styleDescription.trim()}"\nBudget: ₦${minBudget.toLocaleString()}${maxBudget ? ` - ₦${maxBudget.toLocaleString()}` : ''}${deadline ? `\nTarget Delivery: ${new Date(deadline).toLocaleDateString()}` : ''}`,
+            content: chatContent,
           },
         ]);
       } catch (msgErr) {
@@ -485,6 +561,118 @@ function RequestForm() {
                 min={new Date().toISOString().split('T')[0]}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
+            </div>
+
+            {/* Optional Body Measurements Accordion */}
+            <div className="rounded-2xl border border-stone-200 overflow-hidden bg-stone-50/70 transition-all">
+              <button
+                type="button"
+                onClick={() => setShowMeasurements(!showMeasurements)}
+                className="w-full p-4 flex items-center justify-between text-left hover:bg-stone-100/80 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100/90 text-amber-800 flex items-center justify-center flex-shrink-0">
+                    <Ruler className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-xs sm:text-sm text-stone-900 flex items-center gap-1.5">
+                      Body Measurements <span className="text-stone-400 font-normal text-xs">(Optional)</span>
+                    </span>
+                    <span className="text-[11px] sm:text-xs text-stone-500 block">
+                      Provide your fitting measurements in inches so the master tailor crafts your exact fit.
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`text-[11px] sm:text-xs font-bold px-3 py-1 rounded-full border transition-all ${showMeasurements ? 'bg-amber-600 text-white border-amber-600 shadow-xs' : 'bg-white text-stone-700 border-stone-300'}`}>
+                    {showMeasurements ? 'Hide' : '+ Add Sizing'}
+                  </span>
+                  {showMeasurements ? (
+                    <ChevronUp className="w-4 h-4 text-stone-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-stone-400" />
+                  )}
+                </div>
+              </button>
+
+              {showMeasurements && (
+                <div className="p-4 sm:p-5 pt-1 space-y-4 border-t border-stone-200/80 animate-in fade-in duration-200">
+                  {/* Fit Preference */}
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+                      Preferred Cut / Fit
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: 'slim', label: 'Slim Fit' },
+                        { id: 'regular', label: 'Regular' },
+                        { id: 'comfort', label: 'Comfort' },
+                        { id: 'loose', label: 'Loose / Flow' },
+                      ].map((fit) => (
+                        <button
+                          key={fit.id}
+                          type="button"
+                          onClick={() => setMeasurements((prev) => ({ ...prev, fit_preference: fit.id as any }))}
+                          className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                            measurements.fit_preference === fit.id
+                              ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                              : 'bg-white text-stone-700 border-stone-200 hover:border-stone-300'
+                          }`}
+                        >
+                          {fit.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Sizing Grid (Inches) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {[
+                      { key: 'chest', label: 'Chest / Bust (in)', placeholder: 'e.g. 42' },
+                      { key: 'shoulder', label: 'Shoulder (in)', placeholder: 'e.g. 18.5' },
+                      { key: 'sleeve', label: 'Sleeve Length (in)', placeholder: 'e.g. 25' },
+                      { key: 'neck', label: 'Neck (in)', placeholder: 'e.g. 16' },
+                      { key: 'waist', label: 'Waist (in)', placeholder: 'e.g. 34' },
+                      { key: 'hips', label: 'Hips (in)', placeholder: 'e.g. 40' },
+                      { key: 'top_length', label: 'Top / Kaftan (in)', placeholder: 'e.g. 38' },
+                      { key: 'trouser_length', label: 'Trouser Length (in)', placeholder: 'e.g. 41' },
+                      { key: 'thigh', label: 'Thigh / Lap (in)', placeholder: 'e.g. 24' },
+                      { key: 'agbada_length', label: 'Agbada Flow (in)', placeholder: 'e.g. 52' },
+                    ].map((item) => (
+                      <div key={item.key}>
+                        <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+                          {item.label}
+                        </label>
+                        <input
+                          type="text"
+                          value={(measurements as any)[item.key] || ''}
+                          onChange={(e) =>
+                            setMeasurements((prev) => ({ ...prev, [item.key]: e.target.value }))
+                          }
+                          placeholder={item.placeholder}
+                          className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+                      Fit Notes / Tailor Instructions (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={measurements.notes || ''}
+                      onChange={(e) =>
+                        setMeasurements((prev) => ({ ...prev, notes: e.target.value }))
+                      }
+                      placeholder="e.g. Broad shoulders, fitted cuffs for cufflinks, or high-waist cut"
+                      className="w-full px-3.5 py-2 rounded-xl border border-stone-300 bg-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Reference Image */}

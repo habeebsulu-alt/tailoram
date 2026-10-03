@@ -157,10 +157,26 @@ export interface OutfitRequest {
   deposit_paid_at?: string | null;
   balance_amount?: number | null;
   balance_paid_at?: string | null;
+  measurements?: ClientMeasurements | Record<string, any> | null;
   created_at: string;
   // Joined relations
   designer?: DesignerProfile;
   client?: Profile;
+}
+
+export interface ClientMeasurements {
+  chest?: string;
+  shoulder?: string;
+  sleeve?: string;
+  neck?: string;
+  waist?: string;
+  hips?: string;
+  top_length?: string;
+  trouser_length?: string;
+  thigh?: string;
+  agbada_length?: string;
+  fit_preference?: 'slim' | 'regular' | 'comfort' | 'loose' | string;
+  notes?: string;
 }
 
 export interface Payment {

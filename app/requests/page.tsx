@@ -15,6 +15,7 @@ import {
 } from '@/lib/payments';
 import PaymentModal from '@/components/PaymentModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
+import MeasurementsModal from '@/components/MeasurementsModal';
 import {
   Scissors,
   MessageSquare,
@@ -32,6 +33,7 @@ import {
   CreditCard,
   Check,
   Package,
+  Ruler,
 } from 'lucide-react';
 
 export default function ClientRequestsPage() {
@@ -50,6 +52,8 @@ export default function ClientRequestsPage() {
   const [targetReviewRequest, setTargetReviewRequest] = useState<OutfitRequest | null>(null);
   const [reviewedRequestIds, setReviewedRequestIds] = useState<string[]>([]);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [measurementsModalOpen, setMeasurementsModalOpen] = useState(false);
+  const [selectedMeasurementsRequest, setSelectedMeasurementsRequest] = useState<OutfitRequest | null>(null);
 
   const fetchRequests = async (clientId: string) => {
     try {
@@ -332,6 +336,19 @@ export default function ClientRequestsPage() {
                     {req.deadline && (
                       <span>Needed: <strong className="text-stone-900">{new Date(req.deadline).toLocaleDateString()}</strong></span>
                     )}
+                    {req.measurements && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMeasurementsRequest(req);
+                          setMeasurementsModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 text-[11px] font-bold transition-colors cursor-pointer"
+                      >
+                        <Ruler className="w-3.5 h-3.5 text-amber-700" />
+                        <span>My Measurements</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -448,6 +465,20 @@ export default function ClientRequestsPage() {
           onReviewSubmitted={() => {
             if (user) fetchRequests(user.id);
           }}
+        />
+      )}
+
+      {/* Client Measurements Inspection Modal */}
+      {selectedMeasurementsRequest?.measurements && (
+        <MeasurementsModal
+          isOpen={measurementsModalOpen}
+          onClose={() => {
+            setMeasurementsModalOpen(false);
+            setSelectedMeasurementsRequest(null);
+          }}
+          measurements={selectedMeasurementsRequest.measurements}
+          clientName={profile?.full_name || 'My Sizing'}
+          orderNumber={selectedMeasurementsRequest.id.slice(0, 8)}
         />
       )}
 

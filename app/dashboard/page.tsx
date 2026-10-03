@@ -17,7 +17,7 @@ import {
   StoreProduct,
   STORE_CATEGORIES,
 } from '@/lib/types';
-import { fetchManualRatings, computeEffectiveRating, ManualRatingData } from '@/lib/ratingsManager';
+import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, ManualRatingData } from '@/lib/ratingsManager';
 import {
   markOrderReadyForBalance,
   getLocalRequestOverrides,
@@ -26,6 +26,7 @@ import {
 } from '@/lib/payments';
 import QuoteModal from '@/components/QuoteModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
+import MeasurementsModal from '@/components/MeasurementsModal';
 import {
   Scissors,
   Upload,
@@ -61,6 +62,7 @@ import {
   Pencil,
   RefreshCw,
   FileText,
+  Ruler,
 } from 'lucide-react';
 
 export default function DesignerDashboard() {
@@ -109,6 +111,8 @@ export default function DesignerDashboard() {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [targetReviewRequest, setTargetReviewRequest] = useState<OutfitRequest | null>(null);
   const [reviewedClientIds, setReviewedClientIds] = useState<string[]>([]);
+  const [measurementsModalOpen, setMeasurementsModalOpen] = useState(false);
+  const [selectedMeasurementsRequest, setSelectedMeasurementsRequest] = useState<OutfitRequest | null>(null);
 
   // Reviews state
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -304,11 +308,13 @@ export default function DesignerDashboard() {
         .eq('designer_id', designerId)
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        setReviews(data as Review[]);
-      }
+      const rawRevs = (data as Review[]) || [];
+      const mergedRevs = mergeWithLocalReviews(rawRevs, designerId);
+      setReviews(mergedRevs);
     } catch (err) {
       console.error('Failed to load reviews:', err);
+      const mergedRevs = mergeWithLocalReviews([], designerId);
+      setReviews(mergedRevs);
     } finally {
       setLoadingReviews(false);
     }
@@ -1905,6 +1911,23 @@ export default function DesignerDashboard() {
                           />
                         </div>
                       )}
+
+                      {/* Client Body Measurements if provided */}
+                      {req.measurements && (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedMeasurementsRequest(req);
+                              setMeasurementsModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            <Ruler className="w-3.5 h-3.5 text-amber-700" />
+                            <span>View Client Measurements</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Actions Bar */}
@@ -3366,6 +3389,20 @@ export default function DesignerDashboard() {
           onReviewSubmitted={() => {
             if (designerProfile?.id) loadRequests(designerProfile.id);
           }}
+        />
+      )}
+
+      {/* Client Measurements Inspection Modal */}
+      {selectedMeasurementsRequest?.measurements && (
+        <MeasurementsModal
+          isOpen={measurementsModalOpen}
+          onClose={() => {
+            setMeasurementsModalOpen(false);
+            setSelectedMeasurementsRequest(null);
+          }}
+          measurements={selectedMeasurementsRequest.measurements}
+          clientName={selectedMeasurementsRequest.client?.full_name || 'Client'}
+          orderNumber={selectedMeasurementsRequest.id.slice(0, 8)}
         />
       )}
 

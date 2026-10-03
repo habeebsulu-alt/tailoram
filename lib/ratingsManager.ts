@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { Review } from '@/lib/types';
 
 export interface ManualRatingData {
   rating: number;
@@ -8,6 +9,48 @@ export interface ManualRatingData {
 }
 
 const LOCAL_STORAGE_KEY = 'tailoram_designer_ratings';
+export const LOCAL_REVIEWS_STORAGE_KEY = 'tailoram_user_reviews';
+
+/**
+ * Get locally stored user reviews (fallback for demo sessions & offline resilience)
+ */
+export function getLocalUserReviews(): Review[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_REVIEWS_STORAGE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Save user review locally
+ */
+export function saveLocalUserReview(review: Review): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const list = getLocalUserReviews();
+    const filtered = list.filter((r) => r.id !== review.id);
+    filtered.unshift(review);
+    localStorage.setItem(LOCAL_REVIEWS_STORAGE_KEY, JSON.stringify(filtered));
+  } catch (e) {
+    console.warn('Could not save local review:', e);
+  }
+}
+
+/**
+ * Merge remote Supabase reviews with locally created reviews
+ */
+export function mergeWithLocalReviews(remoteReviews: Review[], designerId?: string): Review[] {
+  const localList = getLocalUserReviews();
+  const relevantLocal = designerId
+    ? localList.filter((r) => r.designer_id === designerId)
+    : localList;
+
+  const existingIds = new Set(remoteReviews.map((r) => r.id));
+  const newFromLocal = relevantLocal.filter((r) => !existingIds.has(r.id));
+  return [...newFromLocal, ...remoteReviews];
+}
 
 /**
  * Read manual ratings from localStorage (instant zero-latency client access)

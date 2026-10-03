@@ -22,6 +22,7 @@ import {
   saveManualRating,
   removeManualRating,
   computeEffectiveRating,
+  mergeWithLocalReviews,
   ManualRatingData,
 } from '@/lib/ratingsManager';
 import {
@@ -223,9 +224,9 @@ export default function AdminPage() {
         .select('*, client:client_id(full_name), designer:designer_id(business_name)')
         .order('created_at', { ascending: false });
 
-      if (!revErr && revData) {
-        setReviewsList(revData as Review[]);
-      }
+      const rawRevs = (revData as Review[]) || [];
+      const mergedRevs = mergeWithLocalReviews(rawRevs);
+      setReviewsList(mergedRevs);
 
       // 6. Analytics Events
       const { data: evData, error: evErr } = await supabase

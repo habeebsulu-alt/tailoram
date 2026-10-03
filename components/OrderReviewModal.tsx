@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { OutfitRequest } from '@/lib/types';
+import { OutfitRequest, Review } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { saveLocalUserReview } from '@/lib/ratingsManager';
 import {
   X,
   Star,
@@ -53,43 +54,56 @@ export default function OrderReviewModal({
       setSubmitting(true);
       setError(null);
 
-      const reviewRecord: any = {
+      const reviewId = `rev-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const reviewRecord: Review = {
+        id: reviewId,
         request_id: request.id,
+        designer_id: request.designer_id,
+        client_id: isClientReviewingDesigner ? reviewerId : revieweeId,
         reviewer_id: reviewerId,
         reviewee_id: revieweeId,
         rating,
         comment: comment.trim() || null,
         created_at: new Date().toISOString(),
+        client: isClientReviewingDesigner
+          ? (request.client || { id: reviewerId, full_name: 'Client', role: 'client', created_at: '' })
+          : { id: revieweeId, full_name: revieweeName || 'Client', role: 'client', created_at: '' },
+        designer: request.designer || { business_name: revieweeName || 'Studio' },
       };
 
-      // If client reviewing designer, also set designer_id and client_id for backward compatibility
-      if (isClientReviewingDesigner) {
-        reviewRecord.designer_id = request.designer_id;
-        reviewRecord.client_id = reviewerId;
-      } else {
-        reviewRecord.designer_id = request.designer_id;
-        reviewRecord.client_id = revieweeId;
-      }
-
-      // 1. Save to Supabase reviews table
-      const { error: revErr } = await supabase
-        .from('reviews')
-        .insert([reviewRecord]);
-
-      if (revErr) {
-        console.warn('Could not insert review in Supabase:', revErr.message);
-      }
-
-      // 2. Save locally for demo fallback
+      // 1. Save locally for zero-latency, demo resilience, and admin/designer visibility
+      saveLocalUserReview(reviewRecord);
       if (typeof window !== 'undefined') {
-        try {
-          const key = `tailoram_request_review_${request.id}_${reviewerId}`;
-          localStorage.setItem(key, JSON.stringify(reviewRecord));
-          
-          const revList = JSON.parse(localStorage.getItem('tailoram_user_reviews') || '[]');
-          revList.push(reviewRecord);
-          localStorage.setItem('tailoram_user_reviews', JSON.stringify(revList));
-        } catch {}
+        const key = `tailoram_request_review_${request.id}_${reviewerId}`;
+        localStorage.setItem(key, JSON.stringify(reviewRecord));
+      }
+
+      // 2. Save to Supabase reviews table (with fallback for legacy columns)
+      try {
+        const { error: revErr } = await supabase.from('reviews').insert([{
+          id: reviewId,
+          request_id: request.id,
+          designer_id: request.designer_id,
+          client_id: isClientReviewingDesigner ? reviewerId : revieweeId,
+          reviewer_id: reviewerId,
+          reviewee_id: revieweeId,
+          rating,
+          comment: comment.trim() || null,
+        }]);
+
+        if (revErr) {
+          console.warn('Full review insert failed, attempting standard schema insert:', revErr.message);
+          // Fallback to standard schema without reviewer_id/reviewee_id
+          await supabase.from('reviews').insert([{
+            designer_id: request.designer_id,
+            client_id: isClientReviewingDesigner ? reviewerId : revieweeId,
+            rating,
+            comment: comment.trim() || null,
+            request_id: request.id,
+          }]);
+        }
+      } catch (dbErr) {
+        console.warn('Supabase review insert exception:', dbErr);
       }
 
       setSuccess(true);
