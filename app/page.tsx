@@ -47,12 +47,26 @@ import {
 } from 'lucide-react';
 
 const NIGERIAN_HUBS = [
-  { state: 'Lagos', name: 'Lagos', desc: 'Lekki, Ikeja, VI, Yaba, Surulere', lat: 6.5244, lng: 3.3792 },
-  { state: 'Abuja (FCT)', name: 'Abuja', desc: 'Maitama, Wuse II, Garki, Jabi', lat: 9.0765, lng: 7.3986 },
-  { state: 'Rivers (Port Harcourt)', name: 'Port Harcourt', desc: 'Old GRA, Peter Odili, D-Line', lat: 4.8156, lng: 7.0498 },
-  { state: 'Oyo (Ibadan)', name: 'Ibadan', desc: 'Bodija, Ring Road, Jericho', lat: 7.3775, lng: 3.9470 },
-  { state: 'Kano', name: 'Kano', desc: 'Nassarawa GRA, Bompai, City Center', lat: 12.0022, lng: 8.5920 },
-  { state: 'Enugu', name: 'Enugu', desc: 'Independence Layout, New Haven, GRA', lat: 6.4584, lng: 7.5464 },
+  { state: 'Lagos', name: 'Lagos', desc: 'Lekki, Lagos Island, Ikeja, VI, Ikoyi, Yaba, Surulere', lat: 6.5244, lng: 3.3792 },
+  { state: 'Abuja (FCT)', name: 'Abuja', desc: 'Maitama, Wuse II, Garki, Jabi, Gwarinpa, Asokoro', lat: 9.0765, lng: 7.3986 },
+  { state: 'Rivers (Port Harcourt)', name: 'Port Harcourt', desc: 'Old GRA, Peter Odili, D-Line, Trans-Amadi, Woji', lat: 4.8156, lng: 7.0498 },
+  { state: 'Oyo (Ibadan)', name: 'Ibadan', desc: 'Bodija, Ring Road, Jericho, Dugbe, Oluyole', lat: 7.3775, lng: 3.9470 },
+  { state: 'Kano', name: 'Kano', desc: 'Nassarawa GRA, Bompai, Sabon Gari, City Center', lat: 12.0022, lng: 8.5920 },
+  { state: 'Enugu', name: 'Enugu', desc: 'Independence Layout, New Haven, GRA, Trans-Ekulu', lat: 6.4584, lng: 7.5464 },
+  { state: 'Anambra', name: 'Onitsha & Awka', desc: 'Onitsha Main, Awka GRA, Nnewi, Fegge', lat: 6.1498, lng: 6.7856 },
+  { state: 'Delta', name: 'Asaba & Warri', desc: 'Asaba GRA, Warri GRA, Effurun, Okpanam', lat: 6.1984, lng: 6.7327 },
+  { state: 'Edo', name: 'Benin City', desc: 'GRA Benin, Airport Road, Uselu, Sapele Road', lat: 6.3350, lng: 5.6037 },
+  { state: 'Kwara', name: 'Ilorin', desc: 'GRA Ilorin, Fate Road, Tanke, Adewole', lat: 8.4966, lng: 4.5421 },
+  { state: 'Ogun', name: 'Abeokuta & Ota', desc: 'Abeokuta GRA, Ijebu Ode, Sagamu, Mowe, Ota', lat: 7.1557, lng: 3.3451 },
+  { state: 'Kaduna', name: 'Kaduna', desc: 'Barnawa, Malali, Kaduna GRA, Sabon Tasha, Zaria', lat: 10.5105, lng: 7.4165 },
+  { state: 'Abia', name: 'Aba & Umuahia', desc: 'Aba Commercial Hub, Faulks Road, Umuahia GRA', lat: 5.1065, lng: 7.3667 },
+  { state: 'Akwa Ibom', name: 'Uyo', desc: 'Ewet Housing, Shelter Afrique, Osongama, Ikot Ekpene', lat: 5.0377, lng: 7.9128 },
+  { state: 'Cross River', name: 'Calabar', desc: 'Calabar Municipal, State Housing, Calabar South', lat: 4.9757, lng: 8.3417 },
+  { state: 'Plateau', name: 'Jos', desc: 'Rayfield GRA, Jos Central, Bukuru, Terminus', lat: 9.8965, lng: 8.8583 },
+  { state: 'Imo', name: 'Owerri', desc: 'Aladinma, Ikenegbu, New Owerri, Concorde Axis', lat: 5.4836, lng: 7.0333 },
+  { state: 'Osun', name: 'Osogbo & Ile-Ife', desc: 'Osogbo Central, GRA, Ile-Ife, Ilesa, Ede', lat: 7.7827, lng: 4.5418 },
+  { state: 'Ondo', name: 'Akure', desc: 'Alagbaka GRA, Ijapo Estate, Ondo City, Owo', lat: 7.2571, lng: 5.2058 },
+  { state: 'Benue', name: 'Makurdi', desc: 'High Level, Wurukum, North Bank, Gboko', lat: 7.7322, lng: 8.5214 },
 ];
 
 interface HeroSlide {
@@ -1379,18 +1393,18 @@ export default function HomePage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[60vh] overflow-y-auto pr-1">
               {NIGERIAN_HUBS.map((hub) => (
                 <button
                   key={hub.state}
                   onClick={() => handleSelectCityNearMe(hub.state, hub.name)}
-                  className="p-3.5 rounded-2xl border border-stone-200 hover:border-brand-500 hover:bg-brand-50/50 text-left transition-all group flex flex-col justify-between"
+                  className="p-3 rounded-2xl border border-stone-200 hover:border-brand-500 hover:bg-brand-50/50 text-left transition-all group flex flex-col justify-between"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-stone-900 group-hover:text-brand-700">
+                    <span className="font-bold text-xs sm:text-sm text-stone-900 group-hover:text-brand-700">
                       {hub.name}
                     </span>
-                    <MapPin className="w-4 h-4 text-stone-400 group-hover:text-brand-600 transition-colors" />
+                    <MapPin className="w-3.5 h-3.5 text-stone-400 group-hover:text-brand-600 transition-colors shrink-0" />
                   </div>
                   <p className="text-[11px] text-stone-500 mt-1 line-clamp-1">
                     {hub.desc}
