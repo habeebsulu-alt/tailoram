@@ -234,6 +234,7 @@ begin
     insert into public.designer_profiles (
       user_id,
       business_name,
+      bio,
       state,
       city,
       area,
@@ -243,6 +244,7 @@ begin
     values (
       new.id,
       coalesce(new.raw_user_meta_data->>'business_name', full_name),
+      new.raw_user_meta_data->>'bio',
       coalesce(new.raw_user_meta_data->>'state', 'Lagos'),
       coalesce(new.raw_user_meta_data->>'city', new.raw_user_meta_data->>'state', 'Lagos'),
       coalesce(new.raw_user_meta_data->>'area', 'Ikeja'),

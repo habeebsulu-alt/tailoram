@@ -19,6 +19,7 @@ export default function SignUpPage() {
   
   // Designer-specific fields across Nigeria
   const [businessName, setBusinessName] = useState('');
+  const [bio, setBio] = useState('');
   const [selectedState, setSelectedState] = useState<string>('Lagos');
   const [area, setArea] = useState<string>(STATE_AREAS['Lagos'][0]);
   const [customArea, setCustomArea] = useState('');
@@ -66,9 +67,15 @@ export default function SignUpPage() {
       return;
     }
 
-    if (role === 'designer' && !businessName.trim()) {
-      setErrorMessage('Please enter your business or brand name.');
-      return;
+    if (role === 'designer') {
+      if (!businessName.trim()) {
+        setErrorMessage('Please enter your business or brand name.');
+        return;
+      }
+      if (!bio.trim()) {
+        setErrorMessage('Please tell us a little about your brand (Brand Intro).');
+        return;
+      }
     }
 
     setLoading(true);
@@ -81,6 +88,7 @@ export default function SignUpPage() {
       role === 'designer'
         ? {
             businessName: businessName.trim(),
+            bio: bio.trim(),
             state: selectedState,
             city: selectedState,
             area: finalArea,
@@ -263,6 +271,28 @@ export default function SignUpPage() {
                     placeholder="e.g. Seyi Stitches & Couture"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-stone-700">
+                      Tell Us About Your Brand (Brand Intro) <span className="text-red-500">*</span>
+                    </label>
+                    <span className="text-[10px] text-stone-400 font-medium">
+                      Public Profile &amp; Search
+                    </span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    required
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    placeholder="e.g. Master bespoke tailoring brand in Lagos specializing in luxury Agbada, Senator suits, and sharp corporate tuxedos. Over 8 years of artisan craft with precise fittings and nationwide delivery."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all placeholder:text-stone-400 leading-relaxed resize-y"
+                  />
+                  <p className="text-[11px] text-stone-500 mt-1">
+                    Tell clients what makes your tailoring stand out, your signature garments, and specialties.
+                  </p>
                 </div>
 
                 {/* State & City/Area Selectors */}

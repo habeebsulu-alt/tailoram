@@ -334,6 +334,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role: UserRole,
     designerDetails?: {
       businessName: string;
+      bio?: string;
       state: string;
       city?: string;
       area: string;
@@ -354,6 +355,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             full_name: fullName,
             role: role,
             business_name: designerDetails?.businessName || fullName,
+            bio: designerDetails?.bio || null,
             state: designerDetails?.state || 'Lagos',
             city: designerDetails?.city || designerDetails?.state || 'Lagos',
             area: designerDetails?.area || 'General',
@@ -389,6 +391,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const designerInsertPayload: any = {
             user_id: newUserId,
             business_name: designerDetails.businessName || fullName,
+            bio: designerDetails.bio || null,
             state: designerDetails.state || 'Lagos',
             city: designerDetails.city || designerDetails.state || 'Lagos',
             area: designerDetails.area || 'General',
