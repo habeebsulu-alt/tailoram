@@ -107,6 +107,14 @@ export default function Navbar() {
                       <LayoutDashboard className="w-4 h-4 text-brand-600" />
                       Dashboard
                     </Link>
+                    <Link
+                      href="/requests"
+                      className="flex items-center gap-1.5 text-stone-700 hover:text-brand-600 font-medium text-sm transition-colors"
+                      title="View bespoke orders you commissioned"
+                    >
+                      <ShoppingBag className="w-4 h-4 text-brand-600" />
+                      Orders Raised
+                    </Link>
                     {designerProfile && (
                       <Link
                         href={`/designer/${designerProfile.id}`}
@@ -262,6 +270,14 @@ export default function Navbar() {
                   >
                     <LayoutDashboard className="w-4 h-4 text-brand-600" />
                     Designer Dashboard
+                  </Link>
+                  <Link
+                    href="/requests"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-2 py-2 text-sm font-medium text-stone-700 hover:text-brand-600"
+                  >
+                    <ShoppingBag className="w-4 h-4 text-brand-600" />
+                    My Raised Orders
                   </Link>
                   {designerProfile && (
                     <Link

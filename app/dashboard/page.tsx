@@ -16,6 +16,8 @@ import {
   FASHION_CATEGORIES,
   StoreProduct,
   STORE_CATEGORIES,
+  DesignerProfile,
+  ClientMeasurements,
 } from '@/lib/types';
 import { formatNigerianPhoneForInput } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
@@ -24,10 +26,16 @@ import {
   getLocalRequestOverrides,
   getLocalCreatedRequests,
   calculatePaymentBreakdown,
+  saveLocalCreatedRequest,
+  respondToQuote,
+  PaymentResult,
 } from '@/lib/payments';
+import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
 import QuoteModal from '@/components/QuoteModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
 import MeasurementsModal from '@/components/MeasurementsModal';
+import PaymentModal from '@/components/PaymentModal';
+
 import {
   Scissors,
   Upload,
@@ -64,6 +72,10 @@ import {
   RefreshCw,
   FileText,
   Ruler,
+  Send,
+  ChevronDown,
+  ChevronUp,
+  CreditCard,
 } from 'lucide-react';
 
 export default function DesignerDashboard() {
@@ -114,6 +126,49 @@ export default function DesignerDashboard() {
   const [reviewedClientIds, setReviewedClientIds] = useState<string[]>([]);
   const [measurementsModalOpen, setMeasurementsModalOpen] = useState(false);
   const [selectedMeasurementsRequest, setSelectedMeasurementsRequest] = useState<OutfitRequest | null>(null);
+
+  // Raised orders state (orders this designer commissioned as a client)
+  const [myRaisedRequests, setMyRaisedRequests] = useState<OutfitRequest[]>([]);
+  const [loadingRaisedRequests, setLoadingRaisedRequests] = useState(true);
+  const [requestViewMode, setRequestViewMode] = useState<'received' | 'raised'>('received');
+  const [allDesignersList, setAllDesignersList] = useState<DesignerProfile[]>([]);
+
+  // Raised orders payment & action states
+  const [raisedPaymentModalOpen, setRaisedPaymentModalOpen] = useState(false);
+  const [raisedPaymentType, setRaisedPaymentType] = useState<'deposit' | 'balance'>('deposit');
+  const [selectedRaisedPaymentRequest, setSelectedRaisedPaymentRequest] = useState<OutfitRequest | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  // Raise new order modal state
+  const [raiseOrderModalOpen, setRaiseOrderModalOpen] = useState(false);
+  const [raiseTargetDesignerId, setRaiseTargetDesignerId] = useState('');
+  const [raiseStyleDescription, setRaiseStyleDescription] = useState('');
+  const [raiseFabric, setRaiseFabric] = useState('');
+  const [raiseBudgetMin, setRaiseBudgetMin] = useState('');
+  const [raiseBudgetMax, setRaiseBudgetMax] = useState('');
+  const [raiseDeadline, setRaiseDeadline] = useState('');
+  const [raiseReferenceFile, setRaiseReferenceFile] = useState<File | null>(null);
+  const [raisePreviewUrl, setRaisePreviewUrl] = useState<string | null>(null);
+  const [raiseShowMeasurements, setRaiseShowMeasurements] = useState(false);
+  const [raiseMeasurements, setRaiseMeasurements] = useState<ClientMeasurements>({
+    chest: '',
+    shoulder: '',
+    sleeve: '',
+    neck: '',
+    waist: '',
+    hips: '',
+    top_length: '',
+    trouser_length: '',
+    thigh: '',
+    agbada_length: '',
+    fit_preference: 'regular',
+    notes: '',
+  });
+  const [isSubmittingRaiseOrder, setIsSubmittingRaiseOrder] = useState(false);
+  const [raiseOrderError, setRaiseOrderError] = useState('');
+  const [raiseOrderSuccess, setRaiseOrderSuccess] = useState('');
+  const raiseFileInputRef = useRef<HTMLInputElement>(null);
+
 
   // Reviews state
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -301,6 +356,52 @@ export default function DesignerDashboard() {
     }
   };
 
+  // Load orders raised by this designer (as a client/buyer)
+  const loadRaisedRequests = async (userId: string) => {
+    try {
+      setLoadingRaisedRequests(true);
+      const { data, error } = await supabase
+        .from('requests')
+        .select('*, designer:designer_id(id, business_name, state, area, profile_image_url, user_id)')
+        .eq('client_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Could not load raised requests from Supabase:', error.message);
+      }
+
+      const overrides = getLocalRequestOverrides();
+      const rawList = (data as OutfitRequest[]) || [];
+      const localCreated = getLocalCreatedRequests().filter((r) => r.client_id === userId);
+      const existingIds = new Set(rawList.map((r) => r.id));
+      const combined = [...rawList, ...localCreated.filter((r) => !existingIds.has(r.id))];
+
+      const merged = combined.map((r) => ({
+        ...r,
+        ...(overrides[r.id] || {}),
+      }));
+      setMyRaisedRequests(merged);
+    } catch (err) {
+      console.error('Failed to load raised requests:', err);
+    } finally {
+      setLoadingRaisedRequests(false);
+    }
+  };
+
+  // Load all platform designers for the "Raise Order" selector
+  const loadAllDesigners = async () => {
+    try {
+      const { data } = await supabase
+        .from('designer_profiles')
+        .select('id, business_name, state, area, profile_image_url, categories, user_id')
+        .order('business_name', { ascending: true });
+
+      if (data) {
+        setAllDesignersList(data as DesignerProfile[]);
+      }
+    } catch {}
+  };
+
   // Load reviews
   const loadReviews = async (designerId: string) => {
     try {
@@ -348,14 +449,21 @@ export default function DesignerDashboard() {
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
-    } else if (designerProfile?.id) {
-      loadPortfolio(designerProfile.id);
-      loadRequests(designerProfile.id);
-      loadReviews(designerProfile.id);
-      loadStoreProducts(designerProfile.id);
-      fetchManualRatings().then(setManualRatings);
+    } else {
+      if (designerProfile?.id) {
+        loadPortfolio(designerProfile.id);
+        loadRequests(designerProfile.id);
+        loadReviews(designerProfile.id);
+        loadStoreProducts(designerProfile.id);
+        fetchManualRatings().then(setManualRatings);
+      }
+      if (user?.id) {
+        loadRaisedRequests(user.id);
+        loadAllDesigners();
+      }
     }
   }, [user, designerProfile, authLoading, router]);
+
 
   // Handle state change for area list
   const handleStateChange = (newState: string) => {
@@ -965,6 +1073,229 @@ export default function DesignerDashboard() {
       setUpdatingRequestId(null);
     }
   };
+
+  // --- ACTIONS FOR RAISED ORDERS (Designer as Buyer) ---
+  const handleOpenRaisedPayment = (req: OutfitRequest, type: 'deposit' | 'balance') => {
+    setSelectedRaisedPaymentRequest(req);
+    setRaisedPaymentType(type);
+    setRaisedPaymentModalOpen(true);
+  };
+
+  const handleAcceptQuoteAndPayRaised = async (req: OutfitRequest) => {
+    if (!user) return;
+    try {
+      setActionLoadingId(req.id);
+      await respondToQuote({
+        requestId: req.id,
+        clientUserId: user.id,
+        accept: true,
+      });
+
+      setMyRaisedRequests((prev) =>
+        prev.map((r) => (r.id === req.id ? { ...r, status: 'accepted' } : r))
+      );
+
+      handleOpenRaisedPayment({ ...req, status: 'accepted' }, 'deposit');
+    } catch (err) {
+      console.error('Error accepting quote:', err);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeclineQuoteRaised = async (req: OutfitRequest) => {
+    if (!user) return;
+    if (!confirm('Are you sure you want to decline this quote?')) return;
+    try {
+      setActionLoadingId(req.id);
+      await respondToQuote({
+        requestId: req.id,
+        clientUserId: user.id,
+        accept: false,
+      });
+
+      setMyRaisedRequests((prev) =>
+        prev.map((r) => (r.id === req.id ? { ...r, status: 'declined' } : r))
+      );
+    } catch (err) {
+      console.error('Error declining quote:', err);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleSubmitRaiseOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRaiseOrderError('');
+    setRaiseOrderSuccess('');
+
+    if (!user) {
+      setRaiseOrderError('You must be logged in to raise an order.');
+      return;
+    }
+
+    if (!raiseTargetDesignerId) {
+      setRaiseOrderError('Please select a designer atelier to commission.');
+      return;
+    }
+
+    if (!raiseStyleDescription.trim()) {
+      setRaiseOrderError('Please describe the outfit you want tailored.');
+      return;
+    }
+
+    const minBudget = parseFloat(raiseBudgetMin);
+    if (isNaN(minBudget) || minBudget <= 0) {
+      setRaiseOrderError('Please enter a valid minimum budget in Naira.');
+      return;
+    }
+
+    const maxBudget = raiseBudgetMax ? parseFloat(raiseBudgetMax) : null;
+    if (maxBudget !== null && maxBudget < minBudget) {
+      setRaiseOrderError('Maximum budget cannot be less than minimum budget.');
+      return;
+    }
+
+    try {
+      setIsSubmittingRaiseOrder(true);
+
+      let refImageUrl: string | null = null;
+      if (raiseReferenceFile) {
+        try {
+          const compressed = await compressImage(raiseReferenceFile, 1200, 1200, 0.8);
+          const fileExt = compressed.name.split('.').pop() || 'webp';
+          const fileName = `${user.id}/${Date.now()}-ref.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('requests')
+            .upload(fileName, compressed, { cacheControl: '3600', upsert: true });
+
+          if (!uploadError) {
+            const { data: { publicUrl } } = supabase.storage.from('requests').getPublicUrl(fileName);
+            refImageUrl = publicUrl;
+          }
+        } catch (uploadErr) {
+          console.warn('Image upload error:', uploadErr);
+        }
+      }
+
+      const cleanedMeasurements: ClientMeasurements = {};
+      if (raiseShowMeasurements) {
+        Object.entries(raiseMeasurements).forEach(([k, v]) => {
+          if (v && String(v).trim()) {
+            (cleanedMeasurements as any)[k] = String(v).trim();
+          }
+        });
+      }
+      const hasMeasurements = Object.keys(cleanedMeasurements).length > 0;
+      const finalMeasurements = hasMeasurements ? cleanedMeasurements : null;
+
+      let createdRequestId: string | null = null;
+
+      try {
+        const payload: any = {
+          client_id: user.id,
+          designer_id: raiseTargetDesignerId,
+          style_description: raiseStyleDescription.trim(),
+          fabric: raiseFabric.trim() || null,
+          budget_min: minBudget,
+          budget_max: maxBudget,
+          deadline: raiseDeadline || null,
+          reference_image_url: refImageUrl,
+          status: 'pending',
+        };
+        if (finalMeasurements) {
+          payload.measurements = finalMeasurements;
+        }
+
+        const { data: rData, error: rErr } = await supabase
+          .from('requests')
+          .insert([payload])
+          .select('id')
+          .single();
+
+        if (!rErr && rData?.id) {
+          createdRequestId = rData.id;
+        }
+      } catch (insertErr) {
+        console.warn('Insert exception:', insertErr);
+      }
+
+      const finalRequestId = createdRequestId || `req-${Date.now()}`;
+      const targetDesigner = allDesignersList.find((d) => d.id === raiseTargetDesignerId);
+
+      const newOrderObj: OutfitRequest = {
+        id: finalRequestId,
+        client_id: user.id,
+        designer_id: raiseTargetDesignerId,
+        style_description: raiseStyleDescription.trim(),
+        fabric: raiseFabric.trim() || null,
+        budget_min: minBudget,
+        budget_max: maxBudget ?? null,
+        deadline: raiseDeadline || null,
+        reference_image_url: refImageUrl,
+        measurements: finalMeasurements,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        designer: targetDesigner || undefined,
+        client: profile || undefined,
+      };
+
+      saveLocalCreatedRequest(newOrderObj);
+
+      try {
+        const chatContent = `👋 New bespoke request raised by ${profile?.full_name || designerProfile?.business_name || 'Designer'}:\n"${raiseStyleDescription.trim()}"\nBudget: ₦${minBudget.toLocaleString()}${maxBudget ? ` - ₦${maxBudget.toLocaleString()}` : ''}${raiseDeadline ? `\nTarget Delivery: ${new Date(raiseDeadline).toLocaleDateString()}` : ''}`;
+        await supabase.from('messages').insert([
+          {
+            request_id: finalRequestId,
+            sender_id: user.id,
+            content: chatContent,
+          },
+        ]);
+      } catch {}
+
+      try {
+        const targetEmail = resolveUserEmail(
+          targetDesigner?.user_id,
+          (targetDesigner as any)?.email || 'designer@tailoram.com'
+        );
+        triggerEmailNotification({
+          event: 'new_request',
+          recipientEmail: targetEmail,
+          recipientName: targetDesigner?.business_name || 'Master Designer',
+          subject: `🧵 New Bespoke Commission from ${designerProfile?.business_name || profile?.full_name || 'Designer'}`,
+          previewText: `${designerProfile?.business_name || profile?.full_name || 'A designer'} has commissioned an outfit from your atelier: "${raiseStyleDescription.trim()}". Budget: ₦${minBudget.toLocaleString()}.`,
+          ctaLink: `https://tailoram.vercel.app/messages/${finalRequestId}`,
+          metadata: { requestId: finalRequestId },
+        });
+      } catch {}
+
+      setMyRaisedRequests((prev) => [newOrderObj, ...prev]);
+      setRequestViewMode('raised');
+      setRaiseOrderSuccess('Bespoke commission raised successfully! The atelier has been notified.');
+
+      setRaiseStyleDescription('');
+      setRaiseFabric('');
+      setRaiseBudgetMin('');
+      setRaiseBudgetMax('');
+      setRaiseDeadline('');
+      setRaiseReferenceFile(null);
+      setRaisePreviewUrl(null);
+      if (raiseFileInputRef.current) raiseFileInputRef.current.value = '';
+
+      setTimeout(() => {
+        setRaiseOrderModalOpen(false);
+        setRaiseOrderSuccess('');
+      }, 1500);
+
+    } catch (err: any) {
+      console.error('Error raising order:', err);
+      setRaiseOrderError(err.message || 'Could not raise order. Please try again.');
+    } finally {
+      setIsSubmittingRaiseOrder(false);
+    }
+  };
+
 
   // Save Profile Updates
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -1585,7 +1916,7 @@ export default function DesignerDashboard() {
               : 'text-stone-500 hover:text-stone-800'
           }`}
         >
-          <span>Client Requests ({requests.length})</span>
+          <span>Bespoke Orders ({requests.length + myRaisedRequests.length})</span>
           {pendingRequests.length > 0 && (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
               {pendingRequests.length} new
@@ -1817,11 +2148,63 @@ export default function DesignerDashboard() {
         </div>
       )}
 
-      {/* TAB 2: CLIENT REQUESTS */}
+      {/* TAB 2: BESPOKE ORDERS (RECEIVED & RAISED) */}
       {activeTab === 'requests' && (
         <div className="space-y-6">
-          {/* Status filter tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar text-xs">
+          {/* Header Switcher: Received Commissions vs Orders Raised */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-4">
+            <div className="flex items-center gap-2 bg-stone-100 p-1.5 rounded-2xl w-fit">
+              <button
+                type="button"
+                onClick={() => setRequestViewMode('received')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  requestViewMode === 'received'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                <Inbox className="w-4 h-4 text-brand-600" />
+                <span>Commissions Received ({requests.length})</span>
+                {pendingRequests.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
+                    {pendingRequests.length} new
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRequestViewMode('raised')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  requestViewMode === 'raised'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                <Scissors className="w-4 h-4 text-amber-600" />
+                <span>Orders Raised by Me ({myRaisedRequests.length})</span>
+              </button>
+            </div>
+
+            {/* Raise New Order Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setRaiseOrderModalOpen(true);
+                setRaiseOrderError('');
+                setRaiseOrderSuccess('');
+              }}
+              className="px-4 py-2.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-md shadow-brand-600/20 transition-all flex items-center gap-2 self-start sm:self-auto cursor-pointer active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Raise New Bespoke Order</span>
+            </button>
+          </div>
+
+          {requestViewMode === 'received' ? (
+            <div className="space-y-6">
+              {/* Status filter tabs */}
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar text-xs">
             {[
               { id: 'all', label: `All (${requests.length})` },
               { id: 'pending', label: `New Inquiries (${pendingRequests.length})` },
@@ -2079,6 +2462,265 @@ export default function DesignerDashboard() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+          ) : (
+            /* --- ORDERS RAISED BY ME (Designer as Client/Buyer) --- */
+            <div className="space-y-4">
+              {loadingRaisedRequests ? (
+                <div className="py-16 text-center text-stone-500 flex flex-col items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+                  <p className="text-sm font-semibold">Loading orders you raised...</p>
+                </div>
+              ) : myRaisedRequests.length === 0 ? (
+                <div className="bg-white border-2 border-dashed border-stone-200 rounded-3xl p-12 text-center max-w-md mx-auto space-y-3">
+                  <Scissors className="w-10 h-10 text-stone-300 mx-auto" />
+                  <h3 className="font-bold text-base text-stone-900">
+                    No Bespoke Orders Raised Yet
+                  </h3>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    As a designer, you can commission master tailors across Nigeria for specialized crafts, Agbada embroidery, Aso Oke weaving, or bespoke garments.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRaiseOrderModalOpen(true);
+                      setRaiseOrderError('');
+                      setRaiseOrderSuccess('');
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Raise Your First Order</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {myRaisedRequests.map((req) => {
+                    const breakdown = calculatePaymentBreakdown(req.quoted_price || req.budget_min);
+                    const isActionLoading = actionLoadingId === req.id;
+                    const atelier = req.designer;
+
+                    return (
+                      <div
+                        key={req.id}
+                        className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all space-y-4"
+                      >
+                        {/* Card Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-start gap-3.5">
+                            {/* Atelier Avatar */}
+                            <div className="w-12 h-12 rounded-2xl bg-stone-900 border border-stone-200 overflow-hidden flex items-center justify-center shrink-0">
+                              {atelier?.profile_image_url ? (
+                                <img
+                                  src={atelier.profile_image_url}
+                                  alt={atelier.business_name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span className="font-black text-amber-400 text-lg">
+                                  {atelier?.business_name ? atelier.business_name.charAt(0) : 'T'}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                    req.status === 'completed'
+                                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                      : req.status === 'ready_for_balance'
+                                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                      : req.status === 'deposit_paid' || req.status === 'in_progress'
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : req.status === 'accepted'
+                                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                      : req.status === 'quoted'
+                                      ? 'bg-amber-50 text-amber-800 border border-amber-300'
+                                      : req.status === 'declined'
+                                      ? 'bg-red-50 text-red-700 border border-red-200'
+                                      : 'bg-stone-100 text-stone-700 border border-stone-200'
+                                  }`}
+                                >
+                                  {req.status === 'quoted' ? 'Quote Received - Review Below' : req.status.replace(/_/g, ' ')}
+                                </span>
+                                <span className="text-xs text-stone-400 font-medium">
+                                  Raised {new Date(req.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-stone-900 text-base">
+                                  {atelier?.business_name || 'Commissioned Atelier'}
+                                </h3>
+                                {atelier?.state && (
+                                  <span className="text-xs text-stone-500 flex items-center gap-1">
+                                    <MapPin className="w-3 h-3 text-brand-600" />
+                                    <span>{atelier.area ? `${atelier.area}, ` : ''}{atelier.state}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Budget / Quoted Price */}
+                          <div className="text-right">
+                            {req.quoted_price ? (
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-stone-400 block">Official Studio Quote</span>
+                                <div className="text-base font-black text-amber-700">
+                                  ₦{req.quoted_price.toLocaleString()}
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-stone-400 block">Your Budget</span>
+                                <div className="text-sm font-extrabold text-stone-900">
+                                  ₦{req.budget_min.toLocaleString()}
+                                  {req.budget_max ? ` - ₦${req.budget_max.toLocaleString()}` : ''}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Order Description & Reference Image */}
+                        <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 space-y-3 text-xs text-stone-700">
+                          <p className="font-medium leading-relaxed">{req.style_description}</p>
+
+                          {/* Quoted financial breakdown banner if quoted/deposit_paid */}
+                          {req.quoted_price && (
+                            <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-stone-800 space-y-1.5">
+                              <div className="font-bold text-amber-900 flex items-center gap-1.5">
+                                <CreditCard className="w-3.5 h-3.5 text-amber-700" />
+                                <span>Quote Breakdown:</span>
+                              </div>
+                              <div className="flex flex-wrap gap-4 text-[11px]">
+                                <span>40% Commitment Deposit: <strong className="text-emerald-700 font-bold">₦{(req.deposit_amount || breakdown.depositAmount).toLocaleString()}</strong></span>
+                                <span>60% Completion Balance: <strong className="text-purple-700 font-bold">₦{(req.balance_amount || breakdown.balanceAmount).toLocaleString()}</strong></span>
+                                {req.quote_deadline && (
+                                  <span>Estimated Completion: <strong className="text-stone-900 font-bold">{new Date(req.quote_deadline).toLocaleDateString()}</strong></span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-4 text-[11px] text-stone-500 pt-1 border-t border-stone-200/60">
+                            {req.fabric && (
+                              <span>Fabric: <strong className="text-stone-800">{req.fabric}</strong></span>
+                            )}
+                            {req.deadline && (
+                              <span>Delivery Deadline: <strong className="text-stone-800">{new Date(req.deadline).toLocaleDateString()}</strong></span>
+                            )}
+                            {req.measurements && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedMeasurementsRequest(req);
+                                  setMeasurementsModalOpen(true);
+                                }}
+                                className="text-brand-700 hover:text-brand-800 font-bold flex items-center gap-1 underline cursor-pointer"
+                              >
+                                <Ruler className="w-3.5 h-3.5" />
+                                <span>View Measurements Included</span>
+                              </button>
+                            )}
+                            {req.reference_image_url && (
+                              <a
+                                href={req.reference_image_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-brand-700 hover:text-brand-800 font-bold flex items-center gap-1 underline cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>View Reference Photo</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Interactive Client Actions */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                          <Link
+                            href={`/messages/${req.id}`}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 text-brand-600" />
+                            <span>Consultation Chat</span>
+                          </Link>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* If quoted: Accept or Decline */}
+                            {req.status === 'quoted' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeclineQuoteRaised(req)}
+                                  disabled={isActionLoading}
+                                  className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-red-50 hover:text-red-700 text-stone-700 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                                >
+                                  Decline
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAcceptQuoteAndPayRaised(req)}
+                                  disabled={isActionLoading}
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-95"
+                                >
+                                  {isActionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                  <span>Accept &amp; Pay Deposit (₦{(req.deposit_amount || breakdown.depositAmount).toLocaleString()})</span>
+                                </button>
+                              </>
+                            )}
+
+                            {/* If accepted but deposit not paid yet */}
+                            {req.status === 'accepted' && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRaisedPayment(req, 'deposit')}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>Pay 40% Deposit (₦{(req.deposit_amount || breakdown.depositAmount).toLocaleString()})</span>
+                              </button>
+                            )}
+
+                            {/* If ready for balance */}
+                            {req.status === 'ready_for_balance' && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRaisedPayment(req, 'balance')}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                <span>Pay 60% Balance (₦{(req.balance_amount || breakdown.balanceAmount).toLocaleString()})</span>
+                              </button>
+                            )}
+
+                            {/* If completed: Leave Review */}
+                            {req.status === 'completed' && user && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTargetReviewRequest(req);
+                                  setReviewModalOpen(true);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 text-xs font-bold shadow-sm transition-all cursor-pointer"
+                              >
+                                <Star className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Review Atelier</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -3508,6 +4150,292 @@ export default function DesignerDashboard() {
           orderNumber={selectedMeasurementsRequest.id.slice(0, 8)}
         />
       )}
+
+      {/* Payment Modal for Orders Raised by Designer */}
+      {selectedRaisedPaymentRequest && user && (
+        <PaymentModal
+          isOpen={raisedPaymentModalOpen}
+          onClose={() => {
+            setRaisedPaymentModalOpen(false);
+            setSelectedRaisedPaymentRequest(null);
+          }}
+          request={selectedRaisedPaymentRequest}
+          type={raisedPaymentType}
+          customerEmail={user.email || 'designer@tailoram.com'}
+          customerName={profile?.full_name || designerProfile?.business_name || 'Designer'}
+          onPaymentSuccess={() => {
+            if (user?.id) loadRaisedRequests(user.id);
+            setRaisedPaymentModalOpen(false);
+            setSelectedRaisedPaymentRequest(null);
+          }}
+        />
+      )}
+
+      {/* RAISE NEW BESPOKE ORDER MODAL */}
+      {raiseOrderModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl space-y-5 my-8 border border-stone-200">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+              <div>
+                <h3 className="text-lg font-black text-stone-900 flex items-center gap-2">
+                  <Scissors className="w-5 h-5 text-brand-600" />
+                  <span>Raise New Bespoke Order</span>
+                </h3>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Commission custom tailoring from a master atelier on Tailoram
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRaiseOrderModalOpen(false)}
+                className="text-stone-400 hover:text-stone-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {raiseOrderError && (
+              <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{raiseOrderError}</span>
+              </div>
+            )}
+
+            {raiseOrderSuccess && (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{raiseOrderSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitRaiseOrder} className="space-y-4">
+              {/* Select Target Designer Atelier */}
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  Select Designer Atelier <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={raiseTargetDesignerId}
+                  onChange={(e) => setRaiseTargetDesignerId(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs sm:text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                >
+                  <option value="">-- Choose a Master Tailor or Atelier --</option>
+                  {allDesignersList.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.business_name} ({d.area ? `${d.area}, ` : ''}{d.state})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Style Description */}
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  Style Description &amp; Specifications <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={raiseStyleDescription}
+                  onChange={(e) => setRaiseStyleDescription(e.target.value)}
+                  placeholder="e.g. 3-Piece Navy Blue Agbada with golden chest embroidery and matching Fila cap..."
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* Fabric & Deadline */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                    Fabric Type / Preference
+                  </label>
+                  <input
+                    type="text"
+                    value={raiseFabric}
+                    onChange={(e) => setRaiseFabric(e.target.value)}
+                    placeholder="e.g. 7-Star Guinea Brocade, Cashmere"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                    Target Delivery Date
+                  </label>
+                  <input
+                    type="date"
+                    value={raiseDeadline}
+                    onChange={(e) => setRaiseDeadline(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+
+              {/* Budget Min & Max */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                    Minimum Budget (₦) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1000"
+                    step="1000"
+                    value={raiseBudgetMin}
+                    onChange={(e) => setRaiseBudgetMin(e.target.value)}
+                    placeholder="45000"
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                    Maximum Budget (₦)
+                  </label>
+                  <input
+                    type="number"
+                    min="1000"
+                    step="1000"
+                    value={raiseBudgetMax}
+                    onChange={(e) => setRaiseBudgetMax(e.target.value)}
+                    placeholder="75000 (optional)"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Reference / Inspo Photo */}
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  Reference / Inspiration Photo
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    ref={raiseFileInputRef}
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        const file = e.target.files[0];
+                        setRaiseReferenceFile(file);
+                        setRaisePreviewUrl(URL.createObjectURL(file));
+                      }
+                    }}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => raiseFileInputRef.current?.click()}
+                    className="px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-700 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Upload className="w-4 h-4 text-brand-600" />
+                    <span>{raiseReferenceFile ? 'Change Photo' : 'Upload Reference Photo'}</span>
+                  </button>
+
+                  {raisePreviewUrl && (
+                    <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-stone-200">
+                      <img src={raisePreviewUrl} alt="Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRaiseReferenceFile(null);
+                          setRaisePreviewUrl(null);
+                          if (raiseFileInputRef.current) raiseFileInputRef.current.value = '';
+                        }}
+                        className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Optional Body Measurements Toggle */}
+              <div className="pt-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setRaiseShowMeasurements(!raiseShowMeasurements)}
+                  className="flex items-center justify-between w-full text-xs font-bold text-brand-700 hover:text-brand-800 transition-colors py-1 cursor-pointer"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Ruler className="w-4 h-4" />
+                    <span>Include Body Measurements (Optional)</span>
+                  </span>
+                  {raiseShowMeasurements ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                {raiseShowMeasurements && (
+                  <div className="mt-3 p-3.5 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+                    <p className="text-[11px] text-stone-500">Enter measurements in inches (&quot;):</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { key: 'chest', label: 'Chest' },
+                        { key: 'shoulder', label: 'Shoulder' },
+                        { key: 'sleeve', label: 'Sleeve' },
+                        { key: 'neck', label: 'Neck' },
+                        { key: 'waist', label: 'Waist' },
+                        { key: 'hips', label: 'Hips' },
+                        { key: 'top_length', label: 'Top Length' },
+                        { key: 'trouser_length', label: 'Trouser' },
+                      ].map((f) => (
+                        <div key={f.key}>
+                          <label className="block text-[10px] font-bold text-stone-600 uppercase mb-0.5">{f.label}</label>
+                          <input
+                            type="text"
+                            placeholder='e.g. 42"'
+                            value={(raiseMeasurements as any)[f.key] || ''}
+                            onChange={(e) =>
+                              setRaiseMeasurements({
+                                ...raiseMeasurements,
+                                [f.key]: e.target.value,
+                              })
+                            }
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setRaiseOrderModalOpen(false)}
+                  disabled={isSubmittingRaiseOrder}
+                  className="px-4 py-2.5 rounded-xl text-stone-600 hover:bg-stone-100 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingRaiseOrder}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-md shadow-brand-600/20 transition-all disabled:opacity-50 cursor-pointer active:scale-95"
+                >
+                  {isSubmittingRaiseOrder ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Sending Request...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>Submit Commission Order</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
 
     </div>
   );
