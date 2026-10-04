@@ -28,6 +28,7 @@ import {
   getLocalRequestOverrides,
   fetchCloudRequestOverrides,
   getLocalCreatedRequests,
+  fetchCloudCreatedRequests,
   calculatePaymentBreakdown,
   saveLocalCreatedRequest,
   respondToQuote,
@@ -413,9 +414,12 @@ export default function DesignerDashboard() {
       }
 
       const cloudOverrides = await fetchCloudRequestOverrides();
-      const overrides = { ...cloudOverrides, ...getLocalRequestOverrides() };
+      const overrides = { ...getLocalRequestOverrides(), ...cloudOverrides };
       const rawList = (data as OutfitRequest[]) || [];
-      const localCreated = getLocalCreatedRequests().filter((r) => r.designer_id === designerId);
+      const cloudCreatedList = await fetchCloudCreatedRequests();
+      const localCreatedList = getLocalCreatedRequests();
+      const allCreated = [...cloudCreatedList, ...localCreatedList];
+      const localCreated = allCreated.filter((r) => r.designer_id === designerId);
       const existingIds = new Set(rawList.map((r) => r.id));
       const combined = [...rawList, ...localCreated.filter((r) => !existingIds.has(r.id))];
 
@@ -457,9 +461,12 @@ export default function DesignerDashboard() {
       }
 
       const cloudOverrides = await fetchCloudRequestOverrides();
-      const overrides = { ...cloudOverrides, ...getLocalRequestOverrides() };
+      const overrides = { ...getLocalRequestOverrides(), ...cloudOverrides };
       const rawList = (data as OutfitRequest[]) || [];
-      const localCreated = getLocalCreatedRequests().filter((r) => r.client_id === userId);
+      const cloudCreatedList = await fetchCloudCreatedRequests();
+      const localCreatedList = getLocalCreatedRequests();
+      const allCreated = [...cloudCreatedList, ...localCreatedList];
+      const localCreated = allCreated.filter((r) => r.client_id === userId);
       const existingIds = new Set(rawList.map((r) => r.id));
       const combined = [...rawList, ...localCreated.filter((r) => !existingIds.has(r.id))];
 

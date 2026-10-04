@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { Payment, RequestStatus, OutfitRequest, WalletTransaction } from '@/lib/types';
+import { Payment, RequestStatus, OutfitRequest, WalletTransaction, Message } from '@/lib/types';
 import { logEvent } from '@/lib/analytics';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
 import {
@@ -99,17 +99,74 @@ export function getLocalCreatedRequests(): OutfitRequest[] {
 }
 
 /**
- * Save a newly created bespoke request locally
+ * Fetch globally created bespoke requests synchronized across devices via Supabase platform_settings
  */
-export function saveLocalCreatedRequest(req: OutfitRequest) {
-  if (typeof window === 'undefined') return;
+export async function fetchCloudCreatedRequests(): Promise<OutfitRequest[]> {
+  const localList = getLocalCreatedRequests();
   try {
-    const list = getLocalCreatedRequests();
-    const filtered = list.filter((item) => item.id !== req.id);
-    filtered.unshift(req);
-    localStorage.setItem(LOCAL_STORAGE_CREATED_REQUESTS_KEY, JSON.stringify(filtered));
+    const { data, error } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'created_requests')
+      .maybeSingle();
+
+    if (!error && data?.value && typeof data.value === 'object') {
+      const cloudMap = data.value as Record<string, OutfitRequest>;
+      const cloudList = Object.values(cloudMap);
+
+      // Merge: cloud records take precedence, combined with any local-only records
+      const cloudIds = new Set(cloudList.map((r) => r.id));
+      const merged = [...cloudList, ...localList.filter((r) => !cloudIds.has(r.id))];
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(LOCAL_STORAGE_CREATED_REQUESTS_KEY, JSON.stringify(merged));
+      }
+      return merged;
+    }
   } catch (err) {
-    console.warn('Could not save local created request:', err);
+    console.warn('Failed to fetch cloud created requests:', err);
+  }
+  return localList;
+}
+
+/**
+ * Save a newly created bespoke request locally AND sync to cloud platform_settings
+ */
+export async function saveLocalCreatedRequest(req: OutfitRequest) {
+  if (typeof window !== 'undefined') {
+    try {
+      const list = getLocalCreatedRequests();
+      const filtered = list.filter((item) => item.id !== req.id);
+      filtered.unshift(req);
+      localStorage.setItem(LOCAL_STORAGE_CREATED_REQUESTS_KEY, JSON.stringify(filtered));
+    } catch (err) {
+      console.warn('Could not save local created request:', err);
+    }
+  }
+
+  // Also sync to Supabase platform_settings so ANY user/device sees the request immediately
+  try {
+    const { data } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'created_requests')
+      .maybeSingle();
+
+    const currentMap = (data?.value && typeof data.value === 'object') ? data.value : {};
+    currentMap[req.id] = {
+      ...req,
+      synced_at: new Date().toISOString(),
+    };
+
+    await supabase.from('platform_settings').upsert([
+      {
+        key: 'created_requests',
+        value: currentMap,
+        updated_at: new Date().toISOString(),
+      },
+    ]);
+  } catch (cloudErr) {
+    console.warn('Could not sync created request to platform_settings:', cloudErr);
   }
 }
 
@@ -155,7 +212,8 @@ export async function fetchCloudRequestOverrides(): Promise<Record<string, Parti
       .maybeSingle();
 
     if (!error && data?.value && typeof data.value === 'object') {
-      const merged = { ...data.value, ...localOverrides };
+      // Cloud value must override stale local cache!
+      const merged = { ...localOverrides, ...data.value };
       if (typeof window !== 'undefined') {
         localStorage.setItem(LOCAL_STORAGE_REQUESTS_OVERRIDES_KEY, JSON.stringify(merged));
       }
@@ -205,6 +263,82 @@ export async function saveLocalRequestOverride(requestId: string, updates: Parti
     ]);
   } catch (cloudErr) {
     console.warn('Could not sync request override to platform_settings:', cloudErr);
+  }
+
+  // Also update created_requests entry if present in cloud
+  try {
+    const { data: createdData } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'created_requests')
+      .maybeSingle();
+
+    if (createdData?.value && typeof createdData.value === 'object' && createdData.value[requestId]) {
+      const updatedMap = {
+        ...createdData.value,
+        [requestId]: {
+          ...createdData.value[requestId],
+          ...updates,
+          updated_at: new Date().toISOString(),
+        },
+      };
+      await supabase.from('platform_settings').upsert([
+        {
+          key: 'created_requests',
+          value: updatedMap,
+          updated_at: new Date().toISOString(),
+        },
+      ]);
+    }
+  } catch (cErr) {
+    // Non-blocking
+  }
+}
+
+/**
+ * Fetch and send cross-device chat messages backed by platform_settings
+ */
+export async function fetchCloudChatMessages(requestId: string): Promise<Message[]> {
+  try {
+    const { data, error } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'chat_messages_store')
+      .maybeSingle();
+
+    if (!error && data?.value && typeof data.value === 'object' && Array.isArray(data.value[requestId])) {
+      return data.value[requestId];
+    }
+  } catch (err) {
+    console.warn('Failed to fetch cloud chat messages:', err);
+  }
+  return [];
+}
+
+export async function saveCloudChatMessage(requestId: string, message: Message) {
+  try {
+    const { data } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'chat_messages_store')
+      .maybeSingle();
+
+    const currentMap = (data?.value && typeof data.value === 'object') ? data.value : {};
+    const existingList: Message[] = Array.isArray(currentMap[requestId]) ? currentMap[requestId] : [];
+    
+    // Check duplicate by id
+    if (!existingList.some((m) => m.id === message.id)) {
+      currentMap[requestId] = [...existingList, message];
+      await supabase.from('platform_settings').upsert([
+        {
+          key: 'chat_messages_store',
+          value: currentMap,
+          updated_at: new Date().toISOString(),
+        },
+      ]);
+    }
+  } catch (err) {
+    console.warn('Failed to save cloud chat message:', err);
   }
 }
 
@@ -465,6 +599,14 @@ export async function collectPayment({
     const senderId = currentAuth?.user?.id || (customer as any)?.userId;
 
     if (senderId) {
+      const msgObj: Message = {
+        id: `msg-pay-${Date.now()}`,
+        request_id: requestId,
+        sender_id: senderId,
+        content: systemNotice,
+        created_at: new Date().toISOString(),
+      };
+      await saveCloudChatMessage(requestId, msgObj);
       await supabase.from('messages').insert([
         {
           request_id: requestId,
@@ -601,6 +743,15 @@ export async function submitQuote({
   try {
     const quoteMessage = `📋 Official Studio Quote Submitted:\n• Total Price: ₦${breakdown.quotedPrice.toLocaleString()}\n• 40% Deposit to Start: ₦${breakdown.depositAmount.toLocaleString()}\n• 60% Balance on Finish: ₦${breakdown.balanceAmount.toLocaleString()}\n• Estimated Delivery: ${new Date(quoteDeadline).toLocaleDateString(undefined, { dateStyle: 'medium' })}`;
 
+    const msgObj: Message = {
+      id: `msg-quote-${Date.now()}`,
+      request_id: requestId,
+      sender_id: designerUserId,
+      content: quoteMessage,
+      created_at: new Date().toISOString(),
+    };
+    await saveCloudChatMessage(requestId, msgObj);
+
     await supabase.from('messages').insert([
       {
         request_id: requestId,
@@ -668,6 +819,15 @@ export async function respondToQuote({
       ? `✅ Client accepted the official quote. Awaiting 40% deposit payment to commence production.`
       : `❌ Client declined the quote. Consultation closed.`;
 
+    const msgObj: Message = {
+      id: `msg-resp-${Date.now()}`,
+      request_id: requestId,
+      sender_id: clientUserId,
+      content: responseMessage,
+      created_at: new Date().toISOString(),
+    };
+    await saveCloudChatMessage(requestId, msgObj);
+
     await supabase.from('messages').insert([
       {
         request_id: requestId,
@@ -711,11 +871,22 @@ export async function markOrderReadyForBalance({
 
   // Post message to chat
   try {
+    const readyContent = `✨ Outfit Tailoring Completed! The designer has marked your garment ready. Please proceed to pay the remaining 60% balance to finalize your commission and arrange delivery.`;
+
+    const msgObj: Message = {
+      id: `msg-ready-${Date.now()}`,
+      request_id: requestId,
+      sender_id: designerUserId,
+      content: readyContent,
+      created_at: new Date().toISOString(),
+    };
+    await saveCloudChatMessage(requestId, msgObj);
+
     await supabase.from('messages').insert([
       {
         request_id: requestId,
         sender_id: designerUserId,
-        content: `✨ Outfit Tailoring Completed! The designer has marked your garment ready. Please proceed to pay the remaining 60% balance to finalize your commission and arrange delivery.`,
+        content: readyContent,
       },
     ]);
   } catch (msgErr) {

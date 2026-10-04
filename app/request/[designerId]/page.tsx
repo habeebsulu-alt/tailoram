@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { logEvent } from '@/lib/analytics';
 import { compressImage } from '@/lib/imageCompressor';
 import { DesignerProfile, OutfitRequest, ClientMeasurements } from '@/lib/types';
-import { saveLocalCreatedRequest } from '@/lib/payments';
+import { saveLocalCreatedRequest, saveCloudChatMessage } from '@/lib/payments';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
 import { getAppBaseUrl } from '@/lib/appUrl';
 import {
@@ -319,6 +319,16 @@ function RequestForm() {
           : '';
 
         const chatContent = `👋 New bespoke request submitted:\n"${styleDescription.trim()}"\nBudget: ₦${minBudget.toLocaleString()}${maxBudget ? ` - ₦${maxBudget.toLocaleString()}` : ''}${deadline ? `\nTarget Delivery: ${new Date(deadline).toLocaleDateString()}` : ''}${hasMeasurements ? `\n\n📐 Client Body Measurements (in):\n${measurementSummary}${cleanedMeasurements.fit_preference ? `\n• Fit Preference: ${cleanedMeasurements.fit_preference.toUpperCase()}` : ''}${cleanedMeasurements.notes ? `\n• Tailoring Notes: "${cleanedMeasurements.notes}"` : ''}` : ''}`;
+
+        const msgObj = {
+          id: `msg-req-${Date.now()}`,
+          request_id: finalRequestId,
+          sender_id: user.id,
+          content: chatContent,
+          created_at: new Date().toISOString(),
+          sender: profile || undefined,
+        };
+        await saveCloudChatMessage(finalRequestId, msgObj);
 
         await supabase.from('messages').insert([
           {

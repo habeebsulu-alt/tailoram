@@ -10,6 +10,7 @@ import {
   getLocalRequestOverrides,
   fetchCloudRequestOverrides,
   getLocalCreatedRequests,
+  fetchCloudCreatedRequests,
   calculatePaymentBreakdown,
   respondToQuote,
   PaymentResult,
@@ -106,15 +107,18 @@ export default function ClientRequestsPage() {
       }
 
       const cloudOverrides = await fetchCloudRequestOverrides();
-      const overrides = { ...cloudOverrides, ...getLocalRequestOverrides() };
+      const overrides = { ...getLocalRequestOverrides(), ...cloudOverrides };
       const rawList = (data as OutfitRequest[]) || [];
 
-      // Include locally created requests for this client
-      const localCreated = getLocalCreatedRequests().filter((r) => r.client_id === clientId);
+      // Include locally & cloud created requests for this client
+      const cloudCreatedList = await fetchCloudCreatedRequests();
+      const localCreatedList = getLocalCreatedRequests();
+      const allCreated = [...cloudCreatedList, ...localCreatedList];
+      const clientCreated = allCreated.filter((r) => r.client_id === clientId);
       const existingIds = new Set(rawList.map((r) => r.id));
-      const combined = [...rawList, ...localCreated.filter((r) => !existingIds.has(r.id))];
+      const combined = [...rawList, ...clientCreated.filter((r) => !existingIds.has(r.id))];
 
-      // Merge with local overrides for demo resilience
+      // Merge with overrides for multi-device sync
       const mergedList = combined.map((req) => {
         const local = overrides[req.id] || {};
         return { ...req, ...local };
