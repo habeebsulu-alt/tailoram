@@ -26,7 +26,23 @@ import {
   resolveReviewClientName,
   ManualRatingData,
 } from '@/lib/ratingsManager';
-import { fetchCloudRequestOverrides } from '@/lib/payments';
+import { fetchCloudRequestOverrides, saveLocalRequestOverride } from '@/lib/payments';
+import {
+  fetchUserRoleOverrides,
+  saveUserRoleOverride,
+  fetchDeletedUserIds,
+  saveDeletedUserId,
+  fetchDesignerOverrides,
+  saveDesignerOverride,
+  fetchDeletedDesignerIds,
+  saveDeletedDesignerId,
+  fetchProductOverrides,
+  saveProductOverride,
+  fetchDeletedProductIds,
+  saveDeletedProductId,
+  fetchDeletedReviewIds,
+  saveDeletedReviewId,
+} from '@/lib/adminManager';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -213,6 +229,7 @@ export default function AdminPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [designers, setDesigners] = useState<DesignerProfile[]>([]);
   const [profilesList, setProfilesList] = useState<Profile[]>([]);
+  const [userRoleOverridesMap, setUserRoleOverridesMap] = useState<Record<string, UserRole>>({});
   const [requestsList, setRequestsList] = useState<OutfitRequest[]>([]);
   const [productsList, setProductsList] = useState<StoreProduct[]>([]);
   const [reviewsList, setReviewsList] = useState<Review[]>([]);
@@ -259,6 +276,29 @@ export default function AdminPage() {
     try {
       setRefreshing(true);
 
+      // 0. Fetch all admin overrides in parallel
+      const [
+        deletedDesignerIds,
+        designerOverrides,
+        userRoleOverrides,
+        deletedUserIds,
+        deletedProductIds,
+        productOverrides,
+        deletedReviewIds,
+        cloudOverrides,
+      ] = await Promise.all([
+        fetchDeletedDesignerIds(),
+        fetchDesignerOverrides(),
+        fetchUserRoleOverrides(),
+        fetchDeletedUserIds(),
+        fetchDeletedProductIds(),
+        fetchProductOverrides(),
+        fetchDeletedReviewIds(),
+        fetchCloudRequestOverrides(),
+      ]);
+
+      setUserRoleOverridesMap(userRoleOverrides);
+
       // 1. Designers
       const { data: dData, error: dErr } = await supabase
         .from('designer_profiles')
@@ -266,16 +306,10 @@ export default function AdminPage() {
         .order('created_at', { ascending: false });
 
       if (!dErr && dData) {
-        const deletedDesignerIds: string[] = typeof window !== 'undefined'
-          ? JSON.parse(localStorage.getItem('tailoram_deleted_designer_profiles') || '[]')
-          : [];
-        const storedUpdatedProfiles: Record<string, any> = typeof window !== 'undefined'
-          ? JSON.parse(localStorage.getItem('tailoram_updated_designer_profiles') || '{}')
-          : {};
         const activeDesigners = (dData as DesignerProfile[])
           .filter((d) => !deletedDesignerIds.includes(d.id))
           .map((d) => {
-            const localUpdates = storedUpdatedProfiles[d.id] || {};
+            const localUpdates = designerOverrides[d.id] || {};
             return {
               ...d,
               ...localUpdates,
@@ -291,10 +325,15 @@ export default function AdminPage() {
         .order('created_at', { ascending: false });
 
       if (!pErr && pData) {
-        const deletedUserIds: string[] = typeof window !== 'undefined'
-          ? JSON.parse(localStorage.getItem('tailoram_deleted_user_profiles') || '[]')
-          : [];
-        const activeProfiles = (pData as Profile[]).filter((p) => !deletedUserIds.includes(p.id));
+        const activeProfiles = (pData as Profile[])
+          .filter((p) => !deletedUserIds.includes(p.id))
+          .map((p) => {
+            const roleOverride = userRoleOverrides[p.id];
+            return {
+              ...p,
+              role: roleOverride || p.role,
+            };
+          });
         setProfilesList(activeProfiles);
       }
 
@@ -305,7 +344,6 @@ export default function AdminPage() {
         .order('created_at', { ascending: false });
 
       if (!rErr && rData) {
-        const cloudOverrides = await fetchCloudRequestOverrides();
         const mergedReqs = (rData as OutfitRequest[]).map((r) => ({
           ...r,
           ...(cloudOverrides[r.id] || {}),
@@ -320,7 +358,13 @@ export default function AdminPage() {
         .order('created_at', { ascending: false });
 
       if (!prodErr && prodData) {
-        setProductsList(prodData as StoreProduct[]);
+        const activeProducts = (prodData as StoreProduct[])
+          .filter((p) => !deletedProductIds.includes(p.id))
+          .map((p) => ({
+            ...p,
+            ...(productOverrides[p.id] || {}),
+          }));
+        setProductsList(activeProducts);
       }
 
       // 5. Reviews
@@ -329,7 +373,7 @@ export default function AdminPage() {
         .select('*, client:client_id(full_name), designer:designer_id(business_name)')
         .order('created_at', { ascending: false });
 
-      const rawRevs = (revData as Review[]) || [];
+      const rawRevs = ((revData as Review[]) || []).filter((r) => !deletedReviewIds.includes(r.id));
       const mergedRevs = mergeWithLocalReviews(rawRevs);
       setReviewsList(mergedRevs);
 
@@ -473,12 +517,7 @@ export default function AdminPage() {
       prev.map((d) => (d.id === designerId ? { ...d, is_verified: newVal } : d))
     );
     try {
-      const { error } = await supabase
-        .from('designer_profiles')
-        .update({ is_verified: newVal })
-        .eq('id', designerId);
-
-      if (error) throw error;
+      await saveDesignerOverride(designerId, { is_verified: newVal });
       showNotice(`Designer verification status updated to ${newVal ? 'Verified' : 'Unverified'}`);
     } catch (err: any) {
       showNotice(`Could not update verification: ${err.message}`, 'error');
@@ -492,12 +531,7 @@ export default function AdminPage() {
       prev.map((d) => (d.id === designerId ? { ...d, is_featured: newVal } : d))
     );
     try {
-      const { error } = await supabase
-        .from('designer_profiles')
-        .update({ is_featured: newVal })
-        .eq('id', designerId);
-
-      if (error) throw error;
+      await saveDesignerOverride(designerId, { is_featured: newVal });
       showNotice(`Designer featured status updated to ${newVal ? 'Featured' : 'Standard'}`);
     } catch (err: any) {
       showNotice(`Could not update featured flag: ${err.message}`, 'error');
@@ -511,12 +545,7 @@ export default function AdminPage() {
       prev.map((d) => (d.id === designerId ? { ...d, has_store: newVal } : d))
     );
     try {
-      const { error } = await supabase
-        .from('designer_profiles')
-        .update({ has_store: newVal })
-        .eq('id', designerId);
-
-      if (error) throw error;
+      await saveDesignerOverride(designerId, { has_store: newVal });
       showNotice(`Store feature ${newVal ? 'Enabled' : 'Disabled'} for designer`);
     } catch (err: any) {
       showNotice(`Failed to toggle store: ${err.message}`, 'error');
@@ -576,19 +605,8 @@ export default function AdminPage() {
       return;
     }
     try {
-      // 1. Immediately persist deletion in localStorage
-      if (typeof window !== 'undefined') {
-        const deletedDesignerIds: string[] = JSON.parse(
-          localStorage.getItem('tailoram_deleted_designer_profiles') || '[]'
-        );
-        if (!deletedDesignerIds.includes(designerId)) {
-          deletedDesignerIds.push(designerId);
-          localStorage.setItem(
-            'tailoram_deleted_designer_profiles',
-            JSON.stringify(deletedDesignerIds)
-          );
-        }
-      }
+      // 1. Immediately persist deletion in platform_settings & localStorage
+      await saveDeletedDesignerId(designerId);
 
       // 2. Remove optimistically from React state
       setDesigners((prev) => prev.filter((d) => d.id !== designerId));
@@ -620,33 +638,13 @@ export default function AdminPage() {
       return;
     }
     try {
-      // 1. Immediately persist in localStorage
-      if (typeof window !== 'undefined') {
-        const deletedUserIds: string[] = JSON.parse(
-          localStorage.getItem('tailoram_deleted_user_profiles') || '[]'
-        );
-        if (!deletedUserIds.includes(userId)) {
-          deletedUserIds.push(userId);
-          localStorage.setItem(
-            'tailoram_deleted_user_profiles',
-            JSON.stringify(deletedUserIds)
-          );
-        }
+      // 1. Immediately persist in platform_settings & localStorage
+      await saveDeletedUserId(userId);
 
-        // Also check if this user has an associated designer profile
-        const matchingDesigner = designers.find((d) => d.user_id === userId);
-        if (matchingDesigner) {
-          const deletedDesignerIds: string[] = JSON.parse(
-            localStorage.getItem('tailoram_deleted_designer_profiles') || '[]'
-          );
-          if (!deletedDesignerIds.includes(matchingDesigner.id)) {
-            deletedDesignerIds.push(matchingDesigner.id);
-            localStorage.setItem(
-              'tailoram_deleted_designer_profiles',
-              JSON.stringify(deletedDesignerIds)
-            );
-          }
-        }
+      // Also check if this user has an associated designer profile
+      const matchingDesigner = designers.find((d) => d.user_id === userId);
+      if (matchingDesigner) {
+        await saveDeletedDesignerId(matchingDesigner.id);
       }
 
       // 2. Remove optimistically from React state
@@ -667,20 +665,34 @@ export default function AdminPage() {
       showNotice(`Failed to delete user: ${err.message}`, 'error');
     }
   };
+
   const handleChangeUserRole = async (userId: string, newRole: UserRole) => {
+    // 1. Optimistic UI update
     setProfilesList((prev) =>
       prev.map((p) => (p.id === userId ? { ...p, role: newRole } : p))
     );
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role: newRole })
-        .eq('id', userId);
+    setUserRoleOverridesMap((prev) => ({ ...prev, [userId]: newRole }));
 
-      if (error) throw error;
-      showNotice(`User role updated to ${newRole}`);
+    try {
+      // 2. Persist dual-layer override in platform_settings and localStorage
+      await saveUserRoleOverride(userId, newRole);
+
+      // If downgraded to client, demote their designer profile
+      if (newRole === 'client') {
+        const matchingDesigner = designers.find((d) => d.user_id === userId);
+        if (matchingDesigner) {
+          await saveDesignerOverride(matchingDesigner.id, { is_verified: false, is_featured: false });
+          setDesigners((prev) =>
+            prev.map((d) =>
+              d.id === matchingDesigner.id ? { ...d, is_verified: false, is_featured: false } : d
+            )
+          );
+        }
+      }
+
+      showNotice(`User role updated to "${newRole}". Changes saved permanently.`);
       if (userId === user?.id) {
-        refreshProfile();
+        await refreshProfile();
       }
     } catch (err: any) {
       showNotice(`Failed to update user role: ${err.message}`, 'error');
@@ -794,13 +806,15 @@ export default function AdminPage() {
       prev.map((r) => (r.id === requestId ? { ...r, status: newStatus as any } : r))
     );
     try {
-      const { error } = await supabase
-        .from('requests')
-        .update({ status: newStatus })
-        .eq('id', requestId);
+      await saveLocalRequestOverride(requestId, { status: newStatus as any });
+      try {
+        await supabase
+          .from('requests')
+          .update({ status: newStatus })
+          .eq('id', requestId);
+      } catch {}
 
-      if (error) throw error;
-      showNotice(`Order #${requestId.slice(0, 8)} status overridden to ${newStatus}`);
+      showNotice(`Order #${requestId.slice(0, 8)} status overridden to ${newStatus} (persisted)`);
     } catch (err: any) {
       showNotice(`Could not override order status: ${err.message}`, 'error');
       fetchAllAdminData();
@@ -814,12 +828,7 @@ export default function AdminPage() {
       prev.map((p) => (p.id === productId ? { ...p, in_stock: newVal } : p))
     );
     try {
-      const { error } = await supabase
-        .from('store_products')
-        .update({ in_stock: newVal })
-        .eq('id', productId);
-
-      if (error) throw error;
+      await saveProductOverride(productId, { in_stock: newVal });
       showNotice(`Product availability updated to ${newVal ? 'In Stock' : 'Out of Stock'}`);
     } catch (err: any) {
       showNotice(`Failed to update product: ${err.message}`, 'error');
@@ -830,9 +839,11 @@ export default function AdminPage() {
   const handleDeleteProduct = async (productId: string, title: string) => {
     if (!confirm(`Delete product "${title}" from the marketplace?`)) return;
     try {
-      const { error } = await supabase.from('store_products').delete().eq('id', productId);
-      if (error) throw error;
+      await saveDeletedProductId(productId);
       setProductsList((prev) => prev.filter((p) => p.id !== productId));
+      try {
+        await supabase.from('store_products').delete().eq('id', productId);
+      } catch {}
       showNotice(`Product "${title}" removed from shop.`);
     } catch (err: any) {
       showNotice(`Failed to delete product: ${err.message}`, 'error');
@@ -843,9 +854,11 @@ export default function AdminPage() {
   const handleDeleteReview = async (reviewId: string) => {
     if (!confirm('Remove this review from the marketplace?')) return;
     try {
-      const { error } = await supabase.from('reviews').delete().eq('id', reviewId);
-      if (error) throw error;
+      await saveDeletedReviewId(reviewId);
       setReviewsList((prev) => prev.filter((r) => r.id !== reviewId));
+      try {
+        await supabase.from('reviews').delete().eq('id', reviewId);
+      } catch {}
       showNotice('Review deleted successfully.');
     } catch (err: any) {
       showNotice(`Failed to remove review: ${err.message}`, 'error');
@@ -1723,8 +1736,13 @@ export default function AdminPage() {
                           <div className="font-bold text-white text-sm">
                             {designer.business_name}
                           </div>
-                          <div className="text-[11px] text-stone-400">
-                            {designer.profiles?.full_name || 'Designer'}
+                          <div className="text-[11px] text-stone-400 flex items-center gap-1.5 flex-wrap">
+                            <span>{designer.profiles?.full_name || 'Designer'}</span>
+                            {userRoleOverridesMap[designer.user_id] === 'client' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                Downgraded to Client
+                              </span>
+                            )}
                           </div>
                           {designer.whatsapp && (
                             <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5">
@@ -1829,14 +1847,20 @@ export default function AdminPage() {
                         {/* Actions */}
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handleLoginAsDesigner(designer.user_id, designer.business_name)}
-                              className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-black text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0"
-                              title={`Log into ${designer.business_name} studio to modify images, products & profile`}
-                            >
-                              <LogIn className="w-3.5 h-3.5 text-stone-950" />
-                              <span>Login as Designer</span>
-                            </button>
+                            {userRoleOverridesMap[designer.user_id] === 'client' ? (
+                              <span className="px-2.5 py-1.5 rounded-xl bg-stone-800/80 text-stone-500 font-bold text-xs border border-stone-800">
+                                Inactive (Client)
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleLoginAsDesigner(designer.user_id, designer.business_name)}
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-black text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0"
+                                title={`Log into ${designer.business_name} studio to modify images, products & profile`}
+                              >
+                                <LogIn className="w-3.5 h-3.5 text-stone-950" />
+                                <span>Login as Designer</span>
+                              </button>
+                            )}
 
                             <button
                               onClick={() => {

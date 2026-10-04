@@ -19,6 +19,11 @@ import { normalizePhoneForWhatsApp } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating } from '@/lib/ratingsManager';
 import { getHomepageDefaultSort, HomepageSortOption } from '@/lib/homepageSettings';
 import {
+  fetchDeletedDesignerIds,
+  fetchDesignerOverrides,
+  fetchUserRoleOverrides,
+} from '@/lib/adminManager';
+import {
   Scissors,
   Search,
   MapPin,
@@ -603,14 +608,15 @@ export default function HomePage() {
         if (error) {
           console.error('Error fetching designers:', error);
         } else if (data) {
-          const deletedDesignerIds: string[] = typeof window !== 'undefined'
-            ? JSON.parse(localStorage.getItem('tailoram_deleted_designer_profiles') || '[]')
-            : [];
-          const activeDesigners = (data as any[]).filter((d) => !deletedDesignerIds.includes(d.id));
+          const [deletedDesignerIds, storedUpdatedProfiles, userRoleOverrides] = await Promise.all([
+            fetchDeletedDesignerIds(),
+            fetchDesignerOverrides(),
+            fetchUserRoleOverrides(),
+          ]);
 
-          const storedUpdatedProfiles: Record<string, any> = typeof window !== 'undefined'
-            ? JSON.parse(localStorage.getItem('tailoram_updated_designer_profiles') || '{}')
-            : {};
+          const activeDesigners = (data as any[])
+            .filter((d) => !deletedDesignerIds.includes(d.id))
+            .filter((d) => userRoleOverrides[d.user_id] !== 'client');
 
           const deletedIds: string[] = typeof window !== 'undefined'
             ? JSON.parse(localStorage.getItem('tailoram_deleted_portfolio_items') || '[]')

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Profile, DesignerProfile, UserRole } from '@/lib/types';
+import { fetchUserRoleOverrides, getLocalUserRoleOverrides } from '@/lib/adminManager';
 
 interface AuthContextType {
   user: User | null;
@@ -122,6 +123,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (activeProfile) {
+        // Apply admin role override if exists
+        try {
+          const roleOverrides = await fetchUserRoleOverrides();
+          if (roleOverrides[userId]) {
+            activeProfile = {
+              ...activeProfile,
+              role: roleOverrides[userId],
+            };
+          }
+        } catch (e) {}
+
         setProfile(activeProfile);
 
         // 2. If user is a designer, fetch their designer profile
@@ -245,8 +257,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('id', data.user.id)
           .maybeSingle();
 
+        const roleOverrides = await fetchUserRoleOverrides();
+        const effectiveRole = roleOverrides[data.user.id] || (prof?.role as UserRole) || 'client';
+
         await fetchProfiles(data.user.id);
-        return { error: null, role: (prof?.role as UserRole) || 'client' };
+        return { error: null, role: effectiveRole };
       }
 
       // 2. Fallback check for demo accounts & admin-reset credentials
@@ -311,7 +326,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(syntheticSession);
           await fetchProfiles(demoInfo.id);
 
-          return { error: null, role: demoInfo.role };
+          const roleOverrides = await fetchUserRoleOverrides();
+          const effectiveRole = roleOverrides[demoInfo.id] || demoInfo.role;
+
+          return { error: null, role: effectiveRole };
         }
       }
 

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { StoreProduct, STORE_CATEGORIES } from '@/lib/types';
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import { normalizePhoneForWhatsApp } from '@/lib/phoneUtils';
+import { fetchDeletedProductIds, fetchProductOverrides } from '@/lib/adminManager';
 import {
   ShoppingBag,
   Search,
@@ -48,7 +49,17 @@ export default function ShopPage() {
         if (error) {
           console.warn('Error fetching store products (table may need creation):', error.message);
         } else if (data) {
-          setProducts(data as StoreProduct[]);
+          const [deletedIds, overrides] = await Promise.all([
+            fetchDeletedProductIds(),
+            fetchProductOverrides(),
+          ]);
+          const active = (data as StoreProduct[])
+            .filter((p) => !deletedIds.includes(p.id))
+            .map((p) => ({
+              ...p,
+              ...(overrides[p.id] || {}),
+            }));
+          setProducts(active);
         }
       } catch (err) {
         console.error('Failed to load shop items:', err);

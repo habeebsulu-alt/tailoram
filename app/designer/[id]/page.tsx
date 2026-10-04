@@ -17,6 +17,14 @@ import {
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import { normalizePhoneForWhatsApp } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
+import {
+  fetchDeletedDesignerIds,
+  fetchDesignerOverrides,
+  fetchUserRoleOverrides,
+  fetchDeletedProductIds,
+  fetchProductOverrides,
+  fetchDeletedReviewIds,
+} from '@/lib/adminManager';
 import ShareModal from '@/components/ShareModal';
 import {
   Scissors,
@@ -204,9 +212,22 @@ export default function DesignerProfilePage() {
     async function loadData() {
       if (!designerId) return;
 
-      const deletedDesignerIds: string[] = typeof window !== 'undefined'
-        ? JSON.parse(localStorage.getItem('tailoram_deleted_designer_profiles') || '[]')
-        : [];
+      const [
+        deletedDesignerIds,
+        designerOverrides,
+        roleOverrides,
+        deletedProductIds,
+        productOverrides,
+        deletedReviewIds,
+      ] = await Promise.all([
+        fetchDeletedDesignerIds(),
+        fetchDesignerOverrides(),
+        fetchUserRoleOverrides(),
+        fetchDeletedProductIds(),
+        fetchProductOverrides(),
+        fetchDeletedReviewIds(),
+      ]);
+
       if (deletedDesignerIds.includes(designerId)) {
         setDesigner(null);
         setLoading(false);
@@ -224,15 +245,25 @@ export default function DesignerProfilePage() {
           .single();
 
         if (dError) throw dError;
+
+        // If user was downgraded to client, hide designer studio page
+        if (dData && dData.user_id && roleOverrides[dData.user_id] === 'client') {
+          setDesigner(null);
+          setLoading(false);
+          return;
+        }
+
         const storedUpdatedProfiles = typeof window !== 'undefined'
           ? JSON.parse(localStorage.getItem('tailoram_updated_designer_profiles') || '{}')
           : {};
         const localUpdates = storedUpdatedProfiles[designerId] || {};
+        const adminOverride = designerOverrides[designerId] || {};
         const localAvatar = typeof window !== 'undefined' ? localStorage.getItem(`tailoram_avatar_${designerId}`) : null;
         const mergedDesigner: DesignerProfile = {
           ...(dData as DesignerProfile),
           ...localUpdates,
-          profile_image_url: localUpdates.profile_image_url || (dData as any).profile_image_url || localAvatar || null,
+          ...adminOverride,
+          profile_image_url: adminOverride.profile_image_url || localUpdates.profile_image_url || (dData as any).profile_image_url || localAvatar || null,
         };
         setDesigner(mergedDesigner);
         checkIsWhatsAppEnabled().then(setWhatsappEnabled);
@@ -266,12 +297,12 @@ export default function DesignerProfilePage() {
             .eq('designer_id', designerId)
             .order('created_at', { ascending: false });
 
-          const rawRevs = (rData as Review[]) || [];
-          const mergedRevs = mergeWithLocalReviews(rawRevs, designerId);
+          const rawRevs = ((rData as Review[]) || []).filter((r) => !deletedReviewIds.includes(r.id));
+          const mergedRevs = mergeWithLocalReviews(rawRevs, designerId).filter((r) => !deletedReviewIds.includes(r.id));
           setReviews(mergedRevs);
         } catch (revErr) {
           console.warn('Reviews table might not be initialized yet');
-          const mergedRevs = mergeWithLocalReviews([], designerId);
+          const mergedRevs = mergeWithLocalReviews([], designerId).filter((r) => !deletedReviewIds.includes(r.id));
           setReviews(mergedRevs);
         }
 
@@ -284,7 +315,10 @@ export default function DesignerProfilePage() {
             .order('created_at', { ascending: false });
 
           if (sData) {
-            setStoreProducts(sData as StoreProduct[]);
+            const activeProducts = (sData as StoreProduct[])
+              .filter((p) => !deletedProductIds.includes(p.id))
+              .map((p) => ({ ...p, ...(productOverrides[p.id] || {}) }));
+            setStoreProducts(activeProducts);
           }
         } catch (storeErr) {
           console.warn('Store products not yet initialized');
