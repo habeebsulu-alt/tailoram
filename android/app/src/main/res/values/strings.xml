@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tailoram</string>
+    <string name="title_activity_main">Tailoram</string>
+    <string name="package_name">com.tailoram.app</string>
+    <string name="custom_url_scheme">com.tailoram.app</string>
+</resources>

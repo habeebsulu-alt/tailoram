@@ -87,3 +87,23 @@ if (!(Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir }
 Generate-TailoramIcon -Size 192 -OutputPath "$destDir\icon-192.png" -IsMaskable $false
 Generate-TailoramIcon -Size 512 -OutputPath "$destDir\icon-512.png" -IsMaskable $false
 Generate-TailoramIcon -Size 512 -OutputPath "$destDir\icon-maskable-512.png" -IsMaskable $true
+
+# Android Native Launcher Icons
+$androidRes = "c:\Users\HabeebSulu\Downloads\Tailoram\android\app\src\main\res"
+if (Test-Path $androidRes) {
+    $densities = @(
+        @{ Name = "mipmap-mdpi"; Size = 48 },
+        @{ Name = "mipmap-hdpi"; Size = 72 },
+        @{ Name = "mipmap-xhdpi"; Size = 96 },
+        @{ Name = "mipmap-xxhdpi"; Size = 144 },
+        @{ Name = "mipmap-xxxhdpi"; Size = 192 }
+    )
+
+    foreach ($d in $densities) {
+        $dir = "$androidRes\$($d.Name)"
+        if (!(Test-Path $dir)) { New-Item -ItemType Directory -Path $dir }
+        Generate-TailoramIcon -Size $d.Size -OutputPath "$dir\ic_launcher.png" -IsMaskable $false
+        Generate-TailoramIcon -Size $d.Size -OutputPath "$dir\ic_launcher_round.png" -IsMaskable $true
+        Generate-TailoramIcon -Size $d.Size -OutputPath "$dir\ic_launcher_foreground.png" -IsMaskable $true
+    }
+}
