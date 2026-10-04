@@ -110,7 +110,7 @@ Tailoram/
 - **Hero CTA Row**:
   - Three single-line, perfectly balanced buttons with `whitespace-nowrap` and matching height (`h-12 sm:h-13`):
     1. `[ 📍 Designers Around Me  Nearby ]`
-    2. `[ 🧭 Explore All Designers  {count} ]`
+    2. `[ 🧭 Explore All Designers ]`
     3. `[ 🛍️ Explore the Shop  RTW ]`
 - **Geolocation**: Supports automatic GPS location matching against Nigerian fashion hubs (Lagos, Abuja, Port Harcourt, Ibadan, Kano, Enugu, Kaduna, Benin City, Calabar, Asaba, etc.).
 - **Admin Page Security**: `/admin` is protected by passkey (`tailoram` / `tailoram2026`) and role elevation. No public links in the footer or public navigation.

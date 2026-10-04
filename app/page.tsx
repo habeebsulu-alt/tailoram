@@ -952,9 +952,6 @@ export default function HomePage() {
             >
               <Compass className="w-4 h-4 text-amber-400 group-hover:rotate-45 transition-transform shrink-0" />
               <span>Explore All Designers</span>
-              <span className="text-[11px] bg-white/20 text-white px-2 py-0.5 rounded-full font-bold shrink-0">
-                {designers.length}
-              </span>
             </button>
 
             <Link
