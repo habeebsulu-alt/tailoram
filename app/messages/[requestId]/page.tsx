@@ -18,6 +18,7 @@ import {
   BALANCE_PERCENTAGE,
 } from '@/lib/payments';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
+import { getAppBaseUrl } from '@/lib/appUrl';
 import PaymentModal from '@/components/PaymentModal';
 import QuoteModal from '@/components/QuoteModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
@@ -286,7 +287,7 @@ export default function MessageChatPage() {
             recipientName,
             subject: `💬 New Message from ${senderName} on Tailoram`,
             previewText: `${senderName}: "${messageText.length > 120 ? messageText.slice(0, 117) + '...' : messageText}"`,
-            ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
+            ctaLink: `${getAppBaseUrl()}/messages/${requestId}`,
             metadata: { requestId, messageId: data.id },
           });
         } catch (emErr) {

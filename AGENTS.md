@@ -9,7 +9,7 @@
 - **Styling**: Tailwind CSS, Lucide React icons
 - **Language**: TypeScript (`tsconfig.json` strict mode)
 - **Backend & Database**: Supabase (PostgreSQL, Row Level Security, Auth, Storage)
-- **Deployment**: Vercel (`https://tailoram.vercel.app`)
+- **Deployment**: Vercel (Primary Domain: `https://tailoram.com`, Fallback: `https://tailoram.vercel.app`)
 - **Version Control**: Git (`main` branch, tagged `v1.0.0` / `v1`)
 
 ---
@@ -188,7 +188,7 @@ Tailoram/
 - **High-Res Adaptive Icons**: `public/icons/icon-192.png`, `public/icons/icon-512.png`, and `public/icons/icon-maskable-512.png` with safe-zone margin for Pixel, Samsung One UI, and Xiaomi launchers.
 - **Mobile Bottom Navigation (`components/MobileBottomNav.tsx`)**: Ergonomic, native Android-style bottom tab bar (Explore, RTW Shop, Orders, Studio/Profile) with active state indicators and role-aware tabs.
 - **Smart Android Install Prompt (`components/AndroidInstallPrompt.tsx`)**: Captures native `beforeinstallprompt` event and presents a luxury dark & gold 1-tap installation banner and manual Chrome guide.
-- **Android App Links & Play Store TWA (`public/.well-known/assetlinks.json`)**: Digital Asset Links template for opening `tailoram.vercel.app` directly in the native Android app shell.
-- **Capacitor Mobile Bridge (`capacitor.config.ts`)**: Pre-configured with `appId: 'com.tailoram.app'` and `server.url: 'https://tailoram.vercel.app'`, enabling instant zero-rebuild over-the-air updates whenever Vercel deploys.
+- **Android App Links & Play Store TWA (`public/.well-known/assetlinks.json`)**: Digital Asset Links template for opening `tailoram.com` directly in the native Android app shell.
+- **Capacitor Mobile Bridge (`capacitor.config.ts`)**: Pre-configured with `appId: 'com.tailoram.app'` and `server.url: 'https://tailoram.com'`, enabling instant zero-rebuild over-the-air updates whenever Vercel deploys.
 
 

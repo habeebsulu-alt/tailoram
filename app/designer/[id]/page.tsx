@@ -1578,7 +1578,7 @@ export default function DesignerProfilePage() {
           url={
             typeof window !== 'undefined'
               ? `${window.location.origin}/designer/${designer.id}`
-              : `https://tailoram.vercel.app/designer/${designer.id}`
+              : `https://tailoram.com/designer/${designer.id}`
           }
           location={`${designer.area || 'City Center'}, ${designer.state || 'Nigeria'}`}
           imageUrl={designer.profile_image_url}

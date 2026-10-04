@@ -10,6 +10,7 @@ import { compressImage } from '@/lib/imageCompressor';
 import { DesignerProfile, OutfitRequest, ClientMeasurements } from '@/lib/types';
 import { saveLocalCreatedRequest } from '@/lib/payments';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
+import { getAppBaseUrl } from '@/lib/appUrl';
 import {
   ArrowLeft,
   Send,
@@ -357,7 +358,7 @@ function RequestForm() {
           recipientName: designer?.business_name || 'Master Designer',
           subject: `🧵 New Bespoke Commission Request from ${profile?.full_name || 'a Client'}`,
           previewText: `${profile?.full_name || 'A client'} just sent a new bespoke tailoring request: "${styleDescription.trim()}". Budget: ₦${minBudget.toLocaleString()}${maxBudget ? ` - ₦${maxBudget.toLocaleString()}` : ''}. Review details and submit a quote on Tailoram.`,
-          ctaLink: `https://tailoram.vercel.app/messages/${finalRequestId}`,
+          ctaLink: `${getAppBaseUrl()}/messages/${finalRequestId}`,
           metadata: { requestId: finalRequestId, designerId },
         });
       } catch (emErr) {

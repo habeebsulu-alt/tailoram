@@ -977,7 +977,7 @@ export default function AdminPage() {
           recipientName: 'Valued Tailoram Member',
           subject: template.subject,
           previewText: template.preview,
-          ctaLink: 'https://tailoram.vercel.app',
+          ctaLink: 'https://tailoram.com',
           metadata: { is_admin_test: true, provider: emailSettings.provider },
         },
         emailSettings
@@ -3540,7 +3540,7 @@ export default function AdminPage() {
                     type="text"
                     value={broadcastLink}
                     onChange={(e) => setBroadcastLink(e.target.value)}
-                    placeholder="e.g. /shop or https://tailoram.vercel.app/shop"
+                    placeholder="e.g. /shop or https://tailoram.com/shop"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
                   />
                 </div>

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { WalletTransaction, CommissionSettings } from './types';
+import { getAppBaseUrl } from './appUrl';
 
 export interface NigerianBank {
   name: string;
@@ -238,7 +239,7 @@ export async function initializeSplitPayment({
   amount,
   subaccountCode,
   reference,
-  callbackUrl = 'https://tailoram.vercel.app/requests',
+  callbackUrl = `${getAppBaseUrl()}/requests`,
   metadata = {},
 }: {
   email: string;

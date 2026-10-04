@@ -3,7 +3,7 @@
 > **Package Name**: `com.tailoram.app`  
 > **Framework**: Capacitor 8 + Next.js 15 App Router  
 > **Target OS**: Android 8.0+ (API Level 26–35)  
-> **Server Sync**: `https://tailoram.vercel.app` (Over-the-Air Live Sync)
+> **Server Sync**: `https://tailoram.com` (Over-the-Air Live Sync)
 
 ---
 
@@ -33,12 +33,12 @@ You can transfer this APK directly to any Android smartphone via USB or WhatsApp
 
 The Tailoram Android app is powered by **Capacitor 8**:
 1. **Live Production Bridge**:
-   - `capacitor.config.ts` is configured with `server.url: 'https://tailoram.vercel.app'`.
+   - `capacitor.config.ts` is configured with `server.url: 'https://tailoram.com'`.
    - **Continuous Over-The-Air Updates**: Every time you commit code and Vercel deploys, users on Android instantly get your new features, bug fixes, and design updates without waiting for Google Play review!
 2. **Native Android Features Enabled**:
    - **Camera Access**: Clients & artisans can take photos of fabric, styles, and measurements (`CAMERA` permission in `AndroidManifest.xml`).
    - **Push Notifications**: Android 13+ native notification permissions (`POST_NOTIFICATIONS`).
-   - **Deep Linking / App Links**: Opening `https://tailoram.vercel.app/*` links on Android automatically launches the native app (`.well-known/assetlinks.json`).
+   - **Deep Linking / App Links**: Opening `https://tailoram.com/*` links on Android automatically launches the native app (`.well-known/assetlinks.json`).
    - **Bottom Navigation**: Ergonomic native bottom navigation bar for comfortable one-handed use on phones.
    - **Adaptive Icons**: Clean luxury gold scissor branding across all Android launcher densities (MDPI to XXXHDPI).
 

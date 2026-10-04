@@ -146,7 +146,7 @@ export default function ShareModal({
               </p>
             )}
             <p className="text-[10px] text-brand-700 font-bold truncate">
-              tailoram.vercel.app/designer/...
+              tailoram.com/designer/...
             </p>
           </div>
         </div>

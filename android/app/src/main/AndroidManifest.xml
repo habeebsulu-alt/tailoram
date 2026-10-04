@@ -27,6 +27,8 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="tailoram.com" />
+                <data android:scheme="https" android:host="www.tailoram.com" />
                 <data android:scheme="https" android:host="tailoram.vercel.app" />
             </intent-filter>
 

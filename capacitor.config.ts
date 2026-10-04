@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   server: {
     // Points directly to the live production deployment.
     // Enables continuous instant updates on Android devices whenever Vercel deploys!
-    url: 'https://tailoram.vercel.app',
+    url: 'https://tailoram.com',
     cleartext: false,
     androidScheme: 'https',
   },

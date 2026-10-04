@@ -7,6 +7,7 @@ import MobileBottomNav from '@/components/MobileBottomNav';
 import AndroidInstallPrompt from '@/components/AndroidInstallPrompt';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://tailoram.com'),
   title: 'Tailoram | Nigerian Fashion Marketplace',
   description: 'Connect with verified fashion designers and bespoke tailors in Lagos, Abuja & across Nigeria. Custom native wear, Agbada, Senator, Ankara, Aso Ebi, and Ready-to-Wear.',
   manifest: '/manifest.json',

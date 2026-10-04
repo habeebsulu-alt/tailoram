@@ -7,6 +7,7 @@ import {
   calculatePaymentSplit,
   recordWalletTransaction,
 } from '@/lib/paystack';
+import { getAppBaseUrl } from '@/lib/appUrl';
 
 /**
  * =========================================================================================
@@ -510,7 +511,7 @@ export async function collectPayment({
         recipientName: participants.designerName || 'Designer',
         subject: `💳 40% Deposit Received (₦${amount.toLocaleString()}) - Start Production`,
         previewText: `${clientName} has confirmed payment of the 40% initial commitment deposit (₦${amount.toLocaleString()}). Payment reference: ${reference}. Production can now begin!`,
-        ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
+        ctaLink: `${getAppBaseUrl()}/messages/${requestId}`,
         metadata: { requestId, amount, reference, type: 'deposit' },
       });
     } else {
@@ -520,7 +521,7 @@ export async function collectPayment({
         recipientName: participants.designerName || 'Designer',
         subject: `🎉 60% Balance Paid (₦${amount.toLocaleString()}) - Commission Completed`,
         previewText: `${clientName} has paid the remaining 60% completion balance (₦${amount.toLocaleString()}). Payment reference: ${reference}. Order is fully settled and ready for handover!`,
-        ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
+        ctaLink: `${getAppBaseUrl()}/messages/${requestId}`,
         metadata: { requestId, amount, reference, type: 'balance' },
       });
     }
@@ -621,7 +622,7 @@ export async function submitQuote({
       recipientName: participants.clientName || 'Fashion Client',
       subject: `📋 Studio Quote Received: ₦${breakdown.quotedPrice.toLocaleString()} - ${participants.designerName || 'Tailoram Designer'}`,
       previewText: `${participants.designerName || 'The designer'} has submitted a quote of ₦${breakdown.quotedPrice.toLocaleString()} (40% deposit: ₦${breakdown.depositAmount.toLocaleString()}) for your bespoke request. Estimated delivery: ${new Date(quoteDeadline).toLocaleDateString()}.`,
-      ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
+      ctaLink: `${getAppBaseUrl()}/messages/${requestId}`,
       metadata: { requestId, quotedPrice: breakdown.quotedPrice, quoteDeadline },
     });
   } catch (emailErr) {
@@ -731,7 +732,7 @@ export async function markOrderReadyForBalance({
       recipientName: participants.clientName || 'Fashion Client',
       subject: `✨ Your Bespoke Outfit is Ready! Complete Balance on Tailoram`,
       previewText: `Great news! ${participants.designerName || 'The designer'} has completed tailoring your garment. Please review and pay the remaining 60% balance to finalize delivery.`,
-      ctaLink: `https://tailoram.vercel.app/messages/${requestId}`,
+      ctaLink: `${getAppBaseUrl()}/messages/${requestId}`,
       metadata: { requestId },
     });
   } catch (emailErr) {

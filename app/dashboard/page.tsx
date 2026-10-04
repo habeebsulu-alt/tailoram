@@ -59,6 +59,7 @@ import OrderReviewModal from '@/components/OrderReviewModal';
 import MeasurementsModal from '@/components/MeasurementsModal';
 import PaymentModal from '@/components/PaymentModal';
 import ShareModal from '@/components/ShareModal';
+import { getAppBaseUrl, APP_URL } from '@/lib/appUrl';
 
 import {
   Scissors,
@@ -1693,7 +1694,7 @@ export default function DesignerDashboard() {
           recipientName: targetDesigner?.business_name || 'Master Designer',
           subject: `🧵 New Bespoke Commission from ${designerProfile?.business_name || profile?.full_name || 'Designer'}`,
           previewText: `${designerProfile?.business_name || profile?.full_name || 'A designer'} has commissioned an outfit from your brand: "${raiseStyleDescription.trim()}". Budget: ₦${minBudget.toLocaleString()}.`,
-          ctaLink: `https://tailoram.vercel.app/messages/${finalRequestId}`,
+          ctaLink: `${getAppBaseUrl()}/messages/${finalRequestId}`,
           metadata: { requestId: finalRequestId },
         });
       } catch {}
@@ -4114,7 +4115,7 @@ export default function DesignerDashboard() {
                     value={
                       typeof window !== 'undefined'
                         ? `${window.location.origin}/designer/${designerProfile.id}`
-                        : `https://tailoram.vercel.app/designer/${designerProfile.id}`
+                        : `${APP_URL}/designer/${designerProfile.id}`
                     }
                     onClick={(e) => (e.target as HTMLInputElement).select()}
                     className="flex-1 bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono text-stone-800 truncate focus:outline-none"
@@ -5753,7 +5754,7 @@ export default function DesignerDashboard() {
           url={
             typeof window !== 'undefined'
               ? `${window.location.origin}/designer/${designerProfile.id}`
-              : `https://tailoram.vercel.app/designer/${designerProfile.id}`
+              : `${APP_URL}/designer/${designerProfile.id}`
           }
           location={`${designerProfile.area || 'City Center'}, ${designerProfile.state || 'Nigeria'}`}
           imageUrl={designerProfile.profile_image_url}

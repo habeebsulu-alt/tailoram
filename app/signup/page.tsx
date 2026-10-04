@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { NIGERIAN_STATES, STATE_AREAS, FASHION_CATEGORIES, UserRole } from '@/lib/types';
 import { formatNigerianPhoneForInput } from '@/lib/phoneUtils';
 import { triggerEmailNotification } from '@/lib/emailNotifications';
+import { getAppBaseUrl } from '@/lib/appUrl';
 import { Scissors, User, Sparkles, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export default function SignUpPage() {
@@ -125,8 +126,8 @@ export default function SignUpPage() {
           : `Welcome to Tailoram! You now have direct access to Nigeria's master tailors and bespoke fashion houses. Commission custom Agbada, Kaftans, Senator suits, and Aso Ebi bridal wear, track your orders with verified milestones, and explore Ready-to-Wear styles.`;
 
         const ctaUrl = isDesigner
-          ? 'https://tailoram.vercel.app/dashboard'
-          : 'https://tailoram.vercel.app/shop';
+          ? `${getAppBaseUrl()}/dashboard`
+          : `${getAppBaseUrl()}/shop`;
 
         triggerEmailNotification({
           event: 'welcome',
