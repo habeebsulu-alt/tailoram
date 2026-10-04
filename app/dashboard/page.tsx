@@ -49,6 +49,8 @@ import {
   sendPushNotification,
   registerServiceWorker,
   isIOS,
+  isAndroid,
+  getDevicePlatform,
   isStandalone,
 } from '@/lib/pushNotifications';
 import QuoteModal from '@/components/QuoteModal';
@@ -269,9 +271,10 @@ export default function DesignerDashboard() {
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default');
   const [isRequestingPush, setIsRequestingPush] = useState(false);
   const [pushStatusBannerDismissed, setPushStatusBannerDismissed] = useState(false);
-  const [isDeviceIOS, setIsDeviceIOS] = useState(false);
+  const [clientPlatform, setClientPlatform] = useState<'ios' | 'android' | 'desktop'>('desktop');
   const [isStandaloneApp, setIsStandaloneApp] = useState(false);
   const [iosGuideModalOpen, setIosGuideModalOpen] = useState(false);
+  const [pushTroubleshootModalOpen, setPushTroubleshootModalOpen] = useState(false);
   const notificationMenuRef = useRef<HTMLDivElement>(null);
 
   const toggleAvatarFit = () => {
@@ -661,9 +664,9 @@ export default function DesignerDashboard() {
   // Initialize service worker & notification permission status
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const ios = isIOS();
+      const platform = getDevicePlatform();
       const standalone = isStandalone();
-      setIsDeviceIOS(ios);
+      setClientPlatform(platform);
       setIsStandaloneApp(standalone);
 
       const perm = getPushPermissionStatus();
@@ -788,36 +791,57 @@ export default function DesignerDashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Request push notification permission
+  // Request push notification permission tailored by device (Android, Desktop Web, iOS)
   const handleEnablePushNotifications = async () => {
-    // On iPhone / iOS Safari, Web Push is only supported if added to Home Screen as a Web App (PWA)
-    if (isDeviceIOS && !isStandaloneApp) {
+    // 1. iPhone / iPad: only Safari tabs require Home Screen installation. If already on Home Screen, prompts natively.
+    if (clientPlatform === 'ios' && !isStandaloneApp) {
       setIosGuideModalOpen(true);
       return;
     }
 
-    if (!('Notification' in window)) {
-      alert('Push notifications are not supported on this browser. On iPhone, tap the Share icon and select "Add to Home Screen" first.');
+    // 2. Check if Notification API exists in browser
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      if (clientPlatform === 'ios') {
+        setIosGuideModalOpen(true);
+      } else {
+        alert('Push notifications are not supported in this browser. Please use Google Chrome, Edge, or Samsung Internet.');
+      }
       return;
     }
 
+    // 3. If user previously blocked permission in browser settings
+    if (Notification.permission === 'denied') {
+      setPushTroubleshootModalOpen(true);
+      return;
+    }
+
+    // 4. Request permission natively (Android Chrome, Desktop Chrome/Firefox/Safari, or iOS Standalone)
     setIsRequestingPush(true);
     try {
       const result = await requestPushPermission();
       setPushPermission(result);
+
       if (result === 'granted') {
-        // Send sample push confirmation
+        // Send immediate confirmation push notification
         sendPushNotification({
-          title: 'Tailoram Studio Notifications Enabled! 🧵',
-          body: 'You will now receive instant push notifications on this device for new bespoke orders, client payments, and chat messages.',
+          title: 'Tailoram Notifications Active! 🧵',
+          body: clientPlatform === 'android'
+            ? 'Android push notifications enabled. You will receive real-time order and deposit alerts.'
+            : clientPlatform === 'ios'
+            ? 'iPhone push alerts enabled. You will receive real-time bespoke order updates.'
+            : 'Web browser push notifications enabled. You will receive real-time alerts.',
           url: '/dashboard',
         });
       } else if (result === 'denied') {
-        alert('Notification permission was blocked in your device settings. Please go to your device Settings -> Notifications -> Tailoram to enable them.');
+        setPushTroubleshootModalOpen(true);
       }
     } catch (err: any) {
       console.warn('Error requesting push permission:', err);
-      alert('Could not enable push notifications: ' + (err?.message || 'Unsupported on this device'));
+      if (clientPlatform === 'ios') {
+        setIosGuideModalOpen(true);
+      } else {
+        setPushTroubleshootModalOpen(true);
+      }
     } finally {
       setIsRequestingPush(false);
     }
@@ -2297,9 +2321,11 @@ export default function DesignerDashboard() {
                         <div className="flex items-center gap-2">
                           <Smartphone className="w-4 h-4 text-amber-600 shrink-0" />
                           <span className="text-xs font-bold text-stone-800">
-                            {isDeviceIOS && !isStandaloneApp
+                            {clientPlatform === 'ios' && !isStandaloneApp
                               ? 'Get push alerts on iPhone'
-                              : 'Enable push alerts on device'}
+                              : clientPlatform === 'android'
+                              ? 'Enable Android Push Alerts'
+                              : 'Enable Web Push Alerts'}
                           </span>
                         </div>
                         <button
@@ -2310,7 +2336,7 @@ export default function DesignerDashboard() {
                         >
                           {isRequestingPush
                             ? 'Enabling...'
-                            : isDeviceIOS && !isStandaloneApp
+                            : clientPlatform === 'ios' && !isStandaloneApp
                             ? 'How to Enable'
                             : 'Turn On'}
                         </button>
@@ -2499,10 +2525,18 @@ export default function DesignerDashboard() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-xs sm:text-sm text-stone-900">
-                  Instant Mobile Push Alerts
+                  {clientPlatform === 'android'
+                    ? 'Instant Android Push Alerts'
+                    : clientPlatform === 'ios'
+                    ? 'Instant iPhone Push Alerts'
+                    : 'Instant Desktop & Web Push Alerts'}
                 </span>
                 <span className="text-[10px] bg-amber-500/20 text-amber-800 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Mobile &amp; Web
+                  {clientPlatform === 'android'
+                    ? 'Android Chrome'
+                    : clientPlatform === 'ios'
+                    ? 'Apple iOS'
+                    : 'Web Browser'}
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-stone-600 font-medium mt-0.5">
@@ -2522,7 +2556,7 @@ export default function DesignerDashboard() {
               <span>
                 {isRequestingPush
                   ? 'Enabling...'
-                  : isDeviceIOS && !isStandaloneApp
+                  : clientPlatform === 'ios' && !isStandaloneApp
                   ? 'How to Enable on iPhone'
                   : 'Enable Push Notifications'}
               </span>
@@ -5775,6 +5809,120 @@ export default function DesignerDashboard() {
                 className="w-full py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-black text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
               >
                 <span>Got it, I&apos;ll add to Home Screen</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Android & Web Browser Permission Troubleshoot Lightbox Modal */}
+      {pushTroubleshootModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-stone-200 space-y-5 animate-scaleUp">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0">
+                  <Bell className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-stone-900">
+                    {clientPlatform === 'android'
+                      ? 'Enable Alerts on Android'
+                      : 'Enable Browser Notifications'}
+                  </h3>
+                  <p className="text-xs text-stone-500 font-medium">
+                    {clientPlatform === 'android'
+                      ? 'Chrome / Android Notification Settings'
+                      : 'Browser Permission Settings'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPushTroubleshootModalOpen(false)}
+                className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content tailored for Android vs Desktop */}
+            {clientPlatform === 'android' ? (
+              <div className="space-y-3 text-xs">
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-2xl flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-stone-900 text-amber-400 font-black text-xs flex items-center justify-center shrink-0">
+                    1
+                  </div>
+                  <div>
+                    <p className="font-bold text-stone-900">Tap the Lock / Settings icon</p>
+                    <p className="text-stone-500 mt-0.5">
+                      Tap the icon next to the address bar (<span className="font-mono text-stone-700">tailoram.com</span>) in Chrome.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-2xl flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-stone-900 text-amber-400 font-black text-xs flex items-center justify-center shrink-0">
+                    2
+                  </div>
+                  <div>
+                    <p className="font-bold text-stone-900">Tap &quot;Permissions&quot; &rarr; &quot;Notifications&quot;</p>
+                    <p className="text-stone-500 mt-0.5">
+                      Toggle notifications from <span className="font-bold text-red-600">&quot;Blocked&quot;</span> to <span className="font-bold text-emerald-600">&quot;Allow&quot;</span>.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-2xl flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-stone-900 text-amber-400 font-black text-xs flex items-center justify-center shrink-0">
+                    3
+                  </div>
+                  <div>
+                    <p className="font-bold text-stone-900">Reload the page</p>
+                    <p className="text-stone-500 mt-0.5">
+                      Refresh this page to start receiving immediate push notifications for bespoke commissions and deposits.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 text-xs">
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-2xl flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-stone-900 text-amber-400 font-black text-xs flex items-center justify-center shrink-0">
+                    1
+                  </div>
+                  <div>
+                    <p className="font-bold text-stone-900">Click the Site Information icon</p>
+                    <p className="text-stone-500 mt-0.5">
+                      Click the tune/sliders icon next to the URL in your browser address bar.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-2xl flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-stone-900 text-amber-400 font-black text-xs flex items-center justify-center shrink-0">
+                    2
+                  </div>
+                  <div>
+                    <p className="font-bold text-stone-900">Turn on &quot;Notifications&quot;</p>
+                    <p className="text-stone-500 mt-0.5">
+                      Switch Notifications permission to <span className="font-bold text-emerald-600">&quot;Allow&quot;</span>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setPushTroubleshootModalOpen(false)}
+                className="w-full py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-black text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>Understood</span>
               </button>
             </div>
           </div>

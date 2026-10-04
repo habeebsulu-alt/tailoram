@@ -28,6 +28,24 @@ export function isIOS(): boolean {
 }
 
 /**
+ * Detect if the current device is running Android
+ */
+export function isAndroid(): boolean {
+  if (typeof window === 'undefined') return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
+/**
+ * Identify client platform: 'ios' | 'android' | 'desktop'
+ */
+export function getDevicePlatform(): 'ios' | 'android' | 'desktop' {
+  if (typeof window === 'undefined') return 'desktop';
+  if (isIOS()) return 'ios';
+  if (isAndroid()) return 'android';
+  return 'desktop';
+}
+
+/**
  * Detect if the web app is running in Standalone (Home Screen / PWA) mode
  */
 export function isStandalone(): boolean {
