@@ -7,6 +7,12 @@ import Footer from '@/components/Footer';
 export const metadata: Metadata = {
   title: 'Tailoram | Nigerian Fashion Marketplace',
   description: 'Connect with verified fashion designers and bespoke tailors in Lagos, Nigeria. Custom native wear, Ankara, Aso Ebi, and bespoke tailoring.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Tailoram',
+  },
 };
 
 export const viewport: Viewport = {

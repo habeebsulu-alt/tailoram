@@ -17,6 +17,28 @@ export interface PushNotificationPayload {
 const LOCAL_STORAGE_PUSH_PERMISSION_KEY = 'tailoram_push_permission';
 
 /**
+ * Detect if the current device is running iOS (iPhone, iPad, iPod)
+ */
+export function isIOS(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
+/**
+ * Detect if the web app is running in Standalone (Home Screen / PWA) mode
+ */
+export function isStandalone(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as any).standalone === true
+  );
+}
+
+/**
  * Check if the browser / mobile client supports Notifications and Service Workers
  */
 export function isPushSupported(): boolean {
@@ -38,7 +60,7 @@ export function getPushPermissionStatus(): NotificationPermission {
  * Register the Service Worker located at /sw.js
  */
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
-  if (!isPushSupported()) return null;
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
 
   try {
     const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
@@ -52,20 +74,45 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 /**
  * Request permission from user to deliver push notifications.
  * Prompts standard browser / mobile system dialog.
+ * Handles both Promise-based and older callback-based requestPermission.
  */
 export async function requestPushPermission(): Promise<NotificationPermission> {
-  if (!isPushSupported()) {
+  if (typeof window === 'undefined') return 'denied';
+
+  // If Notification object is missing entirely
+  if (!('Notification' in window)) {
     return 'denied';
   }
 
   try {
-    const permission = await Notification.requestPermission();
+    let permission: NotificationPermission = 'default';
+
+    // Modern browsers return a Promise; older Safari uses callback
+    if (typeof Notification.requestPermission === 'function') {
+      try {
+        const result = Notification.requestPermission();
+        if (result && typeof (result as any).then === 'function') {
+          permission = await result;
+        } else {
+          permission = await new Promise((resolve) => {
+            Notification.requestPermission(resolve);
+          });
+        }
+      } catch (callErr) {
+        permission = await new Promise((resolve) => {
+          Notification.requestPermission(resolve);
+        });
+      }
+    }
+
     if (typeof window !== 'undefined') {
       localStorage.setItem(LOCAL_STORAGE_PUSH_PERMISSION_KEY, permission);
     }
+
     if (permission === 'granted') {
       await registerServiceWorker();
     }
+
     return permission;
   } catch (err) {
     console.warn('Failed to request notification permission:', err);

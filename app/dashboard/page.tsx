@@ -48,6 +48,8 @@ import {
   requestPushPermission,
   sendPushNotification,
   registerServiceWorker,
+  isIOS,
+  isStandalone,
 } from '@/lib/pushNotifications';
 import QuoteModal from '@/components/QuoteModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
@@ -267,6 +269,9 @@ export default function DesignerDashboard() {
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default');
   const [isRequestingPush, setIsRequestingPush] = useState(false);
   const [pushStatusBannerDismissed, setPushStatusBannerDismissed] = useState(false);
+  const [isDeviceIOS, setIsDeviceIOS] = useState(false);
+  const [isStandaloneApp, setIsStandaloneApp] = useState(false);
+  const [iosGuideModalOpen, setIosGuideModalOpen] = useState(false);
   const notificationMenuRef = useRef<HTMLDivElement>(null);
 
   const toggleAvatarFit = () => {
@@ -656,6 +661,11 @@ export default function DesignerDashboard() {
   // Initialize service worker & notification permission status
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const ios = isIOS();
+      const standalone = isStandalone();
+      setIsDeviceIOS(ios);
+      setIsStandaloneApp(standalone);
+
       const perm = getPushPermissionStatus();
       setPushPermission(perm);
       if (perm === 'granted') {
@@ -780,6 +790,17 @@ export default function DesignerDashboard() {
 
   // Request push notification permission
   const handleEnablePushNotifications = async () => {
+    // On iPhone / iOS Safari, Web Push is only supported if added to Home Screen as a Web App (PWA)
+    if (isDeviceIOS && !isStandaloneApp) {
+      setIosGuideModalOpen(true);
+      return;
+    }
+
+    if (!('Notification' in window)) {
+      alert('Push notifications are not supported on this browser. On iPhone, tap the Share icon and select "Add to Home Screen" first.');
+      return;
+    }
+
     setIsRequestingPush(true);
     try {
       const result = await requestPushPermission();
@@ -791,7 +812,12 @@ export default function DesignerDashboard() {
           body: 'You will now receive instant push notifications on this device for new bespoke orders, client payments, and chat messages.',
           url: '/dashboard',
         });
+      } else if (result === 'denied') {
+        alert('Notification permission was blocked in your device settings. Please go to your device Settings -> Notifications -> Tailoram to enable them.');
       }
+    } catch (err: any) {
+      console.warn('Error requesting push permission:', err);
+      alert('Could not enable push notifications: ' + (err?.message || 'Unsupported on this device'));
     } finally {
       setIsRequestingPush(false);
     }
@@ -2206,7 +2232,7 @@ export default function DesignerDashboard() {
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Notification Center Bell Indicator & Dropdown */}
+            {/* Notification Center Bell Indicator & Popover / Lightbox */}
             <div className="relative" ref={notificationMenuRef}>
               <button
                 type="button"
@@ -2223,119 +2249,146 @@ export default function DesignerDashboard() {
                 )}
               </button>
 
-              {/* Notification Popover Menu */}
+              {/* Notification Lightbox on Mobile / Popover on Desktop */}
               {notificationDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-3xl bg-white border border-stone-200 shadow-2xl z-50 overflow-hidden animate-fadeIn">
-                  <div className="p-4 bg-stone-900 text-white flex items-center justify-between border-b border-stone-800">
-                    <div className="flex items-center gap-2">
-                      <BellRing className="w-4 h-4 text-amber-400" />
-                      <span className="font-black text-sm">Studio Notifications</span>
-                      <span className="text-[10px] font-extrabold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full">
-                        {notifications.filter((n) => !n.read).length} Unread
-                      </span>
-                    </div>
-                    {notifications.some((n) => !n.read) && (
-                      <button
-                        type="button"
-                        onClick={handleMarkAllNotificationsRead}
-                        className="text-[11px] font-bold text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer transition-colors"
-                      >
-                        <CheckCheck className="w-3.5 h-3.5" />
-                        <span>Mark read</span>
-                      </button>
-                    )}
-                  </div>
+                <>
+                  {/* Backdrop for Mobile Lightbox */}
+                  <div
+                    className="fixed inset-0 bg-stone-950/60 backdrop-blur-xs z-50 sm:hidden animate-fadeIn"
+                    onClick={() => setNotificationDropdownOpen(false)}
+                  />
 
-                  {/* Push Notifications Enable Bar (Quick mobile opt-in) */}
-                  {pushPermission !== 'granted' && (
-                    <div className="p-3 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between gap-3">
+                  <div className="fixed sm:absolute inset-x-4 top-20 sm:top-full sm:inset-x-auto sm:right-0 sm:mt-2 sm:w-96 rounded-3xl bg-white border border-stone-200 shadow-2xl z-50 overflow-hidden animate-fadeIn max-h-[85vh] sm:max-h-none flex flex-col">
+                    {/* Header */}
+                    <div className="p-4 bg-stone-900 text-white flex items-center justify-between border-b border-stone-800 shrink-0">
                       <div className="flex items-center gap-2">
-                        <Smartphone className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span className="text-xs font-bold text-stone-800">
-                          Enable push alerts on this device
+                        <BellRing className="w-4 h-4 text-amber-400" />
+                        <span className="font-black text-sm">Studio Notifications</span>
+                        <span className="text-[10px] font-extrabold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full">
+                          {notifications.filter((n) => !n.read).length} Unread
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleEnablePushNotifications}
-                        disabled={isRequestingPush}
-                        className="px-2.5 py-1 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-400 font-extrabold text-[11px] shrink-0 transition-all cursor-pointer shadow-xs"
-                      >
-                        {isRequestingPush ? 'Enabling...' : 'Turn On'}
-                      </button>
-                    </div>
-                  )}
 
-                  {/* Notification Items List */}
-                  <div className="max-h-80 overflow-y-auto divide-y divide-stone-100">
-                    {notifications.length === 0 ? (
-                      <div className="p-8 text-center text-stone-400 text-xs">
-                        No notifications at this time
-                      </div>
-                    ) : (
-                      notifications.map((item) => (
-                        <div
-                          key={item.id}
-                          onClick={() => {
-                            handleMarkNotificationRead(item.id, item.link);
-                            if (item.type === 'order') {
-                              setActiveTab('requests');
-                            } else if (item.type === 'payment') {
-                              setActiveTab('wallet');
-                            } else if (item.type === 'system' && item.id.includes('payout')) {
-                              setActiveTab('payout');
-                            }
-                          }}
-                          className={`p-3.5 transition-colors cursor-pointer hover:bg-stone-50 flex items-start gap-3 ${
-                            !item.read ? 'bg-amber-50/40' : 'bg-white'
-                          }`}
+                      <div className="flex items-center gap-3">
+                        {notifications.some((n) => !n.read) && (
+                          <button
+                            type="button"
+                            onClick={handleMarkAllNotificationsRead}
+                            className="text-[11px] font-bold text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <CheckCheck className="w-3.5 h-3.5" />
+                            <span>Mark read</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setNotificationDropdownOpen(false)}
+                          className="p-1 rounded-lg text-stone-400 hover:text-white transition-colors cursor-pointer"
+                          aria-label="Close notifications"
                         >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Push Notifications Enable Bar (Quick mobile opt-in) */}
+                    {pushPermission !== 'granted' && (
+                      <div className="p-3 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between gap-3 shrink-0">
+                        <div className="flex items-center gap-2">
+                          <Smartphone className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span className="text-xs font-bold text-stone-800">
+                            {isDeviceIOS && !isStandaloneApp
+                              ? 'Get push alerts on iPhone'
+                              : 'Enable push alerts on device'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleEnablePushNotifications}
+                          disabled={isRequestingPush}
+                          className="px-2.5 py-1 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-400 font-extrabold text-[11px] shrink-0 transition-all cursor-pointer shadow-xs"
+                        >
+                          {isRequestingPush
+                            ? 'Enabling...'
+                            : isDeviceIOS && !isStandaloneApp
+                            ? 'How to Enable'
+                            : 'Turn On'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Notification Items List */}
+                    <div className="overflow-y-auto divide-y divide-stone-100 flex-1 max-h-96 sm:max-h-80 overscroll-contain">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center text-stone-400 text-xs">
+                          No notifications at this time
+                        </div>
+                      ) : (
+                        notifications.map((item) => (
                           <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                              item.type === 'welcome'
-                                ? 'bg-amber-100 text-amber-700'
-                                : item.type === 'order'
-                                ? 'bg-blue-100 text-blue-700'
-                                : item.type === 'payment'
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-stone-100 text-stone-600'
+                            key={item.id}
+                            onClick={() => {
+                              handleMarkNotificationRead(item.id, item.link);
+                              setNotificationDropdownOpen(false);
+                              if (item.type === 'order') {
+                                setActiveTab('requests');
+                              } else if (item.type === 'payment') {
+                                setActiveTab('wallet');
+                              } else if (item.type === 'system' && item.id.includes('payout')) {
+                                setActiveTab('payout');
+                              }
+                            }}
+                            className={`p-3.5 transition-colors cursor-pointer hover:bg-stone-50 flex items-start gap-3 ${
+                              !item.read ? 'bg-amber-50/40' : 'bg-white'
                             }`}
                           >
-                            {item.type === 'welcome' && <Sparkles className="w-4 h-4" />}
-                            {item.type === 'order' && <Scissors className="w-4 h-4" />}
-                            {item.type === 'payment' && <CreditCard className="w-4 h-4" />}
-                            {item.type === 'system' && <Landmark className="w-4 h-4" />}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <h5 className="text-xs font-bold text-stone-900 truncate">
-                                {item.title}
-                              </h5>
-                              {item.badge && (
-                                <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600 shrink-0">
-                                  {item.badge}
-                                </span>
-                              )}
+                            <div
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                                item.type === 'welcome'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : item.type === 'order'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : item.type === 'payment'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-stone-100 text-stone-600'
+                              }`}
+                            >
+                              {item.type === 'welcome' && <Sparkles className="w-4 h-4" />}
+                              {item.type === 'order' && <Scissors className="w-4 h-4" />}
+                              {item.type === 'payment' && <CreditCard className="w-4 h-4" />}
+                              {item.type === 'system' && <Landmark className="w-4 h-4" />}
                             </div>
-                            <p className="text-[11px] text-stone-600 line-clamp-2 leading-snug">
-                              {item.message}
-                            </p>
-                            <span className="text-[10px] text-stone-400 mt-1 block">
-                              {item.timestamp}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
 
-                  <div className="p-2.5 bg-stone-50 border-t border-stone-200 text-center">
-                    <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                      Tailoram Push &amp; In-App Telemetry
-                    </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1 mb-0.5">
+                                <h5 className="text-xs font-bold text-stone-900 truncate">
+                                  {item.title}
+                                </h5>
+                                {item.badge && (
+                                  <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600 shrink-0">
+                                    {item.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-stone-600 line-clamp-2 leading-snug">
+                                {item.message}
+                              </p>
+                              <span className="text-[10px] text-stone-400 mt-1 block">
+                                {item.timestamp}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="p-2.5 bg-stone-50 border-t border-stone-200 text-center shrink-0">
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                        Tailoram Push &amp; In-App Telemetry
+                      </span>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
 
@@ -2466,7 +2519,13 @@ export default function DesignerDashboard() {
               className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-bold text-xs shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
             >
               <Bell className="w-3.5 h-3.5 text-amber-400" />
-              <span>{isRequestingPush ? 'Enabling...' : 'Enable Push Notifications'}</span>
+              <span>
+                {isRequestingPush
+                  ? 'Enabling...'
+                  : isDeviceIOS && !isStandaloneApp
+                  ? 'How to Enable on iPhone'
+                  : 'Enable Push Notifications'}
+              </span>
             </button>
             <button
               type="button"
@@ -5627,6 +5686,99 @@ export default function DesignerDashboard() {
           imageUrl={designerProfile.profile_image_url}
           categories={designerProfile.categories}
         />
+      )}
+
+      {/* iOS Push Notification Setup Guide Lightbox Modal */}
+      {iosGuideModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-stone-200 space-y-5 animate-scaleUp">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-stone-900">
+                    Enable Push Alerts on iPhone
+                  </h3>
+                  <p className="text-xs text-stone-500 font-medium">
+                    Apple iOS 16.4+ Web Push Setup
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIosGuideModalOpen(false)}
+                className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Explanation */}
+            <div className="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-4 text-xs text-stone-700 leading-relaxed space-y-1">
+              <p className="font-extrabold text-amber-900 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span>Apple iOS Web Push Requirement:</span>
+              </p>
+              <p>
+                Under Apple’s security policy, iPhone Safari does not allow web push notifications inside regular browser tabs until you add Tailoram to your Home Screen as an app.
+              </p>
+            </div>
+
+            {/* Step-by-Step Visual Instructions */}
+            <div className="space-y-3 text-xs">
+              <div className="flex items-start gap-3 p-3 rounded-2xl bg-stone-50 border border-stone-100">
+                <div className="w-6 h-6 rounded-full bg-stone-900 text-amber-400 font-black text-xs flex items-center justify-center shrink-0">
+                  1
+                </div>
+                <div>
+                  <p className="font-bold text-stone-900">Tap Safari&apos;s Share Button</p>
+                  <p className="text-stone-500 mt-0.5">
+                    Look at the bottom toolbar of Safari on your iPhone and tap the square Share icon with an arrow pointing up (<Share2 className="w-3.5 h-3.5 inline mx-0.5 text-blue-600" />).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-2xl bg-stone-50 border border-stone-100">
+                <div className="w-6 h-6 rounded-full bg-stone-900 text-amber-400 font-black text-xs flex items-center justify-center shrink-0">
+                  2
+                </div>
+                <div>
+                  <p className="font-bold text-stone-900">Select &quot;Add to Home Screen&quot;</p>
+                  <p className="text-stone-500 mt-0.5">
+                    Scroll down in the Share sheet and tap <span className="font-bold text-stone-800">&quot;Add to Home Screen&quot;</span>, then tap <span className="font-bold text-amber-700">&quot;Add&quot;</span> in the top-right corner.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-2xl bg-stone-50 border border-stone-100">
+                <div className="w-6 h-6 rounded-full bg-stone-900 text-amber-400 font-black text-xs flex items-center justify-center shrink-0">
+                  3
+                </div>
+                <div>
+                  <p className="font-bold text-stone-900">Launch from Home Screen &amp; Allow Alerts</p>
+                  <p className="text-stone-500 mt-0.5">
+                    Open Tailoram from your iPhone Home Screen. Tap <span className="font-bold text-stone-800">&quot;Enable Push Notifications&quot;</span> and tap <span className="font-bold text-emerald-700">&quot;Allow&quot;</span> on Apple&apos;s prompt.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setIosGuideModalOpen(false)}
+                className="w-full py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-black text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>Got it, I&apos;ll add to Home Screen</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

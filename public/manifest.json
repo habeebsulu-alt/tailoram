@@ -1,0 +1,16 @@
+{
+  "name": "Tailoram Nigeria",
+  "short_name": "Tailoram",
+  "description": "Nigeria's Premier Bespoke Fashion Marketplace & Ready-to-Wear Platform",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#1c1917",
+  "theme_color": "#b45309",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
