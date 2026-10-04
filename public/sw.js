@@ -12,7 +12,8 @@ self.addEventListener('push', (event) => {
     title: 'Tailoram Nigeria',
     body: 'You have a new update on Tailoram.',
     url: '/dashboard',
-    icon: '/icon-192.png',
+    icon: '/favicon.ico',
+    image: undefined,
   };
 
   if (event.data) {
@@ -25,14 +26,15 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/icon-192.png',
-    badge: '/icon-192.png',
-    vibrate: [100, 50, 100],
+    icon: data.icon || '/favicon.ico',
+    badge: data.badge || '/favicon.ico',
+    image: data.image || undefined, // Rich image banner
+    vibrate: [150, 50, 150, 50, 200],
     data: {
       url: data.url || '/dashboard',
     },
     actions: [
-      { action: 'open', title: 'Open Studio' }
+      { action: 'open', title: 'Open Tailoram' }
     ]
   };
 

@@ -52,6 +52,7 @@ import {
   isAndroid,
   getDevicePlatform,
   isStandalone,
+  getAdminPushBroadcasts,
 } from '@/lib/pushNotifications';
 import QuoteModal from '@/components/QuoteModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
@@ -767,18 +768,39 @@ export default function DesignerDashboard() {
       });
     });
 
-    // Merge with read status from local storage
-    if (typeof window !== 'undefined') {
-      const readIds: string[] = JSON.parse(localStorage.getItem('tailoram_read_notifications') || '[]');
-      const adjusted = notifList.map((n) => ({
-        ...n,
-        read: n.read || readIds.includes(n.id),
+    // 7. Load Admin Broadcasts (Announcements & Rich Push Notifications with Images)
+    getAdminPushBroadcasts().then((broadcasts) => {
+      const userRole = profile?.role || (designerProfile ? 'designer' : 'client');
+      const filtered = broadcasts.filter(
+        (b) => b.target_audience === 'all' || b.target_audience === `${userRole}s` || (b.target_audience === 'designers' && designerProfile)
+      );
+
+      const broadcastNotifs: InAppNotification[] = filtered.map((b) => ({
+        id: b.id,
+        type: 'broadcast',
+        title: b.title,
+        message: b.body,
+        image: b.image,
+        link: b.url || '/dashboard',
+        timestamp: new Date(b.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        read: false,
+        badge: 'Official',
       }));
-      setNotifications(adjusted);
-    } else {
-      setNotifications(notifList);
-    }
-  }, [designerProfile, user, requests, reviews]);
+
+      const combined = [...broadcastNotifs, ...notifList];
+
+      if (typeof window !== 'undefined') {
+        const readIds: string[] = JSON.parse(localStorage.getItem('tailoram_read_notifications') || '[]');
+        const adjusted = combined.map((n) => ({
+          ...n,
+          read: n.read || readIds.includes(n.id),
+        }));
+        setNotifications(adjusted);
+      } else {
+        setNotifications(combined);
+      }
+    });
+  }, [designerProfile, user, requests, reviews, profile?.role]);
 
   // Close notification dropdown when clicked outside
   useEffect(() => {
@@ -2376,12 +2398,15 @@ export default function DesignerDashboard() {
                                   ? 'bg-blue-100 text-blue-700'
                                   : item.type === 'payment'
                                   ? 'bg-emerald-100 text-emerald-700'
+                                  : item.type === 'broadcast'
+                                  ? 'bg-purple-100 text-purple-700'
                                   : 'bg-stone-100 text-stone-600'
                               }`}
                             >
                               {item.type === 'welcome' && <Sparkles className="w-4 h-4" />}
                               {item.type === 'order' && <Scissors className="w-4 h-4" />}
                               {item.type === 'payment' && <CreditCard className="w-4 h-4" />}
+                              {item.type === 'broadcast' && <Send className="w-4 h-4" />}
                               {item.type === 'system' && <Landmark className="w-4 h-4" />}
                             </div>
 
@@ -2391,7 +2416,11 @@ export default function DesignerDashboard() {
                                   {item.title}
                                 </h5>
                                 {item.badge && (
-                                  <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600 shrink-0">
+                                  <span className={`text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0 ${
+                                    item.type === 'broadcast'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : 'bg-stone-100 text-stone-600'
+                                  }`}>
                                     {item.badge}
                                   </span>
                                 )}
@@ -2399,6 +2428,16 @@ export default function DesignerDashboard() {
                               <p className="text-[11px] text-stone-600 line-clamp-2 leading-snug">
                                 {item.message}
                               </p>
+                              {item.image && (
+                                <div className="mt-2 rounded-xl overflow-hidden border border-stone-200 max-h-36 bg-stone-100">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={item.image}
+                                    alt={item.title}
+                                    className="w-full h-28 object-cover hover:scale-105 transition-transform duration-300"
+                                  />
+                                </div>
+                              )}
                               <span className="text-[10px] text-stone-400 mt-1 block">
                                 {item.timestamp}
                               </span>

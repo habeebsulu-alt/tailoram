@@ -71,6 +71,11 @@ import {
   EyeOff,
   ArrowUpDown,
   SlidersHorizontal,
+  BellRing,
+  Radio,
+  Smartphone,
+  Image as ImageIcon,
+  Globe,
 } from 'lucide-react';
 import {
   getEmailSettings,
@@ -82,6 +87,16 @@ import {
   triggerEmailNotification,
   DEFAULT_EMAIL_SETTINGS,
 } from '@/lib/emailNotifications';
+import {
+  getAdminPushBroadcasts,
+  sendAdminPushBroadcast,
+  deleteAdminPushBroadcast,
+  sendPushNotification,
+  requestPushPermission,
+  isPushSupported,
+  getPushPermissionStatus,
+  AdminPushBroadcast,
+} from '@/lib/pushNotifications';
 import {
   getCommissionSettings,
   saveCommissionSettings,
@@ -110,6 +125,34 @@ const DEMO_EMAILS_MAP: Record<string, string> = {
 
 const ALL_DEMO_EMAILS = Object.values(DEMO_EMAILS_MAP);
 
+const PUSH_IMAGE_PRESETS = [
+  {
+    name: 'Emerald Agbada',
+    url: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80',
+    tag: 'Agbada • Men',
+  },
+  {
+    name: 'Champagne Aso Ebi',
+    url: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=1000&q=80',
+    tag: 'Aso Ebi • Lace',
+  },
+  {
+    name: 'Senator Native',
+    url: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=1000&q=80',
+    tag: 'Senator • Luxury',
+  },
+  {
+    name: 'Indigo Adire Silk',
+    url: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1000&q=80',
+    tag: 'Adire • Craft',
+  },
+  {
+    name: 'George Bridal Glam',
+    url: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1000&q=80',
+    tag: 'Bridal • Owambe',
+  },
+];
+
 export default function AdminPage() {
   const { user, profile, refreshProfile, impersonateUser } = useAuth();
   const router = useRouter();
@@ -136,8 +179,18 @@ export default function AdminPage() {
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
-    'analytics' | 'designers' | 'users' | 'requests' | 'products' | 'reviews' | 'events' | 'emails' | 'settings'
+    'analytics' | 'designers' | 'users' | 'requests' | 'products' | 'reviews' | 'events' | 'emails' | 'push' | 'settings'
   >('analytics');
+
+  // Push Notification Broadcast State
+  const [pushBroadcasts, setPushBroadcasts] = useState<AdminPushBroadcast[]>([]);
+  const [broadcastTitle, setBroadcastTitle] = useState('✨ Exclusive Nigerian Luxury Attire Drop');
+  const [broadcastBody, setBroadcastBody] = useState('Explore handcrafted Agbada, Senator sets, and Aso Ebi couture directly from master artisans across Nigeria.');
+  const [broadcastImageUrl, setBroadcastImageUrl] = useState('https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80');
+  const [broadcastTarget, setBroadcastTarget] = useState<'all' | 'designers' | 'clients'>('all');
+  const [broadcastLink, setBroadcastLink] = useState('/shop');
+  const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
+  const [isTestingLocalPush, setIsTestingLocalPush] = useState(false);
 
   // Email Notifications State
   const [emailSettings, setEmailSettings] = useState<EmailSettings>(DEFAULT_EMAIL_SETTINGS);
@@ -329,6 +382,10 @@ export default function AdminPage() {
       // 10. Platform Commission & Split Payment Settings
       const commSettings = await getCommissionSettings();
       setCommissionSettings(commSettings);
+
+      // 11. Push Notification Broadcasts
+      const broadcasts = await getAdminPushBroadcasts();
+      setPushBroadcasts(broadcasts);
     } catch (err) {
       console.error('Error fetching admin data:', err);
       showNotice('Failed to synchronize some marketplace records', 'error');
@@ -941,6 +998,94 @@ export default function AdminPage() {
     }
   };
 
+  // --- PUSH BROADCAST ACTIONS ---
+  const handleSendPushBroadcast = async () => {
+    if (!broadcastTitle.trim()) {
+      showNotice('Please provide a notification title.', 'error');
+      return;
+    }
+    if (!broadcastBody.trim()) {
+      showNotice('Please provide a message body.', 'error');
+      return;
+    }
+
+    try {
+      setIsSendingBroadcast(true);
+      const res = await sendAdminPushBroadcast({
+        title: broadcastTitle,
+        body: broadcastBody,
+        image: broadcastImageUrl.trim() || undefined,
+        url: broadcastLink.trim() || '/shop',
+        target_audience: broadcastTarget,
+        sent_by: profile?.full_name || user?.email || 'Admin Control Center',
+      });
+
+      if (res.success) {
+        setPushBroadcasts((prev) => [res.broadcast, ...prev]);
+        const targetLabel =
+          broadcastTarget === 'all'
+            ? 'All Users (Designers & Clients)'
+            : broadcastTarget === 'designers'
+            ? 'All Master Designers'
+            : 'All Clients';
+        showNotice(`✅ Broadcast notification successfully sent to ${targetLabel}!`);
+      } else {
+        showNotice('Failed to broadcast push notification.', 'error');
+      }
+    } catch (err: any) {
+      console.error('Broadcast error:', err);
+      showNotice(`Failed to send broadcast: ${err.message}`, 'error');
+    } finally {
+      setIsSendingBroadcast(false);
+    }
+  };
+
+  const handleTestDevicePush = async () => {
+    try {
+      setIsTestingLocalPush(true);
+      if (!isPushSupported()) {
+        showNotice('Web Push is not supported in this browser.', 'error');
+        return;
+      }
+
+      let perm = getPushPermissionStatus();
+      if (perm !== 'granted') {
+        perm = await requestPushPermission();
+      }
+
+      if (perm !== 'granted') {
+        showNotice('Push permission was not granted. Please enable notifications in your browser.', 'error');
+        return;
+      }
+
+      const delivered = await sendPushNotification({
+        title: broadcastTitle.trim() || 'Tailoram Broadcast Test',
+        body: broadcastBody.trim() || 'Rich image push notification delivered successfully.',
+        image: broadcastImageUrl.trim() || undefined,
+        url: broadcastLink.trim() || '/shop',
+      });
+
+      if (delivered) {
+        showNotice('🚀 Push notification dispatched directly to your device screen!');
+      } else {
+        showNotice('Push notification triggered. Verify system alert permissions.', 'info');
+      }
+    } catch (err: any) {
+      showNotice(`Error testing push notification: ${err.message}`, 'error');
+    } finally {
+      setIsTestingLocalPush(false);
+    }
+  };
+
+  const handleDeleteBroadcast = async (broadcastId: string) => {
+    if (!confirm('Are you sure you want to delete this broadcast?')) return;
+    const ok = await deleteAdminPushBroadcast(broadcastId);
+    if (ok) {
+      setPushBroadcasts((prev) => prev.filter((b) => b.id !== broadcastId));
+      showNotice('Broadcast removed from telemetry log.');
+    }
+  };
+
 
   // --- EXPORT PLATFORM AUDIT REPORT ---
   const handleExportAudit = () => {
@@ -1278,6 +1423,7 @@ export default function AdminPage() {
             { id: 'reviews', label: `Reviews (${reviewsList.length})`, icon: Star },
             { id: 'events', label: 'Live Telemetry', icon: Activity },
             { id: 'emails', label: 'Email Settings', icon: Mail },
+            { id: 'push', label: `Push Broadcasts (${pushBroadcasts.length})`, icon: BellRing },
             { id: 'settings', label: 'Settings & Alerts', icon: Settings },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -3204,6 +3350,527 @@ export default function AdminPage() {
               )}
               <span>{isSavingEmailSettings ? 'Saving Configuration...' : 'Save Email Notification Settings'}</span>
             </button>
+
+          </div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* TAB: PUSH NOTIFICATION BROADCASTS */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'push' && (
+          <div className="space-y-8 animate-fadeIn">
+            
+            {/* Push Header & Capability Summary */}
+            <div className="bg-gradient-to-r from-stone-900 via-stone-900 to-amber-950/30 border border-stone-800 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+              <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-amber-500/10 blur-3xl rounded-full pointer-events-none" />
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                <div className="space-y-2 max-w-2xl">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold">
+                    <Radio className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+                    <span>Real-Time Web Push &amp; In-App Broadcasting</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                    Push Notification Broadcast Center
+                  </h2>
+                  <p className="text-xs sm:text-sm text-stone-400 leading-relaxed">
+                    Broadcast immediate mobile &amp; desktop push notifications with rich hero image banners across the Tailoram network. Messages deliver via Service Worker push API and persist in user notification feeds.
+                  </p>
+                </div>
+
+                {/* Status Badges */}
+                <div className="flex flex-col sm:flex-row md:flex-col gap-2 shrink-0">
+                  <div className="bg-stone-950/80 border border-stone-800 px-4 py-2.5 rounded-2xl flex items-center justify-between gap-4">
+                    <span className="text-[11px] text-stone-400 font-medium">Browser Push Status:</span>
+                    <span className={`text-xs font-bold flex items-center gap-1.5 ${
+                      getPushPermissionStatus() === 'granted' ? 'text-emerald-400' : 'text-amber-400'
+                    }`}>
+                      <span className={`w-2 h-2 rounded-full ${
+                        getPushPermissionStatus() === 'granted' ? 'bg-emerald-400' : 'bg-amber-400'
+                      }`} />
+                      {getPushPermissionStatus().toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div className="bg-stone-950/80 border border-stone-800 px-4 py-2.5 rounded-2xl flex items-center justify-between gap-4">
+                    <span className="text-[11px] text-stone-400 font-medium">Network Scope:</span>
+                    <span className="text-xs font-bold text-stone-200">
+                      {profilesList.length} Registered Accounts
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Composer & Preview Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+              {/* Left Column: Broadcast Composer (7 cols) */}
+              <div className="lg:col-span-7 bg-stone-900 border border-stone-800 rounded-3xl p-6 sm:p-7 shadow-lg space-y-6">
+                <div>
+                  <h3 className="font-black text-base text-white flex items-center gap-2">
+                    <Send className="w-4 h-4 text-amber-400" />
+                    <span>Compose Push Message</span>
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Configure your notification payload, target audience, and rich media
+                  </p>
+                </div>
+
+                {/* Target Audience Selector */}
+                <div>
+                  <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider mb-2">
+                    Target Audience
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'all' as const, label: 'All Users', sub: `${profilesList.length} accounts`, icon: Globe },
+                      { id: 'designers' as const, label: 'Designers', sub: `${designers.length} studios`, icon: Scissors },
+                      { id: 'clients' as const, label: 'Clients', sub: `${profilesList.filter(p => p.role === 'client').length} clients`, icon: ShoppingBag },
+                    ].map((aud) => {
+                      const Icon = aud.icon;
+                      const isSelected = broadcastTarget === aud.id;
+                      return (
+                        <button
+                          key={aud.id}
+                          type="button"
+                          onClick={() => setBroadcastTarget(aud.id)}
+                          className={`p-3 rounded-2xl border text-left transition-all ${
+                            isSelected
+                              ? 'bg-amber-500/10 border-amber-500/60 text-amber-300 shadow-md shadow-amber-500/10'
+                              : 'bg-stone-950 border-stone-800 text-stone-400 hover:text-stone-200 hover:border-stone-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-amber-400' : 'text-stone-500'}`} />
+                            <span className="font-bold text-xs">{aud.label}</span>
+                          </div>
+                          <span className="text-[10px] text-stone-500 block">{aud.sub}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Notification Title */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider">
+                      Notification Title
+                    </label>
+                    <span className="text-[10px] text-stone-500 font-mono">
+                      {broadcastTitle.length}/65 chars
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={broadcastTitle}
+                    onChange={(e) => setBroadcastTitle(e.target.value)}
+                    placeholder="e.g. ✨ New Ready-to-Wear Collection Dropped!"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-medium"
+                  />
+                </div>
+
+                {/* Notification Body */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider">
+                      Message Body
+                    </label>
+                    <span className="text-[10px] text-stone-500 font-mono">
+                      {broadcastBody.length}/240 chars
+                    </span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={broadcastBody}
+                    onChange={(e) => setBroadcastBody(e.target.value)}
+                    placeholder="e.g. Explore handcrafted Agbada, Senator sets, and Aso Ebi couture directly from master artisans across Nigeria."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 resize-none font-medium leading-relaxed"
+                  />
+                </div>
+
+                {/* Destination Action Link */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider">
+                      Destination Link (Action URL)
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      {['/shop', '/dashboard', '/requests', '/'].map((quickUrl) => (
+                        <button
+                          key={quickUrl}
+                          type="button"
+                          onClick={() => setBroadcastLink(quickUrl)}
+                          className={`text-[10px] font-mono px-2 py-0.5 rounded-md transition-colors ${
+                            broadcastLink === quickUrl
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : 'bg-stone-800/60 text-stone-400 hover:text-stone-200'
+                          }`}
+                        >
+                          {quickUrl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={broadcastLink}
+                    onChange={(e) => setBroadcastLink(e.target.value)}
+                    placeholder="e.g. /shop or https://tailoram.vercel.app/shop"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                </div>
+
+                {/* Banner Image URL & Quick Presets */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-stone-300 uppercase tracking-wider">
+                      Banner Image URL (Supports Rich Media)
+                    </label>
+                    {broadcastImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setBroadcastImageUrl('')}
+                        className="text-[11px] text-stone-400 hover:text-red-400 transition-colors"
+                      >
+                        Clear Image
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <ImageIcon className="w-4 h-4 absolute left-3.5 top-3 text-stone-500" />
+                    <input
+                      type="url"
+                      value={broadcastImageUrl}
+                      onChange={(e) => setBroadcastImageUrl(e.target.value)}
+                      placeholder="https://images.unsplash.com/photo-..."
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                    />
+                  </div>
+
+                  {/* Curated Nigerian Fashion Presets */}
+                  <div>
+                    <span className="text-[11px] text-stone-400 font-medium block mb-2">
+                      💡 1-Click Nigerian Couture Image Presets:
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {PUSH_IMAGE_PRESETS.map((preset) => {
+                        const isPresetActive = broadcastImageUrl === preset.url;
+                        return (
+                          <button
+                            key={preset.name}
+                            type="button"
+                            onClick={() => setBroadcastImageUrl(preset.url)}
+                            className={`p-2 rounded-xl border text-left flex items-center gap-2.5 transition-all group ${
+                              isPresetActive
+                                ? 'bg-amber-500/10 border-amber-500/50'
+                                : 'bg-stone-950 border-stone-800/80 hover:border-stone-700'
+                            }`}
+                          >
+                            <img
+                              src={preset.url}
+                              alt={preset.name}
+                              className="w-9 h-9 rounded-lg object-cover shrink-0 border border-stone-800 group-hover:scale-105 transition-transform"
+                            />
+                            <div className="overflow-hidden">
+                              <span className={`text-[11px] font-bold block truncate ${
+                                isPresetActive ? 'text-amber-300' : 'text-stone-300 group-hover:text-white'
+                              }`}>
+                                {preset.name}
+                              </span>
+                              <span className="text-[9px] text-stone-500 block truncate font-mono">
+                                {preset.tag}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dispatch Buttons */}
+                <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTestDevicePush}
+                    disabled={isTestingLocalPush}
+                    className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-xs border border-stone-700 transition-all flex items-center justify-center gap-2 shrink-0"
+                  >
+                    {isTestingLocalPush ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    ) : (
+                      <Smartphone className="w-4 h-4 text-amber-400" />
+                    )}
+                    <span>Test on My Device</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendPushBroadcast}
+                    disabled={isSendingBroadcast}
+                    className="w-full flex-1 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-stone-950 font-black text-xs shadow-xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isSendingBroadcast ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <BellRing className="w-4 h-4" />
+                    )}
+                    <span>
+                      {isSendingBroadcast
+                        ? 'Broadcasting to Network...'
+                        : `Broadcast Push Message to ${
+                            broadcastTarget === 'all'
+                              ? 'All Users'
+                              : broadcastTarget === 'designers'
+                              ? 'All Designers'
+                              : 'All Clients'
+                          }`}
+                    </span>
+                  </button>
+                </div>
+
+              </div>
+
+              {/* Right Column: Live Mockup & Device Simulation (5 cols) */}
+              <div className="lg:col-span-5 space-y-6">
+                
+                {/* Simulation 1: Mobile Lockscreen / System Shade */}
+                <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 shadow-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-stone-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Live Device Notification Tray</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      Mobile &amp; Desktop
+                    </span>
+                  </div>
+
+                  {/* System Push Mockup Card */}
+                  <div className="p-4 rounded-2xl bg-stone-950/90 border border-stone-800 shadow-2xl space-y-3 backdrop-blur-md">
+                    
+                    {/* Header: App Name & Time */}
+                    <div className="flex items-center justify-between text-stone-400 text-[11px]">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-md bg-amber-400 text-stone-950 flex items-center justify-center font-black">
+                          <Scissors className="w-3 h-3 -rotate-45" />
+                        </div>
+                        <span className="font-bold text-stone-200 tracking-wider text-[10px] uppercase">
+                          TAILORAM NIGERIA
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-stone-500">now</span>
+                    </div>
+
+                    {/* Title & Body */}
+                    <div className="space-y-1">
+                      <p className="font-bold text-xs text-white leading-snug">
+                        {broadcastTitle || 'Notification Title'}
+                      </p>
+                      <p className="text-[11px] text-stone-300 leading-relaxed">
+                        {broadcastBody || 'Notification message content will be displayed here.'}
+                      </p>
+                    </div>
+
+                    {/* Rendered Hero Image */}
+                    {broadcastImageUrl ? (
+                      <div className="relative rounded-xl overflow-hidden border border-stone-800 shadow-inner group">
+                        <img
+                          src={broadcastImageUrl}
+                          alt="Notification Hero Banner"
+                          className="w-full h-36 object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-stone-950/80 backdrop-blur-md text-[9px] font-bold text-amber-300 border border-stone-800">
+                          Rich Hero Media
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-xl border border-dashed border-stone-800 text-center text-[11px] text-stone-500">
+                        No image attached. Tap a preset above to include a high-res photo banner.
+                      </div>
+                    )}
+
+                    {/* Tap action indicator */}
+                    <div className="pt-1 flex items-center justify-between text-[10px] text-stone-400 border-t border-stone-800/80">
+                      <span>Action Target: <code className="text-amber-400 font-mono">{broadcastLink || '/shop'}</code></span>
+                      <ExternalLink className="w-3 h-3 text-stone-500" />
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Simulation 2: In-App Lightbox Popover Preview */}
+                <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 shadow-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-stone-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <BellRing className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Studio &amp; Client In-App Feed Card</span>
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      In-App Modal
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-stone-950 border border-purple-900/30 shadow-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-800/40">
+                        Official Broadcast
+                      </span>
+                      <span className="text-[10px] text-stone-500 font-mono">Just now</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <h4 className="font-black text-xs text-white">{broadcastTitle || 'Title'}</h4>
+                      <p className="text-[11px] text-stone-300 line-clamp-2">{broadcastBody || 'Message'}</p>
+                    </div>
+
+                    {broadcastImageUrl && (
+                      <img
+                        src={broadcastImageUrl}
+                        alt="Preview"
+                        className="w-full h-24 object-cover rounded-xl border border-stone-800"
+                      />
+                    )}
+
+                    <div className="pt-1 flex items-center justify-end">
+                      <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1">
+                        <span>Open Details</span>
+                        <ChevronRight className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* Past Push Broadcasts Telemetry History */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-4 shadow-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-sm text-white flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    <span>Broadcast Telemetry Log ({pushBroadcasts.length})</span>
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    History of push announcements dispatched to Tailoram users
+                  </p>
+                </div>
+
+                {pushBroadcasts.length > 0 && (
+                  <span className="text-xs font-mono text-stone-400">
+                    Showing latest broadcasts
+                  </span>
+                )}
+              </div>
+
+              {pushBroadcasts.length === 0 ? (
+                <div className="p-8 text-center bg-stone-950 rounded-2xl border border-stone-800/80 space-y-2">
+                  <BellRing className="w-8 h-8 text-stone-600 mx-auto" />
+                  <p className="text-xs text-stone-400">
+                    No push broadcasts recorded yet.
+                  </p>
+                  <p className="text-[11px] text-stone-500">
+                    Compose a broadcast above and click &quot;Broadcast Push Message&quot; to reach your users instantly.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                  {pushBroadcasts.map((bc) => (
+                    <div
+                      key={bc.id}
+                      className="p-4 rounded-2xl bg-stone-950 border border-stone-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors hover:border-stone-700"
+                    >
+                      <div className="flex items-start gap-4">
+                        {bc.image ? (
+                          <img
+                            src={bc.image}
+                            alt={bc.title}
+                            className="w-16 h-16 rounded-xl object-cover shrink-0 border border-stone-800 shadow-md"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-xl bg-stone-900 border border-stone-800 flex items-center justify-center text-stone-600 shrink-0">
+                            <BellRing className="w-6 h-6" />
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-xs text-white">{bc.title}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${
+                              bc.target_audience === 'all'
+                                ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                                : bc.target_audience === 'designers'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                            }`}>
+                              {bc.target_audience === 'all' ? 'All Users' : bc.target_audience === 'designers' ? 'Designers Only' : 'Clients Only'}
+                            </span>
+                            {bc.url && (
+                              <span className="text-[10px] text-stone-400 font-mono bg-stone-900 px-2 py-0.5 rounded-full border border-stone-800">
+                                {bc.url}
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-stone-300 line-clamp-2 leading-relaxed">
+                            {bc.body}
+                          </p>
+
+                          <div className="flex items-center gap-3 text-[11px] text-stone-500 pt-0.5">
+                            <span>Dispatched by <strong className="text-stone-400">{bc.sent_by || 'Admin'}</strong></span>
+                            <span>•</span>
+                            <span className="font-mono">
+                              {new Date(bc.created_at).toLocaleString([], {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await sendPushNotification({
+                              title: bc.title,
+                              body: bc.body,
+                              image: bc.image,
+                              url: bc.url,
+                            });
+                            showNotice('Test notification dispatched to your device!');
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-stone-700"
+                          title="Test on this device"
+                        >
+                          <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Re-Test</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteBroadcast(bc.id)}
+                          className="p-2 rounded-xl bg-stone-900 hover:bg-red-950/60 text-stone-400 hover:text-red-300 transition-colors border border-stone-800 hover:border-red-800/40"
+                          title="Delete from broadcast log"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
           </div>
         )}

@@ -137,13 +137,20 @@ Tailoram/
 ---
 
 ## 7. Web Push & In-App Notification Center
-- **Push Service Worker**: `public/sw.js` (background push event listener, vibration `[200, 100, 200]`, and tap-to-focus on studio dashboard).
-- **Client Manager**: `lib/pushNotifications.ts` (`isPushSupported`, `requestPushPermission`, `sendPushNotification`, `registerServiceWorker`).
-- **Dashboard Notification Center**:
-  - Bell indicator button with animated unread badge counter in `/dashboard` header.
-  - Interactive notification popover menu itemizing new bespoke commissions, 40% initial commitment deposit notices, 60% final balance settlements, payout setup reminders, new ratings/reviews, and welcome greetings.
+- **Push Service Worker**: `public/sw.js` (background push event listener, vibration `[200, 100, 200]`, tap-to-focus on studio dashboard, and rich hero image banner support via `options.image = data.image`).
+- **Client Manager**: `lib/pushNotifications.ts` (`isPushSupported`, `requestPushPermission`, `sendPushNotification`, `registerServiceWorker`, `sendAdminPushBroadcast`, `getAdminPushBroadcasts`, `deleteAdminPushBroadcast`).
+- **Admin Push Broadcast Center (`/admin` -> Push Broadcasts tab)**:
+  - Broadcast push composer targeting `All Users`, `Master Designers`, or `Clients`.
+  - Supports custom notification title, body, destination action link, and **rich image banners**.
+  - Built-in 1-click Nigerian couture photo presets (Agbada, Aso Ebi, Senator suits, Adire, Bridal George).
+  - Live realistic device simulation preview (System push notification shade mockup + in-app lightbox card).
+  - Instant 1-click "Test on My Device" trigger for verification on the admin's personal screen.
+  - Telemetry log of past broadcasts with thumbnail preview and deletion controls.
+- **Dashboard & Client In-App Notification Center**:
+  - Bell indicator button with animated unread badge counter in `/dashboard` header and announcements in `/requests`.
+  - Interactive notification popover menu itemizing new bespoke commissions, 40% initial commitment deposit notices, 60% final balance settlements, payout setup reminders, new ratings/reviews, welcome greetings, and official rich image broadcasts.
   - "Mark all as read" control, persistence in `localStorage` (`tailoram_read_notifications`).
-  - Mobile Push Quick-Opt-in bar: Prompts designers on mobile browsers to enable push notifications directly on their device screen with 1-click test confirmation.
+  - Mobile Push Quick-Opt-in bar: Prompts designers on mobile browsers to enable push notifications directly on their device screen with device-specific instructions (iOS PWA Home Screen instructions vs Android 1-click browser opt-in).
 
 ---
 

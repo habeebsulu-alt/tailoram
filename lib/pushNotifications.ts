@@ -11,6 +11,7 @@ export interface PushNotificationPayload {
   body: string;
   url?: string;
   icon?: string;
+  image?: string;
   tag?: string;
 }
 
@@ -150,10 +151,10 @@ export async function sendPushNotification(payload: PushNotificationPayload): Pr
     return false;
   }
 
-  const { title, body, url = '/dashboard', icon = '/icon-192.png', tag } = payload;
+  const { title, body, url = '/dashboard', icon = '/favicon.ico', image, tag } = payload;
 
   try {
-    // 1. Try displaying via Service Worker registration (recommended for mobile Chrome/Edge/Firefox)
+    // 1. Try displaying via Service Worker registration (supports rich image banner)
     if (navigator.serviceWorker) {
       const reg = await navigator.serviceWorker.ready;
       if (reg && 'showNotification' in reg) {
@@ -161,9 +162,10 @@ export async function sendPushNotification(payload: PushNotificationPayload): Pr
           body,
           icon,
           badge: icon,
+          image: image || undefined,
           tag: tag || `tailoram-push-${Date.now()}`,
           data: { url },
-          vibrate: [200, 100, 200],
+          vibrate: [150, 50, 150, 50, 200],
         } as any);
         return true;
       }
@@ -188,6 +190,139 @@ export async function sendPushNotification(payload: PushNotificationPayload): Pr
     return true;
   } catch (err) {
     console.warn('Direct notification presentation failed:', err);
+    return false;
+  }
+}
+
+export interface AdminPushBroadcast {
+  id: string;
+  title: string;
+  body: string;
+  image?: string;
+  url?: string;
+  target_audience: 'all' | 'designers' | 'clients';
+  created_at: string;
+  sent_by?: string;
+  delivered_count?: number;
+}
+
+const LOCAL_STORAGE_BROADCASTS_KEY = 'tailoram_push_broadcasts';
+
+/**
+ * Fetch broadcast push messages from Supabase platform_settings or localStorage
+ */
+export async function getAdminPushBroadcasts(): Promise<AdminPushBroadcast[]> {
+  try {
+    const { supabase } = await import('./supabase');
+    const { data, error } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'push_broadcasts')
+      .maybeSingle();
+
+    if (!error && data?.value && Array.isArray(data.value)) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(LOCAL_STORAGE_BROADCASTS_KEY, JSON.stringify(data.value));
+      }
+      return data.value as AdminPushBroadcast[];
+    }
+  } catch (err) {
+    console.warn('Could not fetch push broadcasts from Supabase:', err);
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const local = localStorage.getItem(LOCAL_STORAGE_BROADCASTS_KEY);
+      if (local) return JSON.parse(local);
+    } catch {}
+  }
+
+  return [];
+}
+
+/**
+ * Save and broadcast a new push message to all users platform-wide.
+ * Persists to Supabase platform_settings (key: 'push_broadcasts') and localStorage.
+ */
+export async function sendAdminPushBroadcast(
+  params: {
+    title: string;
+    body: string;
+    image?: string;
+    url?: string;
+    target_audience: 'all' | 'designers' | 'clients';
+    sent_by?: string;
+  }
+): Promise<{ success: boolean; broadcast: AdminPushBroadcast }> {
+  const newBroadcast: AdminPushBroadcast = {
+    id: `bc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    title: params.title.trim(),
+    body: params.body.trim(),
+    image: params.image?.trim() || undefined,
+    url: params.url?.trim() || '/dashboard',
+    target_audience: params.target_audience,
+    created_at: new Date().toISOString(),
+    sent_by: params.sent_by || 'Admin Control Center',
+  };
+
+  // 1. Immediately fire local system push on active device if permission is granted
+  try {
+    await sendPushNotification({
+      title: newBroadcast.title,
+      body: newBroadcast.body,
+      image: newBroadcast.image,
+      url: newBroadcast.url,
+      tag: newBroadcast.id,
+    });
+  } catch (pushErr) {
+    console.warn('Local push test dispatch notice:', pushErr);
+  }
+
+  // 2. Persist in Supabase platform_settings
+  try {
+    const { supabase } = await import('./supabase');
+    const current = await getAdminPushBroadcasts();
+    const updated = [newBroadcast, ...current].slice(0, 50); // Store up to 50 broadcasts
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(LOCAL_STORAGE_BROADCASTS_KEY, JSON.stringify(updated));
+    }
+
+    await supabase.from('platform_settings').upsert([
+      {
+        key: 'push_broadcasts',
+        value: updated,
+        updated_at: new Date().toISOString(),
+      },
+    ]);
+  } catch (dbErr) {
+    console.warn('Supabase push broadcast storage warning:', dbErr);
+  }
+
+  return { success: true, broadcast: newBroadcast };
+}
+
+/**
+ * Delete a specific push broadcast by ID
+ */
+export async function deleteAdminPushBroadcast(broadcastId: string): Promise<boolean> {
+  try {
+    const current = await getAdminPushBroadcasts();
+    const updated = current.filter((b) => b.id !== broadcastId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(LOCAL_STORAGE_BROADCASTS_KEY, JSON.stringify(updated));
+    }
+    const { supabase } = await import('./supabase');
+    await supabase.from('platform_settings').upsert([
+      {
+        key: 'push_broadcasts',
+        value: updated,
+        updated_at: new Date().toISOString(),
+      },
+    ]);
+    return true;
+  } catch (err) {
+    console.warn('Could not delete push broadcast:', err);
     return false;
   }
 }

@@ -39,7 +39,10 @@ import {
   Receipt,
   ExternalLink,
   ShieldCheck,
+  BellRing,
+  X,
 } from 'lucide-react';
+import { getAdminPushBroadcasts, AdminPushBroadcast } from '@/lib/pushNotifications';
 
 export default function ClientRequestsPage() {
   const router = useRouter();
@@ -64,6 +67,18 @@ export default function ClientRequestsPage() {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [measurementsModalOpen, setMeasurementsModalOpen] = useState(false);
   const [selectedMeasurementsRequest, setSelectedMeasurementsRequest] = useState<OutfitRequest | null>(null);
+
+  // Push Broadcasts state for clients
+  const [clientBroadcasts, setClientBroadcasts] = useState<AdminPushBroadcast[]>([]);
+  const [dismissedBroadcastIds, setDismissedBroadcastIds] = useState<string[]>([]);
+
+  const handleDismissBroadcast = (id: string) => {
+    const updated = [...dismissedBroadcastIds, id];
+    setDismissedBroadcastIds(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tailoram_client_dismissed_broadcasts', JSON.stringify(updated));
+    }
+  };
 
   const fetchTransactions = async (clientId: string) => {
     try {
@@ -150,6 +165,27 @@ export default function ClientRequestsPage() {
       }
     }
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    async function loadBroadcasts() {
+      try {
+        const broadcasts = await getAdminPushBroadcasts();
+        const relevant = broadcasts.filter(
+          (b) => b.target_audience === 'all' || b.target_audience === 'clients'
+        );
+        setClientBroadcasts(relevant);
+        if (typeof window !== 'undefined') {
+          const dismissed = JSON.parse(
+            localStorage.getItem('tailoram_client_dismissed_broadcasts') || '[]'
+          );
+          setDismissedBroadcastIds(dismissed);
+        }
+      } catch (err) {
+        console.warn('Could not load client push broadcasts:', err);
+      }
+    }
+    loadBroadcasts();
+  }, []);
 
   const handleOpenPayment = (req: OutfitRequest, type: 'deposit' | 'balance') => {
     setSelectedPaymentRequest(req);
@@ -262,6 +298,67 @@ export default function ClientRequestsPage() {
           </div>
         </div>
       </div>
+
+      {/* Broadcast Announcements for Clients */}
+      {clientBroadcasts.filter((bc) => !dismissedBroadcastIds.includes(bc.id)).length > 0 && (
+        <div className="space-y-4">
+          {clientBroadcasts
+            .filter((bc) => !dismissedBroadcastIds.includes(bc.id))
+            .slice(0, 2)
+            .map((bc) => (
+              <div
+                key={bc.id}
+                className="bg-stone-950 text-white rounded-3xl border border-stone-800 shadow-xl overflow-hidden relative"
+              >
+                {bc.image && (
+                  <div className="relative w-full h-44 sm:h-52 overflow-hidden bg-stone-900">
+                    <img
+                      src={bc.image}
+                      alt={bc.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/40 to-transparent" />
+                  </div>
+                )}
+                <div className="p-5 sm:p-6 space-y-3 relative">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
+                        Tailoram Announcement
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDismissBroadcast(bc.id)}
+                      className="text-stone-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                      title="Dismiss announcement"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-white">{bc.title}</h3>
+                    <p className="text-xs sm:text-sm text-stone-300 mt-1 leading-relaxed">{bc.body}</p>
+                  </div>
+
+                  {bc.url && (
+                    <div className="pt-1">
+                      <Link
+                        href={bc.url}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-black transition-all shadow-md"
+                      >
+                        <span>Explore Now</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
 
       {/* VIEW 1: REQUESTS LIST */}
       {activeView === 'requests' && (

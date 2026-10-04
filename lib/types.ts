@@ -210,13 +210,14 @@ export interface Message {
 
 export interface InAppNotification {
   id: string;
-  type: 'order' | 'quote' | 'payment' | 'message' | 'system' | 'welcome';
+  type: 'order' | 'quote' | 'payment' | 'message' | 'system' | 'welcome' | 'broadcast';
   title: string;
   message: string;
   timestamp: string;
   read: boolean;
   link?: string;
   badge?: string;
+  image?: string;
 }
 
 export interface AnalyticsEvent {
