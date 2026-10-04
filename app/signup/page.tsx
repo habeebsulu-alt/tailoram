@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { NIGERIAN_STATES, STATE_AREAS, FASHION_CATEGORIES, UserRole } from '@/lib/types';
 import { formatNigerianPhoneForInput } from '@/lib/phoneUtils';
+import { triggerEmailNotification } from '@/lib/emailNotifications';
 import { Scissors, User, Sparkles, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export default function SignUpPage() {
@@ -110,16 +111,51 @@ export default function SignUpPage() {
 
     if (error) {
       setErrorMessage(error.message || 'Something went wrong during sign up. Please try again.');
-    } else if (needsEmailConfirmation) {
-      setSuccessNotice(
-        'Account created successfully! Please check your email to confirm your account, then log in.'
-      );
     } else {
-      // Direct user according to role
-      if (role === 'designer') {
-        router.push('/dashboard');
+      // Send Welcome Email Notification
+      try {
+        const isDesigner = role === 'designer';
+        const brandName = businessName.trim() || fullName.trim();
+        const welcomeSubject = isDesigner
+          ? `🌟 Welcome to Tailoram, ${brandName}! Your Fashion Studio is Live`
+          : `✨ Welcome to Tailoram, ${fullName.trim()}! Connect with Top Nigerian Designers`;
+
+        const welcomePreview = isDesigner
+          ? `Welcome to Nigeria's premier bespoke fashion network! Your designer studio is ready. You can now showcase your portfolio of Agbada, Senator suits, Aso Ebi, or RTW garments, link your bank payout details to receive direct split payments, and accept custom commissions from clients across all 36 states and the diaspora.`
+          : `Welcome to Tailoram! You now have direct access to Nigeria's master tailors and bespoke fashion houses. Commission custom Agbada, Kaftans, Senator suits, and Aso Ebi bridal wear, track your orders with verified milestones, and explore Ready-to-Wear styles.`;
+
+        const ctaUrl = isDesigner
+          ? 'https://tailoram.vercel.app/dashboard'
+          : 'https://tailoram.vercel.app/shop';
+
+        triggerEmailNotification({
+          event: 'welcome',
+          recipientEmail: email.trim(),
+          recipientName: fullName.trim(),
+          subject: welcomeSubject,
+          previewText: welcomePreview,
+          ctaLink: ctaUrl,
+          metadata: {
+            role,
+            business_name: isDesigner ? brandName : undefined,
+            state: selectedState,
+          },
+        });
+      } catch (emailErr) {
+        console.warn('Welcome notification dispatch notice:', emailErr);
+      }
+
+      if (needsEmailConfirmation) {
+        setSuccessNotice(
+          'Account created successfully! Please check your email to confirm your account, then log in.'
+        );
       } else {
-        router.push('/');
+        // Direct user according to role
+        if (role === 'designer') {
+          router.push('/dashboard');
+        } else {
+          router.push('/');
+        }
       }
     }
   };

@@ -208,6 +208,17 @@ export interface Message {
   sender?: Profile;
 }
 
+export interface InAppNotification {
+  id: string;
+  type: 'order' | 'quote' | 'payment' | 'message' | 'system' | 'welcome';
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  link?: string;
+  badge?: string;
+}
+
 export interface AnalyticsEvent {
   id?: string;
   event_type: 'search' | 'profile_view' | 'request_sent' | 'request_status_change' | 'share_designer_profile';

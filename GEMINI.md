@@ -128,11 +128,22 @@ Tailoram/
     - `notify_on_quote_received`: Notifies client when designer submits official quote and timeline.
     - `notify_on_deposit_paid`: Notifies designer when 40% initial commitment deposit is paid.
     - `notify_on_order_ready`: Notifies client when garment is tailored and ready for balance.
-    - `notify_on_balance_paid`: Notifies designer when 60% completion balance is paid.
     - `notify_on_new_message`: Notifies recipient on new chat message in consultation thread.
-  - Interactive test email dispatcher with instant status feedback.
+    - `notify_on_welcome`: Welcomes new fashion designers and clients upon signup with direct links to studio or shop.
+  - Interactive test email dispatcher with instant status feedback (including Welcome template).
   - Live sent email audit and telemetry log table.
 - **Persistence**: Dual-layer architecture storing in Supabase `platform_settings` (`key: 'email_settings'`) with local storage fallback (`tailoram_email_settings` and `tailoram_email_logs`).
+
+---
+
+## 7. Web Push & In-App Notification Center
+- **Push Service Worker**: `public/sw.js` (background push event listener, vibration `[200, 100, 200]`, and tap-to-focus on studio dashboard).
+- **Client Manager**: `lib/pushNotifications.ts` (`isPushSupported`, `requestPushPermission`, `sendPushNotification`, `registerServiceWorker`).
+- **Dashboard Notification Center**:
+  - Bell indicator button with animated unread badge counter in `/dashboard` header.
+  - Interactive notification popover menu itemizing new bespoke commissions, 40% initial commitment deposit notices, 60% final balance settlements, payout setup reminders, new ratings/reviews, and welcome greetings.
+  - "Mark all as read" control, persistence in `localStorage` (`tailoram_read_notifications`).
+  - Mobile Push Quick-Opt-in bar: Prompts designers on mobile browsers to enable push notifications directly on their device screen with 1-click test confirmation.
 
 ---
 

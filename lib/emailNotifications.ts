@@ -17,6 +17,7 @@ export interface EmailSettings {
   notify_on_order_ready: boolean;
   notify_on_balance_paid: boolean;
   notify_on_new_message: boolean;
+  notify_on_welcome: boolean;
   admin_notification_email?: string;
 }
 
@@ -37,6 +38,7 @@ export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   notify_on_order_ready: true,
   notify_on_balance_paid: true,
   notify_on_new_message: true,
+  notify_on_welcome: true,
   admin_notification_email: 'admin@tailoram.com',
 };
 
@@ -185,10 +187,11 @@ export function resolveUserEmail(userId?: string, fallback?: string): string {
  * - 'order_ready': Designer marks garment ready -> notifies Client
  * - 'balance_paid': Client pays 60% balance -> notifies Designer
  * - 'new_message': New message sent in chat -> notifies recipient
+ * - 'welcome': Welcome email sent upon user signup -> greets Designer or Client
  */
 export async function triggerEmailNotification(
   params: {
-    event: 'new_request' | 'quote_received' | 'deposit_paid' | 'order_ready' | 'balance_paid' | 'new_message';
+    event: 'new_request' | 'quote_received' | 'deposit_paid' | 'order_ready' | 'balance_paid' | 'new_message' | 'welcome';
     recipientEmail: string;
     recipientName?: string;
     subject: string;
@@ -212,6 +215,7 @@ export async function triggerEmailNotification(
     order_ready: 'notify_on_order_ready',
     balance_paid: 'notify_on_balance_paid',
     new_message: 'notify_on_new_message',
+    welcome: 'notify_on_welcome',
   };
 
   const toggleKey = eventKeyMap[params.event];

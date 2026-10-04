@@ -892,6 +892,10 @@ export default function AdminPage() {
           subject: '💬 [TEST] New Message from Dele Couture on Tailoram',
           preview: 'Dele Couture: "Hello! We have sourced the authentic Aso Oke fabric and started cutting your pattern."',
         },
+        welcome: {
+          subject: '🌟 [TEST] Welcome to Tailoram Nigeria! Your Account is Live',
+          preview: 'Welcome to Nigeria\'s premier bespoke fashion marketplace! Connect with top master tailors across Lagos, Abuja, Port Harcourt, and nationwide.',
+        },
       };
 
       const template = eventLabels[testEmailEvent] || eventLabels.new_request;
@@ -2986,6 +2990,13 @@ export default function AdminPage() {
                     desc: 'Dispatched when a participant posts a new message in the bespoke order chat thread.',
                     icon: MessageSquare,
                   },
+                  {
+                    key: 'notify_on_welcome' as const,
+                    title: 'Welcome & Onboarding Notification',
+                    recipient: 'Notifies New User / Designer',
+                    desc: 'Dispatched immediately when a new fashion designer or client joins the Tailoram network.',
+                    icon: Sparkles,
+                  },
                 ].map((evt) => {
                   const Icon = evt.icon;
                   const isChecked = emailSettings[evt.key];
@@ -3055,6 +3066,7 @@ export default function AdminPage() {
                     onChange={(e) => setTestEmailEvent(e.target.value as any)}
                     className="w-full px-3 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white focus:outline-none focus:border-amber-400"
                   >
+                    <option value="welcome">Welcome Onboarding</option>
                     <option value="new_request">New Bespoke Request</option>
                     <option value="quote_received">Quote Submitted</option>
                     <option value="deposit_paid">40% Deposit Paid</option>

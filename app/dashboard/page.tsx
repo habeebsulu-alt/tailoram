@@ -19,6 +19,7 @@ import {
   DesignerProfile,
   ClientMeasurements,
   WalletTransaction,
+  InAppNotification,
 } from '@/lib/types';
 import { formatNigerianPhoneForInput } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
@@ -41,6 +42,13 @@ import {
   getCommissionSettings,
 } from '@/lib/paystack';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
+import {
+  isPushSupported,
+  getPushPermissionStatus,
+  requestPushPermission,
+  sendPushNotification,
+  registerServiceWorker,
+} from '@/lib/pushNotifications';
 import QuoteModal from '@/components/QuoteModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
 import MeasurementsModal from '@/components/MeasurementsModal';
@@ -97,6 +105,10 @@ import {
   ShieldAlert,
   DollarSign,
   Share2,
+  Bell,
+  BellRing,
+  Smartphone,
+  CheckCheck,
 } from 'lucide-react';
 
 export default function DesignerDashboard() {
@@ -248,6 +260,14 @@ export default function DesignerDashboard() {
   const [zoomAvatarUrl, setZoomAvatarUrl] = useState<string | null>(null);
   const [dashboardShareModalOpen, setDashboardShareModalOpen] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  // In-App & Mobile Push Notifications state
+  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>('default');
+  const [isRequestingPush, setIsRequestingPush] = useState(false);
+  const [pushStatusBannerDismissed, setPushStatusBannerDismissed] = useState(false);
+  const notificationMenuRef = useRef<HTMLDivElement>(null);
 
   const toggleAvatarFit = () => {
     const nextMode = avatarFitMode === 'contain' ? 'cover' : 'contain';
@@ -632,6 +652,173 @@ export default function DesignerDashboard() {
       }
     }
   }, [user, designerProfile, authLoading, router]);
+
+  // Initialize service worker & notification permission status
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const perm = getPushPermissionStatus();
+      setPushPermission(perm);
+      if (perm === 'granted') {
+        registerServiceWorker();
+      }
+    }
+  }, []);
+
+  // Compute notifications from orders, payouts, reviews, and wallet
+  useEffect(() => {
+    if (!designerProfile && !user) return;
+
+    const notifList: InAppNotification[] = [];
+
+    // 1. Welcome Notification
+    const brandTitle = designerProfile?.business_name || profile?.full_name || 'Designer';
+    notifList.push({
+      id: `welcome-${designerProfile?.id || user?.id || 'new'}`,
+      type: 'welcome',
+      title: `Welcome to Tailoram, ${brandTitle}!`,
+      message: 'Your creative studio is active. Start uploading your master pieces, receiving client orders, and receiving direct bank payouts.',
+      timestamp: 'Just now',
+      read: false,
+      link: '/dashboard',
+      badge: 'Welcome',
+    });
+
+    // 2. Pending Orders requiring designer quotation or response
+    const unrespondedRequests = requests.filter((r) => r.status === 'pending' || r.status === 'quoted');
+    unrespondedRequests.forEach((req) => {
+      notifList.push({
+        id: `pending-order-${req.id}`,
+        type: 'order',
+        title: `New Bespoke Commission from ${req.client?.full_name || 'Client'}`,
+        message: `Style: ${req.style_description.slice(0, 75)}... ${req.budget_max ? `Budget: ₦${req.budget_max.toLocaleString()}` : ''}`,
+        timestamp: new Date(req.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        read: false,
+        link: '/dashboard',
+        badge: 'New Order',
+      });
+    });
+
+    // 3. Deposit Paid orders (ready for tailoring/production)
+    requests.filter((r) => r.status === 'in_progress' && r.deposit_paid_at).forEach((req) => {
+      notifList.push({
+        id: `deposit-${req.id}`,
+        type: 'payment',
+        title: `Commitment Deposit Paid for Order #${req.id.slice(0, 8)}`,
+        message: `${req.client?.full_name || 'Client'} has paid the 40% initial deposit (₦${(req.deposit_amount || 0).toLocaleString()}). Garment is in production.`,
+        timestamp: req.deposit_paid_at ? new Date(req.deposit_paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Recent',
+        read: true,
+        link: '/dashboard',
+        badge: '40% Paid',
+      });
+    });
+
+    // 4. Balance Paid orders (completed & settled)
+    requests.filter((r) => r.balance_paid_at).forEach((req) => {
+      notifList.push({
+        id: `balance-${req.id}`,
+        type: 'payment',
+        title: `Final Balance Settled for Order #${req.id.slice(0, 8)}`,
+        message: `Final 60% balance (₦${(req.balance_amount || 0).toLocaleString()}) has been settled. Order is ready for handover.`,
+        timestamp: req.balance_paid_at ? new Date(req.balance_paid_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Recent',
+        read: true,
+        link: '/dashboard',
+        badge: 'Settled',
+      });
+    });
+
+    // 5. Payout verification notice
+    if (!designerProfile?.payout_verified && !designerProfile?.subaccount_code) {
+      notifList.push({
+        id: 'payout-setup-needed',
+        type: 'system',
+        title: 'Action Needed: Link Bank Payout Details',
+        message: 'Link your commercial bank account via Paystack Subaccount to receive instant non-custodial split payments for client deposits and balances.',
+        timestamp: 'Action required',
+        read: false,
+        link: '/dashboard',
+        badge: 'Payout Setup',
+      });
+    }
+
+    // 6. Recent client reviews
+    reviews.slice(0, 3).forEach((rev) => {
+      notifList.push({
+        id: `review-${rev.id}`,
+        type: 'system',
+        title: `New ${rev.rating}★ Review Received`,
+        message: rev.comment ? `"${rev.comment.slice(0, 80)}..."` : 'Client left a positive feedback on your craftsmanship.',
+        timestamp: new Date(rev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        read: true,
+        link: '/dashboard',
+        badge: 'Feedback',
+      });
+    });
+
+    // Merge with read status from local storage
+    if (typeof window !== 'undefined') {
+      const readIds: string[] = JSON.parse(localStorage.getItem('tailoram_read_notifications') || '[]');
+      const adjusted = notifList.map((n) => ({
+        ...n,
+        read: n.read || readIds.includes(n.id),
+      }));
+      setNotifications(adjusted);
+    } else {
+      setNotifications(notifList);
+    }
+  }, [designerProfile, user, requests, reviews]);
+
+  // Close notification dropdown when clicked outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (notificationMenuRef.current && !notificationMenuRef.current.contains(event.target as Node)) {
+        setNotificationDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Request push notification permission
+  const handleEnablePushNotifications = async () => {
+    setIsRequestingPush(true);
+    try {
+      const result = await requestPushPermission();
+      setPushPermission(result);
+      if (result === 'granted') {
+        // Send sample push confirmation
+        sendPushNotification({
+          title: 'Tailoram Studio Notifications Enabled! 🧵',
+          body: 'You will now receive instant push notifications on this device for new bespoke orders, client payments, and chat messages.',
+          url: '/dashboard',
+        });
+      }
+    } finally {
+      setIsRequestingPush(false);
+    }
+  };
+
+  // Mark all notifications as read
+  const handleMarkAllNotificationsRead = () => {
+    const allIds = notifications.map((n) => n.id);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tailoram_read_notifications', JSON.stringify(allIds));
+    }
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  // Mark individual notification as read
+  const handleMarkNotificationRead = (id: string, targetLink?: string) => {
+    if (typeof window !== 'undefined') {
+      const current = JSON.parse(localStorage.getItem('tailoram_read_notifications') || '[]');
+      if (!current.includes(id)) {
+        localStorage.setItem('tailoram_read_notifications', JSON.stringify([...current, id]));
+      }
+    }
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    if (targetLink) {
+      setNotificationDropdownOpen(false);
+    }
+  };
 
 
   // Handle state change for area list
@@ -2019,6 +2206,139 @@ export default function DesignerDashboard() {
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
+            {/* Notification Center Bell Indicator & Dropdown */}
+            <div className="relative" ref={notificationMenuRef}>
+              <button
+                type="button"
+                onClick={() => setNotificationDropdownOpen(!notificationDropdownOpen)}
+                className="relative inline-flex items-center justify-center w-11 h-11 rounded-2xl border border-stone-200 bg-white hover:bg-stone-50 text-stone-700 transition-all shadow-xs cursor-pointer active:scale-95"
+                title="Notifications & Updates"
+                aria-label="View notifications"
+              >
+                <Bell className="w-5 h-5 text-stone-700" />
+                {notifications.filter((n) => !n.read).length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-black text-white shadow-sm animate-pulse">
+                    {notifications.filter((n) => !n.read).length}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Popover Menu */}
+              {notificationDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-3xl bg-white border border-stone-200 shadow-2xl z-50 overflow-hidden animate-fadeIn">
+                  <div className="p-4 bg-stone-900 text-white flex items-center justify-between border-b border-stone-800">
+                    <div className="flex items-center gap-2">
+                      <BellRing className="w-4 h-4 text-amber-400" />
+                      <span className="font-black text-sm">Studio Notifications</span>
+                      <span className="text-[10px] font-extrabold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full">
+                        {notifications.filter((n) => !n.read).length} Unread
+                      </span>
+                    </div>
+                    {notifications.some((n) => !n.read) && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllNotificationsRead}
+                        className="text-[11px] font-bold text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <CheckCheck className="w-3.5 h-3.5" />
+                        <span>Mark read</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Push Notifications Enable Bar (Quick mobile opt-in) */}
+                  {pushPermission !== 'granted' && (
+                    <div className="p-3 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Smartphone className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span className="text-xs font-bold text-stone-800">
+                          Enable push alerts on this device
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleEnablePushNotifications}
+                        disabled={isRequestingPush}
+                        className="px-2.5 py-1 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-400 font-extrabold text-[11px] shrink-0 transition-all cursor-pointer shadow-xs"
+                      >
+                        {isRequestingPush ? 'Enabling...' : 'Turn On'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Notification Items List */}
+                  <div className="max-h-80 overflow-y-auto divide-y divide-stone-100">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center text-stone-400 text-xs">
+                        No notifications at this time
+                      </div>
+                    ) : (
+                      notifications.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            handleMarkNotificationRead(item.id, item.link);
+                            if (item.type === 'order') {
+                              setActiveTab('requests');
+                            } else if (item.type === 'payment') {
+                              setActiveTab('wallet');
+                            } else if (item.type === 'system' && item.id.includes('payout')) {
+                              setActiveTab('payout');
+                            }
+                          }}
+                          className={`p-3.5 transition-colors cursor-pointer hover:bg-stone-50 flex items-start gap-3 ${
+                            !item.read ? 'bg-amber-50/40' : 'bg-white'
+                          }`}
+                        >
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                              item.type === 'welcome'
+                                ? 'bg-amber-100 text-amber-700'
+                                : item.type === 'order'
+                                ? 'bg-blue-100 text-blue-700'
+                                : item.type === 'payment'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-stone-100 text-stone-600'
+                            }`}
+                          >
+                            {item.type === 'welcome' && <Sparkles className="w-4 h-4" />}
+                            {item.type === 'order' && <Scissors className="w-4 h-4" />}
+                            {item.type === 'payment' && <CreditCard className="w-4 h-4" />}
+                            {item.type === 'system' && <Landmark className="w-4 h-4" />}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <h5 className="text-xs font-bold text-stone-900 truncate">
+                                {item.title}
+                              </h5>
+                              {item.badge && (
+                                <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600 shrink-0">
+                                  {item.badge}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-stone-600 line-clamp-2 leading-snug">
+                              {item.message}
+                            </p>
+                            <span className="text-[10px] text-stone-400 mt-1 block">
+                              {item.timestamp}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="p-2.5 bg-stone-50 border-t border-stone-200 text-center">
+                    <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                      Tailoram Push &amp; In-App Telemetry
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {designerProfile && (
               <>
                 <button
@@ -2113,6 +2433,50 @@ export default function DesignerDashboard() {
             <CreditCard className="w-4 h-4 text-amber-400" />
             <span>Set Up Bank Payouts &rarr;</span>
           </button>
+        </div>
+      )}
+
+      {/* Mobile Push Notifications Quick Activation Bar */}
+      {pushPermission !== 'granted' && !pushStatusBannerDismissed && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border border-amber-500/30 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-stone-950 flex items-center justify-center shrink-0 shadow-sm">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-xs sm:text-sm text-stone-900">
+                  Instant Mobile Push Alerts
+                </span>
+                <span className="text-[10px] bg-amber-500/20 text-amber-800 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  Mobile &amp; Web
+                </span>
+              </div>
+              <p className="text-[11px] sm:text-xs text-stone-600 font-medium mt-0.5">
+                Drop order alerts, chat messages, and deposit confirmations directly to your device screen as push notifications.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={handleEnablePushNotifications}
+              disabled={isRequestingPush}
+              className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-bold text-xs shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+            >
+              <Bell className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isRequestingPush ? 'Enabling...' : 'Enable Push Notifications'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPushStatusBannerDismissed(true)}
+              className="p-2 text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
