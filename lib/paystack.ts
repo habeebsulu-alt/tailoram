@@ -149,27 +149,18 @@ export async function resolveBankAccount({
       }
     } catch (err: any) {
       console.warn('Paystack live resolution error:', err);
+      return {
+        success: false,
+        error: err?.message || 'Error connecting to Paystack bank verification service.',
+      };
     }
   }
 
-  // Simulated / Test Mode Resolution
-  const selectedBank = NIGERIAN_BANKS.find((b) => b.code === bankCode) || { name: 'Nigerian Bank' };
-  const mockNames = [
-    'ADEKUNLE OLUMIDE ENTERPRISES',
-    'CHUKWUDI EZE COUTURE',
-    'FATIMA BELLO COUTURE',
-    'YUSUF OLAWALE BESPOKE',
-    'BLESSING OKON DESIGNS',
-    'IBRAHIM DANLAMI APPAREL',
-    'TAILORAM VERIFIED ARTISAN',
-  ];
-  // Stable hash based on account number digits
-  const hash = cleanAccount.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const resolvedMock = mockNames[hash % mockNames.length];
-
+  // If Paystack live resolution is unavailable or key not configured,
+  // do not generate fake mock names. Return helpful notice so the user can enter their name manually.
   return {
-    success: true,
-    accountName: `${resolvedMock} (${selectedBank.name.split(' ')[0]})`,
+    success: false,
+    error: 'Automatic bank verification is currently unavailable. Please enter your account name manually below.',
   };
 }
 

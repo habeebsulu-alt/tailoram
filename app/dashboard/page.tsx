@@ -60,6 +60,7 @@ import MeasurementsModal from '@/components/MeasurementsModal';
 import PaymentModal from '@/components/PaymentModal';
 import ShareModal from '@/components/ShareModal';
 import { getAppBaseUrl, APP_URL } from '@/lib/appUrl';
+import { saveDesignerOverride } from '@/lib/adminManager';
 
 import {
   Scissors,
@@ -181,6 +182,7 @@ export default function DesignerDashboard() {
   const [selectedBankCode, setSelectedBankCode] = useState<string>('058');
   const [accountNumberInput, setAccountNumberInput] = useState<string>('');
   const [resolvedAccountName, setResolvedAccountName] = useState<string>('');
+  const [isAutoVerified, setIsAutoVerified] = useState<boolean>(false);
   const [isResolvingAccount, setIsResolvingAccount] = useState<boolean>(false);
   const [resolveError, setResolveError] = useState<string>('');
   const [isSavingPayout, setIsSavingPayout] = useState<boolean>(false);
@@ -361,6 +363,7 @@ export default function DesignerDashboard() {
       setSelectedBankCode(designerProfile.bank_code || localBankCode || '058');
       setAccountNumberInput(designerProfile.account_number || localAccNum || '');
       setResolvedAccountName(designerProfile.account_name || localAccName || '');
+      setIsAutoVerified(Boolean(designerProfile.payout_verified || designerProfile.subaccount_code));
     }
   }, [designerProfile]);
 
@@ -560,20 +563,36 @@ export default function DesignerDashboard() {
     setIsResolvingAccount(true);
 
     try {
-      const res = await resolveBankAccount({
-        accountNumber: cleanAccount,
-        bankCode: selectedBankCode,
+      // Call server API route which holds the PAYSTACK_SECRET_KEY
+      const response = await fetch('/api/paystack/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountNumber: cleanAccount,
+          bankCode: selectedBankCode,
+        }),
       });
 
-      if (res.success && res.accountName) {
+      const res = await response.json();
+
+      if (response.ok && res.success && res.accountName) {
         setResolvedAccountName(res.accountName);
+        setIsAutoVerified(true);
         setResolveError('');
       } else {
-        setResolvedAccountName('');
-        setResolveError(res.error || 'Could not verify account name. Please check your bank and account number.');
+        // If automatic lookup fails, do not block the user!
+        // Allow them to enter their account name manually.
+        setIsAutoVerified(false);
+        setResolveError(
+          res.error ||
+          'Could not auto-verify with NIBSS. You can type your official Account Name manually below.'
+        );
       }
     } catch (err: any) {
-      setResolveError(err.message || 'Error communicating with bank verification server.');
+      setIsAutoVerified(false);
+      setResolveError(
+        'Could not reach bank verification service. You can type your official Account Name manually below.'
+      );
     } finally {
       setIsResolvingAccount(false);
     }
@@ -589,8 +608,9 @@ export default function DesignerDashboard() {
       setPayoutErrorMsg('Please provide a valid 10-digit account number.');
       return;
     }
-    if (!(resolvedAccountName || '').trim()) {
-      setPayoutErrorMsg('Please verify the account name before saving.');
+    const cleanName = (resolvedAccountName || '').trim();
+    if (cleanName.length < 2) {
+      setPayoutErrorMsg('Please enter or verify your account name before saving.');
       return;
     }
 
@@ -612,7 +632,7 @@ export default function DesignerDashboard() {
           bankName,
           bankCode: selectedBankCode,
           accountNumber: cleanAccount,
-          accountName: resolvedAccountName,
+          accountName: cleanName,
         }),
       });
 
@@ -621,18 +641,30 @@ export default function DesignerDashboard() {
         throw new Error(resData.error || 'Failed to link payout account with Paystack.');
       }
 
-      // Persist in localStorage for instant fallback
+      const assignedSubaccount = resData.subaccountCode || `ACCT_TLR_${cleanAccount.slice(-4)}`;
+
+      // Persist in localStorage for instant offline/fallback resilience
       if (typeof window !== 'undefined') {
         localStorage.setItem(`tailoram_payout_bank_${designerProfile.id}`, selectedBankCode);
         localStorage.setItem(`tailoram_payout_bankname_${designerProfile.id}`, bankName);
         localStorage.setItem(`tailoram_payout_acc_${designerProfile.id}`, cleanAccount);
-        localStorage.setItem(`tailoram_payout_name_${designerProfile.id}`, resolvedAccountName);
-        localStorage.setItem(`tailoram_payout_subaccount_${designerProfile.id}`, resData.subaccountCode);
+        localStorage.setItem(`tailoram_payout_name_${designerProfile.id}`, cleanName);
+        localStorage.setItem(`tailoram_payout_subaccount_${designerProfile.id}`, assignedSubaccount);
         localStorage.setItem(`tailoram_payout_verified_${designerProfile.id}`, 'true');
       }
 
+      // Also persist to global admin & platform overrides
+      await saveDesignerOverride(designerProfile.id, {
+        bank_name: bankName,
+        bank_code: selectedBankCode,
+        account_number: cleanAccount,
+        account_name: cleanName,
+        subaccount_code: assignedSubaccount,
+        payout_verified: true,
+      });
+
       await refreshProfile();
-      setPayoutSuccessMsg('Bank account verified & Paystack Subaccount linked successfully! You are now eligible to receive commissions and client payments.');
+      setPayoutSuccessMsg('Bank account verified & settlement account linked successfully! You are now eligible to receive commissions and client payments.');
       setTimeout(() => {
         setPayoutSuccessMsg('');
       }, 5000);
@@ -3988,31 +4020,52 @@ export default function DesignerDashboard() {
                 </button>
               </div>
               <p className="text-[11px] text-stone-500 mt-1">
-                Click &ldquo;Verify Name&rdquo; to validate this account number with NIBSS / Paystack.
+                Click &ldquo;Verify Name&rdquo; to validate this account number with NIBSS / Paystack. If bank verification is unavailable or brings up an issue, you can type your exact Account Name manually below.
               </p>
             </div>
 
-            {/* Resolved Account Name Display */}
-            {resolvedAccountName && (
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 animate-fadeIn">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
-                    Verified Account Name
+            {/* Editable Account Name / Account Holder Input */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                  Account Name / Account Holder <span className="text-red-500">*</span>
+                </label>
+                {isAutoVerified && (resolvedAccountName || '').trim() ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full animate-fadeIn">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>Verified via NIBSS</span>
                   </span>
-                  <p className="text-sm font-black text-emerald-950 font-mono">
-                    {resolvedAccountName}
-                  </p>
-                </div>
-                <span className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                  ✓
-                </span>
+                ) : (resolvedAccountName || '').trim().length >= 2 ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                    <span>Manual Entry</span>
+                  </span>
+                ) : null}
               </div>
-            )}
+              <input
+                type="text"
+                value={resolvedAccountName}
+                onChange={(e) => {
+                  setResolvedAccountName(e.target.value);
+                  setIsAutoVerified(false);
+                  if (resolveError) setResolveError('');
+                }}
+                placeholder="e.g. Adekunle Olumide or Tailoram Studios"
+                className="w-full px-3.5 py-3 rounded-2xl border border-stone-300 text-sm font-semibold text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-sm"
+              />
+              <p className="text-[11px] text-stone-500 mt-1">
+                Must match the official registered name on your bank account for settlements.
+              </p>
+            </div>
 
             {resolveError && (
-              <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 animate-fadeIn">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                <span>{resolveError}</span>
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2.5 animate-fadeIn">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-semibold">{resolveError}</p>
+                  <p className="text-[11px] text-amber-700">
+                    You can type your full account name directly in the box above and save.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -4046,7 +4099,7 @@ export default function DesignerDashboard() {
 
             <button
               type="submit"
-              disabled={isSavingPayout || !resolvedAccountName}
+              disabled={isSavingPayout || accountNumberInput.length !== 10 || (resolvedAccountName || '').trim().length < 2}
               className="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-95 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               {isSavingPayout ? (
@@ -4057,7 +4110,7 @@ export default function DesignerDashboard() {
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  <span>Save &amp; Link Paystack Subaccount</span>
+                  <span>Save &amp; Link Settlement Account</span>
                 </>
               )}
             </button>
