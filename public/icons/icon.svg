@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1c1917" />
+      <stop offset="100%" stop-color="#0c0a09" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Dark Luxury Background -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGradient)" />
+  
+  <!-- Subtle Gold Border -->
+  <rect x="8" y="8" width="496" height="496" rx="120" fill="none" stroke="url(#goldGradient)" stroke-width="4" stroke-opacity="0.3" />
+
+  <!-- Center Gold Badge -->
+  <g filter="url(#shadow)">
+    <rect x="96" y="96" width="320" height="320" rx="80" fill="url(#goldGradient)" />
+    
+    <!-- Stylized Tailoram Scissors / Needle Icon -->
+    <g transform="translate(256, 256) rotate(-45) translate(-256, -256)" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <!-- Scissor blades -->
+      <line x1="200" y1="140" x2="312" y2="372" />
+      <line x1="312" y1="140" x2="200" y2="372" />
+      <!-- Left loop -->
+      <circle cx="180" cy="380" r="44" stroke="#ffffff" stroke-width="26" fill="none" />
+      <!-- Right loop -->
+      <circle cx="332" cy="380" r="44" stroke="#ffffff" stroke-width="26" fill="none" />
+      <!-- Pivot screw -->
+      <circle cx="256" cy="256" r="14" fill="#ffffff" stroke="none" />
+    </g>
+  </g>
+
+  <!-- Monogram Accent "T" subtle crest -->
+  <text x="256" y="475" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="900" letter-spacing="8" fill="#f59e0b">TAILORAM</text>
+</svg>

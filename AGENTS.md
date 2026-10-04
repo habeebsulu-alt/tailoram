@@ -30,6 +30,8 @@ Tailoram/
 ├── components/
 │   ├── Navbar.tsx               # Top header with dynamic role links, platform announcement bar, auth dropdown
 │   ├── Footer.tsx               # Clean footer (all user-facing links, admin portal link intentionally omitted)
+│   ├── MobileBottomNav.tsx      # Native Android-style mobile bottom navigation bar (Explore, Shop, Orders, Studio)
+│   ├── AndroidInstallPrompt.tsx # Smart 1-tap Android install prompt & home screen banner
 │   └── EntrySplash.tsx          # Kinetic typography splash ("YOUR ALL IN ONE FASHION PLUG" Oando PLC-inspired)
 ├── contexts/
 │   └── AuthContext.tsx          # Supabase auth + seamless demo account persistence (`tailoram_demo_session`)
@@ -178,4 +180,15 @@ Tailoram/
   - Platform commission and designer net payouts remain completely confidential.
 - **CBN Regulatory Compliance**:
   - Strictly non-custodial: Client funds are never held or pooled in a central marketplace account. Direct Paystack split payment ensures immediate routing to the artisan's subaccount and commercial bank.
+
+---
+
+## 8. Mobile Architecture & Android App Foundation
+- **Web App Manifest (`public/manifest.json`)**: Configured for Android (`id: "com.tailoram.app"`), full-screen standalone display (`display_override: ["standalone", "minimal-ui"]`), portrait orientation, and shortcuts (Explore Designers, RTW Shop, Custom Orders, Studio).
+- **High-Res Adaptive Icons**: `public/icons/icon-192.png`, `public/icons/icon-512.png`, and `public/icons/icon-maskable-512.png` with safe-zone margin for Pixel, Samsung One UI, and Xiaomi launchers.
+- **Mobile Bottom Navigation (`components/MobileBottomNav.tsx`)**: Ergonomic, native Android-style bottom tab bar (Explore, RTW Shop, Orders, Studio/Profile) with active state indicators and role-aware tabs.
+- **Smart Android Install Prompt (`components/AndroidInstallPrompt.tsx`)**: Captures native `beforeinstallprompt` event and presents a luxury dark & gold 1-tap installation banner and manual Chrome guide.
+- **Android App Links & Play Store TWA (`public/.well-known/assetlinks.json`)**: Digital Asset Links template for opening `tailoram.vercel.app` directly in the native Android app shell.
+- **Capacitor Mobile Bridge (`capacitor.config.ts`)**: Pre-configured with `appId: 'com.tailoram.app'` and `server.url: 'https://tailoram.vercel.app'`, enabling instant zero-rebuild over-the-air updates whenever Vercel deploys.
+
 
