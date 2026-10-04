@@ -17,6 +17,7 @@ import {
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import { normalizePhoneForWhatsApp } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating } from '@/lib/ratingsManager';
+import { getHomepageDefaultSort, HomepageSortOption } from '@/lib/homepageSettings';
 import {
   Scissors,
   Search,
@@ -573,7 +574,8 @@ export default function HomePage() {
   const [selectedArea, setSelectedArea] = useState<string>('All Areas');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedGender, setSelectedGender] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'all' | 'ranking' | 'rating' | 'reviews' | 'newest'>('ranking');
+  const [sortBy, setSortBy] = useState<HomepageSortOption>('ranking');
+  const [configuredDefaultSort, setConfiguredDefaultSort] = useState<HomepageSortOption>('ranking');
   const [randomSeed, setRandomSeed] = useState(() => Math.floor(Math.random() * 100000));
 
   // Geolocation & Around Me state
@@ -585,6 +587,10 @@ export default function HomePage() {
   // Load all designers with portfolio items and reviews
   useEffect(() => {
     checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+    getHomepageDefaultSort().then((defSort) => {
+      setSortBy(defSort);
+      setConfiguredDefaultSort(defSort);
+    });
 
     async function fetchDesigners() {
       try {
@@ -1135,15 +1141,15 @@ export default function HomePage() {
                   if (e.target.value === 'all') {
                     setRandomSeed(Math.floor(Math.random() * 100000));
                   }
-                  setSortBy(e.target.value);
+                  setSortBy(e.target.value as HomepageSortOption);
                 }}
                 className="w-full pl-9 pr-3.5 py-2.5 rounded-2xl border border-stone-200 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-bold text-stone-800"
               >
-                <option value="all">🎲 All Designers (Discover / Random)</option>
-                <option value="ranking">🏆 Highest Ranking (Top Rated)</option>
-                <option value="rating">⭐ Highest Average Stars</option>
-                <option value="reviews">🔥 Most Client Reviews</option>
-                <option value="newest">✨ Newest Designers</option>
+                <option value="ranking">🏆 Highest Ranking (Top Rated){configuredDefaultSort === 'ranking' ? ' • Default' : ''}</option>
+                <option value="rating">⭐ Highest Average Stars{configuredDefaultSort === 'rating' ? ' • Default' : ''}</option>
+                <option value="reviews">🔥 Most Client Reviews{configuredDefaultSort === 'reviews' ? ' • Default' : ''}</option>
+                <option value="newest">✨ Newest Designers{configuredDefaultSort === 'newest' ? ' • Default' : ''}</option>
+                <option value="all">🎲 All Designers (Discover / Random){configuredDefaultSort === 'all' ? ' • Default' : ''}</option>
               </select>
             </div>
 
@@ -1271,9 +1277,15 @@ export default function HomePage() {
             <p className="text-xs sm:text-sm text-stone-500">
               Showing {filteredAndRankedDesigners.length} designers sorted by {
                 sortBy === 'all'
-                  ? 'random discovery'
+                  ? 'random discovery shuffle'
                   : sortBy === 'ranking'
-                  ? 'top ranking'
+                  ? 'highest ranking score'
+                  : sortBy === 'rating'
+                  ? 'highest star rating'
+                  : sortBy === 'reviews'
+                  ? 'most client reviews'
+                  : sortBy === 'newest'
+                  ? 'newest designers'
                   : sortBy
               }
             </p>

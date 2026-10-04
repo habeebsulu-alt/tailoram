@@ -69,6 +69,8 @@ import {
   Mail,
   Send,
   EyeOff,
+  ArrowUpDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   getEmailSettings,
@@ -86,6 +88,11 @@ import {
   DEFAULT_COMMISSION_SETTINGS,
 } from '@/lib/paystack';
 import { CommissionSettings } from '@/lib/types';
+import {
+  HomepageSortOption,
+  HOMEPAGE_SORT_OPTIONS,
+  saveHomepageDefaultSort,
+} from '@/lib/homepageSettings';
 
 
 const DEMO_EMAILS_MAP: Record<string, string> = {
@@ -163,12 +170,14 @@ export default function AdminPage() {
     announcement_type: 'info' | 'spotlight' | 'warning';
     maintenance_mode: boolean;
     whatsapp_enabled: boolean;
+    homepage_default_sort: HomepageSortOption;
   }>({
     announcement_enabled: true,
     announcement_message: "✨ Welcome to Tailoram: Nigeria's premier bespoke couture network. Explore top studios across all 36 states!",
     announcement_type: 'info',
     maintenance_mode: false,
     whatsapp_enabled: false,
+    homepage_default_sort: 'ranking',
   });
 
   // Action / Feedback Notification
@@ -287,18 +296,24 @@ export default function AdminPage() {
         .from('platform_settings')
         .select('*');
 
+      const localSort = typeof window !== 'undefined' ? (localStorage.getItem('tailoram_homepage_default_sort') as HomepageSortOption) : null;
+
       if (settsData && settsData.length > 0) {
         const ann = settsData.find((s) => s.key === 'announcement')?.value;
         const maint = settsData.find((s) => s.key === 'maintenance_mode')?.value;
         const wa = settsData.find((s) => s.key === 'whatsapp_enabled')?.value;
         const localWa = typeof window !== 'undefined' ? localStorage.getItem('tailoram_whatsapp_enabled') === 'true' : false;
+        const sortSett = settsData.find((s) => s.key === 'homepage_sorting')?.value;
         setPlatformSettings({
           announcement_enabled: ann?.enabled ?? false,
           announcement_message: ann?.message ?? '',
           announcement_type: ann?.type ?? 'info',
           maintenance_mode: maint?.enabled ?? false,
           whatsapp_enabled: wa?.enabled ?? localWa ?? false,
+          homepage_default_sort: (sortSett?.default_sort || localSort || 'ranking') as HomepageSortOption,
         });
+      } else if (localSort) {
+        setPlatformSettings((prev) => ({ ...prev, homepage_default_sort: localSort }));
       }
 
       // 8. Manual Designer Ratings
@@ -785,6 +800,7 @@ export default function AdminPage() {
     try {
       if (typeof window !== 'undefined') {
         localStorage.setItem('tailoram_whatsapp_enabled', String(platformSettings.whatsapp_enabled));
+        localStorage.setItem('tailoram_homepage_default_sort', platformSettings.homepage_default_sort);
       }
 
       await supabase.from('platform_settings').upsert([
@@ -812,10 +828,18 @@ export default function AdminPage() {
           },
           updated_at: new Date().toISOString(),
         },
+        {
+          key: 'homepage_sorting',
+          value: {
+            default_sort: platformSettings.homepage_default_sort,
+          },
+          updated_at: new Date().toISOString(),
+        },
       ]);
+      await saveHomepageDefaultSort(platformSettings.homepage_default_sort);
       await saveEmailSettings(emailSettings);
       await saveCommissionSettings(commissionSettings);
-      showNotice('Platform, email, and commission settings saved and propagated successfully!');
+      showNotice('Platform, homepage default sorting, email, and commission settings saved successfully!');
     } catch (err: any) {
       showNotice(`Failed to save settings: ${err.message}`, 'error');
     }
@@ -2247,6 +2271,127 @@ export default function AdminPage() {
                   <span>{platformSettings.announcement_message}</span>
                 </div>
               )}
+            </div>
+
+            {/* Homepage Default Sorting Control */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 sm:p-7 space-y-5 shadow-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-base text-white flex items-center gap-2">
+                    <ArrowUpDown className="w-4 h-4 text-amber-400" />
+                    <span>Homepage Default Designer Sorting</span>
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Controls how designers and master tailors are ranked by default when visitors land on the Tailoram marketplace homepage.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 bg-stone-950 px-3 py-1.5 rounded-xl border border-stone-800 shrink-0 self-start sm:self-auto">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-[11px] font-bold text-stone-300">
+                    Active: <strong className="text-amber-300 capitalize">{HOMEPAGE_SORT_OPTIONS.find(o => o.id === platformSettings.homepage_default_sort)?.shortLabel || platformSettings.homepage_default_sort}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Interactive Sorting Options Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {HOMEPAGE_SORT_OPTIONS.map((option) => {
+                  const isSelected = platformSettings.homepage_default_sort === option.id;
+                  return (
+                    <div
+                      key={option.id}
+                      onClick={() =>
+                        setPlatformSettings({
+                          ...platformSettings,
+                          homepage_default_sort: option.id,
+                        })
+                      }
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-2.5 relative group ${
+                        isSelected
+                          ? 'bg-amber-500/10 border-amber-400/80 ring-1 ring-amber-400/40 shadow-sm'
+                          : 'bg-stone-950/80 border-stone-800 hover:border-stone-700 hover:bg-stone-950'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-bold text-xs sm:text-sm text-stone-200 group-hover:text-white transition-colors">
+                          {option.label}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {option.badge && (
+                            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                              {option.badge}
+                            </span>
+                          )}
+                          <div
+                            className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                              isSelected
+                                ? 'border-amber-400 bg-amber-400 text-stone-950'
+                                : 'border-stone-700 bg-stone-900'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-stone-400 leading-relaxed font-normal">
+                        {option.description}
+                      </p>
+
+                      <div className="pt-1 flex items-center justify-between border-t border-stone-800/60 text-[10px]">
+                        <span className="text-stone-500 font-mono">
+                          Value: {option.id}
+                        </span>
+                        {isSelected ? (
+                          <span className="text-amber-400 font-bold flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Default Active
+                          </span>
+                        ) : (
+                          <span className="text-stone-500 group-hover:text-stone-400 transition-colors">
+                            Click to select
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Informative Guidance & 1-Click Quick Apply */}
+              <div className="p-3.5 rounded-2xl bg-stone-950 border border-stone-800/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="text-stone-400 space-y-0.5">
+                  <p className="text-[11px]">
+                    Visitors can still manually switch filters while browsing, but this determines the initial curated experience for all new visits.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Link
+                    href="/"
+                    target="_blank"
+                    className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-xs transition-colors flex items-center gap-1"
+                  >
+                    <span>Preview Live</span>
+                    <ExternalLink className="w-3 h-3 text-stone-400" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await saveHomepageDefaultSort(platformSettings.homepage_default_sort);
+                      await supabase.from('platform_settings').upsert({
+                        key: 'homepage_sorting',
+                        value: { default_sort: platformSettings.homepage_default_sort },
+                        updated_at: new Date().toISOString(),
+                      });
+                      showNotice(`Homepage default sort updated to "${HOMEPAGE_SORT_OPTIONS.find(o => o.id === platformSettings.homepage_default_sort)?.shortLabel}"!`);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs shadow-md transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Apply Sort Now</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Maintenance Mode */}
