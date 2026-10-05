@@ -111,15 +111,15 @@ export default function EntrySplash({ onComplete }: EntrySplashProps) {
 
       {/* Top Header Bar: Logo & Skip */}
       <header className="relative z-10 px-6 sm:px-12 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-stone-950 shadow-lg shadow-amber-500/20">
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-400 flex items-center justify-center text-white shadow-sm">
             <Scissors className="w-5 h-5 -rotate-45" />
           </div>
           <div className="flex flex-col">
-            <span className="font-black text-lg tracking-tight text-white font-serif">
+            <span className="font-black text-xl tracking-tight text-white font-sans">
               Tailoram
             </span>
-            <span className="text-[9px] -mt-1 font-bold uppercase tracking-widest text-amber-400">
+            <span className="text-[10px] -mt-1 font-semibold uppercase tracking-widest text-brand-400">
               Nigeria
             </span>
           </div>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Download, X, Smartphone, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Download, X, Smartphone, Sparkles, CheckCircle2, Scissors } from 'lucide-react';
 
 export default function AndroidInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -89,9 +89,9 @@ export default function AndroidInstallPrompt() {
         <div className="fixed bottom-16 sm:bottom-6 left-3 right-3 sm:left-auto sm:right-6 sm:max-w-md z-50 animate-slideUp">
           <div className="bg-stone-950/95 backdrop-blur-xl border border-amber-500/40 rounded-2xl p-3.5 shadow-2xl shadow-black/80 flex items-center justify-between gap-3 text-white">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 p-0.5 shrink-0 shadow-md">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-400 p-0.5 shrink-0 shadow-md">
                 <div className="w-full h-full bg-stone-950 rounded-[10px] flex items-center justify-center">
-                  <Smartphone className="w-6 h-6 text-amber-400" />
+                  <Scissors className="w-5 h-5 text-brand-400 -rotate-45" />
                 </div>
               </div>
               <div className="min-w-0">
@@ -135,8 +135,8 @@ export default function AndroidInstallPrompt() {
           <div className="bg-stone-900 border border-stone-800 rounded-3xl max-w-sm w-full p-6 text-white space-y-4 shadow-2xl animate-scaleIn">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-bold">
-                  <Smartphone className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-400 text-white flex items-center justify-center shadow-sm">
+                  <Scissors className="w-5 h-5 -rotate-45" />
                 </div>
                 <div>
                   <h3 className="font-black text-base">Install on Android</h3>

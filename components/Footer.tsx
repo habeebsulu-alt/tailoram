@@ -10,12 +10,17 @@ export default function Footer() {
           {/* Brand info */}
           <div className="space-y-3 md:col-span-2">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white">
-                <Scissors className="w-4 h-4 -rotate-45" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-400 flex items-center justify-center text-white shadow-sm">
+                <Scissors className="w-5 h-5 -rotate-45" />
               </div>
-              <span className="font-extrabold text-xl tracking-tight text-white font-serif">
-                Tailoram
-              </span>
+              <div className="flex flex-col">
+                <span className="font-black text-xl tracking-tight text-white">
+                  Tailoram
+                </span>
+                <span className="text-[10px] -mt-1 font-semibold uppercase tracking-widest text-brand-400">
+                  Nigeria
+                </span>
+              </div>
             </div>
             <p className="text-sm text-stone-400 max-w-sm leading-relaxed">
               Nigeria&apos;s premier social marketplace connecting skilled fashion designers and bespoke tailors across Lagos, Abuja, Port Harcourt, Ibadan, and all 36 states with clients for custom outfits, owambe attire, and native wear.

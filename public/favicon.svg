@@ -10,7 +10,7 @@
     </filter>
   </defs>
 
-  <!-- App Rounded Badge Icon (Matching App Navbar Logo) -->
+  <!-- App Rounded Badge Icon (Same geometry and gradient as App Navbar Logo) -->
   <rect x="32" y="32" width="448" height="448" rx="116" fill="url(#appBrandGradient)" filter="url(#softShadow)" />
 
   <!-- Centered White Scissors Icon rotated -45 degrees -->
