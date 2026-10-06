@@ -10,6 +10,7 @@ import { compressImage } from '@/lib/imageCompressor';
 import { DesignerProfile, OutfitRequest, ClientMeasurements } from '@/lib/types';
 import { saveLocalCreatedRequest, saveCloudChatMessage } from '@/lib/payments';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
+import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
 import { getAppBaseUrl } from '@/lib/appUrl';
 import {
   ArrowLeft,
@@ -26,6 +27,7 @@ import {
   Ruler,
   ChevronDown,
   ChevronUp,
+  MessageSquare,
 } from 'lucide-react';
 
 function RequestForm() {
@@ -72,6 +74,7 @@ function RequestForm() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [whatsappDispatchUrl, setWhatsappDispatchUrl] = useState<string | null>(null);
 
   // Pre-fill inspiration if provided
   useEffect(() => {
@@ -375,6 +378,19 @@ function RequestForm() {
         console.warn('New request email notification error:', emErr);
       }
 
+      // Prepare 1-click WhatsApp notification URL for the client to immediately notify designer
+      const waUrl = getWhatsAppDispatchUrl({
+        event: 'new_request',
+        recipientPhone: designer?.whatsapp,
+        recipientName: designer?.business_name,
+        senderName: profile?.full_name || 'A Client',
+        styleDescription: styleDescription.trim(),
+        amount: minBudget,
+        deadline: deadline || null,
+        requestId: finalRequestId,
+      });
+      setWhatsappDispatchUrl(waUrl);
+
       setSuccessMessage('Your custom request has been sent! The designer will review it and respond soon.');
       
       // Reset form
@@ -495,10 +511,21 @@ function RequestForm() {
               <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
               <p className="font-semibold">{successMessage}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 pt-1">
+              {whatsappDispatchUrl && (
+                <a
+                  href={whatsappDispatchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition-all active:scale-95"
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-200 fill-emerald-200" />
+                  <span>Notify {designer.business_name} on WhatsApp</span>
+                </a>
+              )}
               <Link
                 href="/requests"
-                className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors"
+                className="inline-flex items-center gap-1 text-xs font-bold px-3.5 py-2 bg-stone-900 text-white rounded-xl hover:bg-black transition-colors"
               >
                 Track in My Requests →
               </Link>

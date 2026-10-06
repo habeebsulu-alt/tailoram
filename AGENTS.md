@@ -148,6 +148,19 @@ Tailoram/
   - Live realistic device simulation preview (System push notification shade mockup + in-app lightbox card).
   - Instant 1-click "Test on My Device" trigger for verification on the admin's personal screen.
   - Telemetry log of past broadcasts with thumbnail preview and deletion controls.
+
+---
+
+## 8. Smart WhatsApp Notification Dispatch Engine (Zero-Cost / wa.me Deep Links)
+- **Central Module**: `lib/whatsappNotifications.ts` (`buildWhatsAppMessage`, `getWhatsAppDispatchUrl`, `dispatchWhatsAppNotification`)
+- **Architecture**: 100% zero-cost, requires no paid WhatsApp Business API tier. Dynamically formats Nigerian couture copy with direct order links back to `tailoram.com` or localhost.
+- **Integrated Order Milestones**:
+  1. **New Bespoke Order Inquiry**: Client commissions attire -> Instant `Notify [Designer] on WhatsApp` button on request confirmation screen.
+  2. **Official Studio Quote**: Designer submits pricing & timeline -> `QuoteModal` displays `Notify Client on WhatsApp` button with full breakdown (total price, 40% deposit, delivery date).
+  3. **40% Commitment Deposit Paid**: Client pays deposit -> `PaymentModal` displays `Notify [Designer] on WhatsApp` button to prompt immediate fabric cutting and production.
+  4. **Outfit Ready for Balance**: Designer marks garment tailored -> 1-click `Notify Client on WhatsApp` button in messages thread prompts client to settle final 60% balance.
+  5. **Direct Consultation Sync**: Omnipresent 1-click `WhatsApp` button in messages header and dashboard order cards for quick fittings check-ins.
+- **Admin Governance**: Managed via `/entrypoint` Settings tab ("Client WhatsApp Chat & Milestone Notifications").
 - **Dashboard & Client In-App Notification Center**:
   - Bell indicator button with animated unread badge counter in `/dashboard` header and announcements in `/requests`.
   - Interactive notification popover menu itemizing new bespoke commissions, 40% initial commitment deposit notices, 60% final balance settlements, payout setup reminders, new ratings/reviews, welcome greetings, and official rich image broadcasts.

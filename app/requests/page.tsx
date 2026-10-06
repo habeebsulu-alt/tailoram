@@ -15,6 +15,7 @@ import {
   respondToQuote,
   PaymentResult,
 } from '@/lib/payments';
+import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
 import { getClientWalletTransactions } from '@/lib/paystack';
 import PaymentModal from '@/components/PaymentModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
@@ -561,13 +562,41 @@ export default function ClientRequestsPage() {
                     </button>
                   )}
 
-                  <Link
-                    href={`/messages/${req.id}`}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5 text-brand-400" />
-                    <span>Chat Consultation</span>
-                  </Link>
+                  <div className="flex flex-col gap-2">
+                    <Link
+                      href={`/messages/${req.id}`}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-brand-400" />
+                      <span>Chat Consultation</span>
+                    </Link>
+
+                    {/* 1-Click WhatsApp Designer */}
+                    {(() => {
+                      const designerPhone = req.designer?.whatsapp;
+                      const waUrl = getWhatsAppDispatchUrl({
+                        event: 'chat_followup',
+                        recipientPhone: designerPhone,
+                        recipientName: req.designer?.business_name || 'Master Designer',
+                        senderName: user?.email ? 'Your Client' : 'Client',
+                        styleDescription: req.style_description,
+                        requestId: req.id,
+                      });
+
+                      return (
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition-all shadow-xs"
+                          title="Message designer on WhatsApp"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 fill-emerald-200 text-emerald-200" />
+                          <span>WhatsApp Studio</span>
+                        </a>
+                      );
+                    })()}
+                  </div>
 
                   {/* Completed: Rate Designer */}
                   {req.status === 'completed' && !hasReviewed && (

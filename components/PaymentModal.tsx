@@ -9,6 +9,7 @@ import {
   DEPOSIT_PERCENTAGE,
   BALANCE_PERCENTAGE,
 } from '@/lib/payments';
+import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
 import {
   X,
   CreditCard,
@@ -18,6 +19,7 @@ import {
   Loader2,
   Lock,
   Sparkles,
+  MessageSquare,
 } from 'lucide-react';
 
 interface PaymentModalProps {
@@ -42,6 +44,7 @@ export default function PaymentModal({
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<PaymentResult | null>(null);
+  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -76,11 +79,19 @@ export default function PaymentModal({
       });
 
       if (result.success) {
+        // Construct 1-click WhatsApp notification to inform designer of payment
+        const waUrl = getWhatsAppDispatchUrl({
+          event: isDeposit ? 'deposit_paid' : 'balance_paid',
+          recipientPhone: request.designer?.whatsapp,
+          recipientName: request.designer?.business_name || 'Master Designer',
+          senderName: customerName || 'A Client',
+          styleDescription: request.style_description,
+          amount: paymentAmount,
+          requestId: request.id,
+        });
+        setWhatsappUrl(waUrl);
         setSuccessResult(result);
-        setTimeout(() => {
-          onPaymentSuccess(result);
-          onClose();
-        }, 1800);
+        onPaymentSuccess(result);
       } else {
         setError(result.message || 'Payment could not be completed.');
       }
@@ -153,6 +164,28 @@ export default function PaymentModal({
                 <span>Status:</span>
                 <span className="font-bold text-stone-900">Settled (Simulated)</span>
               </div>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              {whatsappUrl && (
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black text-sm shadow-xl shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <MessageSquare className="w-4 h-4 fill-emerald-200 text-emerald-200" />
+                  <span>Notify {request.designer?.business_name || 'Designer'} on WhatsApp</span>
+                </a>
+              )}
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2.5 text-xs font-bold text-stone-600 hover:text-stone-900 transition-colors"
+              >
+                Done &amp; Continue
+              </button>
             </div>
           </div>
         ) : (

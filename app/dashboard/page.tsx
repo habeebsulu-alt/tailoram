@@ -43,6 +43,7 @@ import {
   getCommissionSettings,
 } from '@/lib/paystack';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
+import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
 import {
   isPushSupported,
   getPushPermissionStatus,
@@ -3138,13 +3139,42 @@ export default function DesignerDashboard() {
 
                     {/* Actions Bar */}
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                      <Link
-                        href={`/messages/${req.id}`}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5 text-brand-400" />
-                        Chat Consultation
-                      </Link>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link
+                          href={`/messages/${req.id}`}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-black text-white text-xs font-bold transition-all shadow-sm"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-brand-400" />
+                          Chat Consultation
+                        </Link>
+
+                        {/* 1-Click WhatsApp Quick Action */}
+                        {(() => {
+                          const clientPhone = (req.client as any)?.whatsapp || (req.client as any)?.phone;
+                          const waUrl = getWhatsAppDispatchUrl({
+                            event: req.status === 'ready_for_balance' ? 'order_ready' : 'chat_followup',
+                            recipientPhone: clientPhone,
+                            recipientName: req.client?.full_name || 'Fashion Client',
+                            senderName: designerProfile?.business_name || 'Master Designer',
+                            styleDescription: req.style_description,
+                            balanceAmount: req.balance_amount || breakdown.balanceAmount,
+                            requestId: req.id,
+                          });
+
+                          return (
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition-all shadow-xs"
+                              title="Send WhatsApp update to client"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 fill-emerald-200 text-emerald-200" />
+                              <span>WhatsApp Client</span>
+                            </a>
+                          );
+                        })()}
+                      </div>
 
                       <div className="flex items-center gap-2 flex-wrap">
                         {/* Pending: Send Quote / Accept / Decline */}

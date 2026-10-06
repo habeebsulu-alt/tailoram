@@ -2576,16 +2576,16 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Client WhatsApp Chat Control */}
+            {/* Client WhatsApp Chat & 1-Click Milestone Notifications Control */}
             <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-3 shadow-lg">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-black text-base text-white flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-emerald-400" />
-                    <span>Client WhatsApp Chat Option</span>
+                    <span>Client WhatsApp Chat &amp; Milestone Notifications</span>
                   </h3>
                   <p className="text-xs text-stone-400 mt-0.5">
-                    Show &quot;Chat on WhatsApp&quot; and &quot;Order on WhatsApp&quot; buttons on studio profiles, marketplace cards, and ready-to-wear product previews.
+                    Controls visibility of WhatsApp buttons on studio profiles &amp; store items. (Zero-cost 1-click order milestone notifications for quotes, deposits, and outfit readiness are always ready).
                   </p>
                 </div>
 
@@ -2606,10 +2606,10 @@ export default function AdminPage() {
               </div>
 
               <div className="p-3 rounded-2xl bg-stone-950 border border-stone-800/80 flex items-center justify-between text-xs">
-                <span className="text-stone-400">Current Status:</span>
+                <span className="text-stone-400">Public Profile WhatsApp Links:</span>
                 <span className={`font-bold flex items-center gap-1.5 ${platformSettings.whatsapp_enabled ? 'text-emerald-400' : 'text-stone-400'}`}>
                   <span className={`w-2 h-2 rounded-full ${platformSettings.whatsapp_enabled ? 'bg-emerald-400 animate-pulse' : 'bg-stone-500'}`} />
-                  {platformSettings.whatsapp_enabled ? 'Active (WhatsApp Buttons Visible)' : 'Hidden (Platform Chat / Request Forms Only)'}
+                  {platformSettings.whatsapp_enabled ? 'Active (WhatsApp Profile Buttons Visible)' : 'Hidden (Platform Forms Only)'}
                 </span>
               </div>
             </div>

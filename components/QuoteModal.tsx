@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { OutfitRequest } from '@/lib/types';
 import { submitQuote, calculatePaymentBreakdown } from '@/lib/payments';
+import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
 import {
   X,
   FileText,
@@ -12,6 +13,7 @@ import {
   Check,
   AlertCircle,
   Sparkles,
+  MessageSquare,
 } from 'lucide-react';
 
 interface QuoteModalProps {
@@ -41,6 +43,8 @@ export default function QuoteModal({
   const [deadlineInput, setDeadlineInput] = useState<string>(defaultDate);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submittedSuccess, setSubmittedSuccess] = useState(false);
+  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -69,8 +73,21 @@ export default function QuoteModal({
       });
 
       if (res.success) {
+        // Build 1-click WhatsApp notification URL for client
+        const waUrl = getWhatsAppDispatchUrl({
+          event: 'quote_submitted',
+          recipientPhone: (request.client as any)?.whatsapp || (request.client as any)?.phone,
+          recipientName: request.client?.full_name || 'Fashion Client',
+          senderName: request.designer?.business_name || 'Your Designer',
+          styleDescription: request.style_description,
+          amount: breakdown.quotedPrice,
+          depositAmount: breakdown.depositAmount,
+          deadline: deadlineInput,
+          requestId: request.id,
+        });
+        setWhatsappUrl(waUrl);
+        setSubmittedSuccess(true);
         onQuoteSubmitted();
-        onClose();
       } else {
         setError(res.error || 'Failed to submit quote.');
       }
@@ -116,30 +133,84 @@ export default function QuoteModal({
           </button>
         </div>
 
-        {/* Client Request Context */}
-        <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200/80 text-xs space-y-1 text-stone-600">
-          <div className="flex justify-between font-semibold text-stone-800">
-            <span>Requested Style:</span>
-            <span className="text-brand-700">{request.style_description}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Client&apos;s Budget Range:</span>
-            <span className="font-bold text-stone-900">
-              ₦{request.budget_min.toLocaleString()}
-              {request.budget_max ? ` - ₦${request.budget_max.toLocaleString()}` : ''}
-            </span>
-          </div>
-        </div>
+        {/* Success View with 1-click WhatsApp Notification */}
+        {submittedSuccess ? (
+          <div className="py-6 text-center space-y-4 animate-fadeIn">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+              <Check className="w-9 h-9 stroke-[3]" />
+            </div>
+            <div>
+              <h4 className="text-xl font-black text-stone-900">
+                Official Quote Sent!
+              </h4>
+              <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
+                Quote of <strong>₦{breakdown.quotedPrice.toLocaleString()}</strong> has been submitted. The client has received an in-app notice and email.
+              </p>
+            </div>
 
-        {error && (
-          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+            <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-left text-xs space-y-1.5 font-medium">
+              <div className="flex justify-between text-stone-700">
+                <span>Quoted Total:</span>
+                <strong className="text-stone-900 font-black">₦{breakdown.quotedPrice.toLocaleString()}</strong>
+              </div>
+              <div className="flex justify-between text-stone-700">
+                <span>40% Commitment Deposit:</span>
+                <strong className="text-emerald-700 font-bold">₦{breakdown.depositAmount.toLocaleString()}</strong>
+              </div>
+              <div className="flex justify-between text-stone-700">
+                <span>Target Completion:</span>
+                <strong className="text-stone-900">{new Date(deadlineInput).toLocaleDateString()}</strong>
+              </div>
+            </div>
 
-        {/* Quote Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="pt-2 flex flex-col gap-2">
+              {whatsappUrl && (
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black text-sm shadow-xl shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <MessageSquare className="w-4 h-4 fill-emerald-200 text-emerald-200" />
+                  <span>Notify Client on WhatsApp</span>
+                </a>
+              )}
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2.5 text-xs font-bold text-stone-600 hover:text-stone-900 transition-colors"
+              >
+                Close &amp; Return to Consultation
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Client Request Context */}
+            <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200/80 text-xs space-y-1 text-stone-600">
+              <div className="flex justify-between font-semibold text-stone-800">
+                <span>Requested Style:</span>
+                <span className="text-brand-700">{request.style_description}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Client&apos;s Budget Range:</span>
+                <span className="font-bold text-stone-900">
+                  ₦{request.budget_min.toLocaleString()}
+                  {request.budget_max ? ` - ₦${request.budget_max.toLocaleString()}` : ''}
+                </span>
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Quote Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1.5">
               Total Quoted Price (₦ NGN) <span className="text-red-500">*</span>
@@ -227,6 +298,8 @@ export default function QuoteModal({
             </button>
           </div>
         </form>
+        </>
+        )}
       </div>
     </div>
   );
