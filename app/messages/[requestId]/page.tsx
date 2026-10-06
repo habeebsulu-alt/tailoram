@@ -22,6 +22,7 @@ import {
 } from '@/lib/payments';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
 import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
+import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import { getAppBaseUrl } from '@/lib/appUrl';
 import PaymentModal from '@/components/PaymentModal';
 import QuoteModal from '@/components/QuoteModal';
@@ -72,6 +73,11 @@ export default function MessageChatPage() {
   const [measurementsModalOpen, setMeasurementsModalOpen] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+
+  useEffect(() => {
+    checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -485,7 +491,7 @@ export default function MessageChatPage() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Quick WhatsApp Notification / Direct Sync */}
-          {(() => {
+          {whatsappEnabled && (() => {
             const partnerPhone = isClient
               ? designer?.whatsapp
               : (clientProfile as any)?.whatsapp || (clientProfile as any)?.phone;
@@ -734,7 +740,7 @@ export default function MessageChatPage() {
                   <span>Pay Balance (₦{(request.balance_amount || breakdown.balanceAmount).toLocaleString()})</span>
                 </button>
               ) : (
-                (() => {
+                whatsappEnabled ? (() => {
                   const clientPhone = (clientProfile as any)?.whatsapp || (clientProfile as any)?.phone;
                   const waUrl = getWhatsAppDispatchUrl({
                     event: 'order_ready',
@@ -757,7 +763,7 @@ export default function MessageChatPage() {
                       <span>Notify Client on WhatsApp</span>
                     </a>
                   );
-                })()
+                })() : null
               )}
             </>
           )}

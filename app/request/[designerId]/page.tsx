@@ -11,6 +11,7 @@ import { DesignerProfile, OutfitRequest, ClientMeasurements } from '@/lib/types'
 import { saveLocalCreatedRequest, saveCloudChatMessage } from '@/lib/payments';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
 import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
+import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import { getAppBaseUrl } from '@/lib/appUrl';
 import {
   ArrowLeft,
@@ -75,6 +76,12 @@ function RequestForm() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [whatsappDispatchUrl, setWhatsappDispatchUrl] = useState<string | null>(null);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+
+  // Check if WhatsApp features are enabled platform-wide
+  useEffect(() => {
+    checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+  }, []);
 
   // Pre-fill inspiration if provided
   useEffect(() => {
@@ -512,7 +519,7 @@ function RequestForm() {
               <p className="font-semibold">{successMessage}</p>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
-              {whatsappDispatchUrl && (
+              {whatsappEnabled && whatsappDispatchUrl && (
                 <a
                   href={whatsappDispatchUrl}
                   target="_blank"

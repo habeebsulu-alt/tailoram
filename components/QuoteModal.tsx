@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { OutfitRequest } from '@/lib/types';
 import { submitQuote, calculatePaymentBreakdown } from '@/lib/payments';
 import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
+import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import {
   X,
   FileText,
@@ -45,6 +46,11 @@ export default function QuoteModal({
   const [error, setError] = useState<string | null>(null);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+
+  useEffect(() => {
+    checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -164,7 +170,7 @@ export default function QuoteModal({
             </div>
 
             <div className="pt-2 flex flex-col gap-2">
-              {whatsappUrl && (
+              {whatsappEnabled && whatsappUrl && (
                 <a
                   href={whatsappUrl}
                   target="_blank"

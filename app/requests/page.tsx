@@ -16,6 +16,7 @@ import {
   PaymentResult,
 } from '@/lib/payments';
 import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
+import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import { getClientWalletTransactions } from '@/lib/paystack';
 import PaymentModal from '@/components/PaymentModal';
 import OrderReviewModal from '@/components/OrderReviewModal';
@@ -73,6 +74,11 @@ export default function ClientRequestsPage() {
   // Push Broadcasts state for clients
   const [clientBroadcasts, setClientBroadcasts] = useState<AdminPushBroadcast[]>([]);
   const [dismissedBroadcastIds, setDismissedBroadcastIds] = useState<string[]>([]);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+
+  useEffect(() => {
+    checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+  }, []);
 
   const handleDismissBroadcast = (id: string) => {
     const updated = [...dismissedBroadcastIds, id];
@@ -572,7 +578,7 @@ export default function ClientRequestsPage() {
                     </Link>
 
                     {/* 1-Click WhatsApp Designer */}
-                    {(() => {
+                    {whatsappEnabled && (() => {
                       const designerPhone = req.designer?.whatsapp;
                       const waUrl = getWhatsAppDispatchUrl({
                         event: 'chat_followup',

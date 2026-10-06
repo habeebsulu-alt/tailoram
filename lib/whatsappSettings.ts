@@ -1,8 +1,19 @@
 import { supabase } from './supabase';
 
 /**
- * Checks if client WhatsApp chat buttons should be visible across the platform.
- * Default is FALSE (hidden), but can be enabled anytime by an Admin in /admin settings.
+ * Synchronous local check for whether WhatsApp features/notifications are enabled.
+ * Default is FALSE.
+ */
+export function isWhatsAppEnabledLocally(): boolean {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('tailoram_whatsapp_enabled') === 'true';
+  }
+  return false;
+}
+
+/**
+ * Checks if client WhatsApp chat buttons and milestone notification buttons should be visible.
+ * Default is FALSE (hidden), but can be enabled anytime by an Admin in /entrypoint settings.
  */
 export async function checkIsWhatsAppEnabled(): Promise<boolean> {
   // 1. Check Supabase platform_settings

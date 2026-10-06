@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { OutfitRequest } from '@/lib/types';
 import {
   collectPayment,
@@ -10,6 +10,7 @@ import {
   BALANCE_PERCENTAGE,
 } from '@/lib/payments';
 import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
+import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import {
   X,
   CreditCard,
@@ -45,6 +46,11 @@ export default function PaymentModal({
   const [error, setError] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<PaymentResult | null>(null);
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+
+  useEffect(() => {
+    checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -167,7 +173,7 @@ export default function PaymentModal({
             </div>
 
             <div className="pt-2 flex flex-col gap-2">
-              {whatsappUrl && (
+              {whatsappEnabled && whatsappUrl && (
                 <a
                   href={whatsappUrl}
                   target="_blank"

@@ -44,6 +44,7 @@ import {
 } from '@/lib/paystack';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
 import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
+import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import {
   isPushSupported,
   getPushPermissionStatus,
@@ -281,7 +282,12 @@ export default function DesignerDashboard() {
   const [isStandaloneApp, setIsStandaloneApp] = useState(false);
   const [iosGuideModalOpen, setIosGuideModalOpen] = useState(false);
   const [pushTroubleshootModalOpen, setPushTroubleshootModalOpen] = useState(false);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const notificationMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+  }, []);
 
   const toggleAvatarFit = () => {
     const nextMode = avatarFitMode === 'contain' ? 'cover' : 'contain';
@@ -3149,7 +3155,7 @@ export default function DesignerDashboard() {
                         </Link>
 
                         {/* 1-Click WhatsApp Quick Action */}
-                        {(() => {
+                        {whatsappEnabled && (() => {
                           const clientPhone = (req.client as any)?.whatsapp || (req.client as any)?.phone;
                           const waUrl = getWhatsAppDispatchUrl({
                             event: req.status === 'ready_for_balance' ? 'order_ready' : 'chat_followup',
