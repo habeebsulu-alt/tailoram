@@ -706,11 +706,15 @@ export async function submitQuote({
   designerUserId,
   quotedPrice,
   quoteDeadline,
+  fabricCost,
+  sewingCost,
 }: {
   requestId: string;
   designerUserId: string;
   quotedPrice: number;
   quoteDeadline: string;
+  fabricCost?: number;
+  sewingCost?: number;
 }): Promise<{ success: boolean; error?: string }> {
   const breakdown = calculatePaymentBreakdown(quotedPrice);
 
@@ -718,6 +722,8 @@ export async function submitQuote({
     status: 'quoted',
     quoted_price: breakdown.quotedPrice,
     quote_deadline: quoteDeadline,
+    fabric_cost: fabricCost ?? null,
+    sewing_cost: sewingCost ?? null,
     deposit_amount: breakdown.depositAmount,
     balance_amount: breakdown.balanceAmount,
   };
@@ -741,7 +747,11 @@ export async function submitQuote({
 
   // 3. Post consultation chat message
   try {
-    const quoteMessage = `📋 Official Studio Quote Submitted:\n• Total Price: ₦${breakdown.quotedPrice.toLocaleString()}\n• 40% Deposit to Start: ₦${breakdown.depositAmount.toLocaleString()}\n• 60% Balance on Finish: ₦${breakdown.balanceAmount.toLocaleString()}\n• Estimated Delivery: ${new Date(quoteDeadline).toLocaleDateString(undefined, { dateStyle: 'medium' })}`;
+    const fabricBreakdownText = (fabricCost && fabricCost > 0)
+      ? `\n• Fabric Material Cost: ₦${fabricCost.toLocaleString()}\n• Tailoring Labor/Sewing: ₦${(sewingCost || (breakdown.quotedPrice - fabricCost)).toLocaleString()}`
+      : '';
+
+    const quoteMessage = `📋 Official Studio Quote Submitted:\n• Total Price: ₦${breakdown.quotedPrice.toLocaleString()}${fabricBreakdownText}\n• 40% Deposit to Start: ₦${breakdown.depositAmount.toLocaleString()}\n• 60% Balance on Finish: ₦${breakdown.balanceAmount.toLocaleString()}\n• Estimated Delivery: ${new Date(quoteDeadline).toLocaleDateString(undefined, { dateStyle: 'medium' })}`;
 
     const msgObj: Message = {
       id: `msg-quote-${Date.now()}`,

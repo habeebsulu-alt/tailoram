@@ -40,7 +40,11 @@ export default function QuoteModal({
     ? request.deadline
     : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+  const isTailorSourcingFabric = request.fabric_sourcing === 'tailor_sources';
+
   const [priceInput, setPriceInput] = useState<number>(initialPrice);
+  const [fabricCostInput, setFabricCostInput] = useState<number | ''>(isTailorSourcingFabric ? Math.round(initialPrice * 0.35) : '');
+  const [sewingCostInput, setSewingCostInput] = useState<number | ''>(isTailorSourcingFabric ? Math.round(initialPrice * 0.65) : initialPrice);
   const [deadlineInput, setDeadlineInput] = useState<string>(defaultDate);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +80,8 @@ export default function QuoteModal({
         designerUserId,
         quotedPrice: priceInput,
         quoteDeadline: deadlineInput,
+        fabricCost: typeof fabricCostInput === 'number' && fabricCostInput > 0 ? fabricCostInput : undefined,
+        sewingCost: typeof sewingCostInput === 'number' && sewingCostInput > 0 ? sewingCostInput : undefined,
       });
 
       if (res.success) {
@@ -194,16 +200,27 @@ export default function QuoteModal({
         ) : (
           <>
             {/* Client Request Context */}
-            <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200/80 text-xs space-y-1 text-stone-600">
+            <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200/80 text-xs space-y-1.5 text-stone-600">
               <div className="flex justify-between font-semibold text-stone-800">
                 <span>Requested Style:</span>
-                <span className="text-brand-700">{request.style_description}</span>
+                <span className="text-brand-700 font-bold truncate max-w-[200px]">{request.style_description}</span>
               </div>
               <div className="flex justify-between">
                 <span>Client&apos;s Budget Range:</span>
                 <span className="font-bold text-stone-900">
                   ₦{request.budget_min.toLocaleString()}
                   {request.budget_max ? ` - ₦${request.budget_max.toLocaleString()}` : ''}
+                </span>
+              </div>
+              {/* Fabric Arrangement Badge */}
+              <div className="pt-1 border-t border-stone-200/60 flex items-center justify-between">
+                <span className="text-[11px] font-medium text-stone-500">Fabric Arrangement:</span>
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                  isTailorSourcingFabric
+                    ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                    : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                }`}>
+                  {isTailorSourcingFabric ? '🧵 Sourcing Required (Include in Quote)' : '📦 Client Providing Fabric'}
                 </span>
               </div>
             </div>
@@ -228,7 +245,14 @@ export default function QuoteModal({
                 step="500"
                 required
                 value={priceInput || ''}
-                onChange={(e) => setPriceInput(Number(e.target.value))}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setPriceInput(val);
+                  if (isTailorSourcingFabric) {
+                    setFabricCostInput(Math.round(val * 0.35));
+                    setSewingCostInput(Math.round(val * 0.65));
+                  }
+                }}
                 placeholder="e.g. 65000"
                 className="w-full pl-9 pr-4 py-3 rounded-2xl border border-stone-300 text-stone-900 font-black text-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
               />
@@ -237,6 +261,46 @@ export default function QuoteModal({
               </span>
             </div>
           </div>
+
+          {/* Optional Fabric Cost Breakdown (Highlighted if Tailor Sources) */}
+          {isTailorSourcingFabric && (
+            <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-2">
+              <span className="text-[11px] font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                <span>Quote Breakdown (Fabric Material + Workmanship)</span>
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-stone-600 mb-1">
+                    Fabric Sourcing Cost (₦)
+                  </label>
+                  <input
+                    type="number"
+                    value={fabricCostInput}
+                    onChange={(e) => {
+                      const fCost = Number(e.target.value);
+                      setFabricCostInput(fCost);
+                      if (priceInput) setSewingCostInput(Math.max(0, priceInput - fCost));
+                    }}
+                    placeholder="e.g. 20000"
+                    className="w-full px-3 py-1.5 rounded-xl border border-amber-300 bg-white text-xs font-bold text-stone-900 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-stone-600 mb-1">
+                    Sewing / Labor (₦)
+                  </label>
+                  <input
+                    type="number"
+                    value={sewingCostInput}
+                    onChange={(e) => setSewingCostInput(Number(e.target.value))}
+                    placeholder="e.g. 45000"
+                    className="w-full px-3 py-1.5 rounded-xl border border-amber-300 bg-white text-xs font-bold text-stone-900 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1.5">

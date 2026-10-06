@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Scissors, Menu, X, User, LogOut, LayoutDashboard, ShoppingBag, ShieldCheck, Sparkles } from 'lucide-react';
+import { Scissors, Menu, X, User, LogOut, LayoutDashboard, ShoppingBag, ShieldCheck, Sparkles, Ruler } from 'lucide-react';
 
 export default function Navbar() {
   const { user, profile, designerProfile, signOut, isImpersonating } = useAuth();
@@ -94,6 +94,15 @@ export default function Navbar() {
               <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">
                 New
               </span>
+            </Link>
+
+            <Link
+              href="/vault"
+              className="flex items-center gap-1.5 text-stone-700 hover:text-amber-600 font-medium text-sm transition-colors"
+              title="Access your body measurements vault"
+            >
+              <Ruler className="w-4 h-4 text-amber-600" />
+              <span>Sizing Vault</span>
             </Link>
 
             {user ? (
@@ -231,6 +240,15 @@ export default function Navbar() {
             <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
               New
             </span>
+          </Link>
+
+          <Link
+            href="/vault"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-2 py-2 text-base font-medium text-stone-800 hover:text-brand-600"
+          >
+            <Ruler className="w-4 h-4 text-amber-600" />
+            <span>Sizing Vault</span>
           </Link>
 
           {user ? (

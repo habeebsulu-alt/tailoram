@@ -483,9 +483,23 @@ export default function MessageChatPage() {
                 {request.status.replace(/_/g, ' ')}
               </span>
             </div>
-            <p className="text-xs text-stone-500 line-clamp-1">
-              Order: {request.style_description} • {request.quoted_price ? `Quoted: ₦${request.quoted_price.toLocaleString()}` : `Budget: ₦${request.budget_min.toLocaleString()}`}
-            </p>
+            <div className="flex items-center gap-2 flex-wrap text-xs text-stone-500 mt-0.5">
+              <span>Order: <strong className="text-stone-800">{request.style_description}</strong></span>
+              <span>•</span>
+              <span>{request.quoted_price ? `Quoted: ₦${request.quoted_price.toLocaleString()}` : `Budget: ₦${request.budget_min.toLocaleString()}`}</span>
+              {request.fabric_sourcing && (
+                <>
+                  <span>•</span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                    request.fabric_sourcing === 'tailor_sources'
+                      ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                      : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                  }`}>
+                    {request.fabric_sourcing === 'tailor_sources' ? '🧵 Tailor Sources Fabric' : '📦 Client Sends Fabric'}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -610,10 +624,15 @@ export default function MessageChatPage() {
           {request.status === 'quoted' && (
             <>
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-black text-stone-900">
                     Official Quote: ₦{request.quoted_price?.toLocaleString()}
                   </span>
+                  {request.fabric_cost && request.fabric_cost > 0 && (
+                    <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                      Fabric: ₦{request.fabric_cost.toLocaleString()} + Sewing: ₦{(request.sewing_cost || ((request.quoted_price || 0) - request.fabric_cost)).toLocaleString()}
+                    </span>
+                  )}
                   {request.quote_deadline && (
                     <span className="text-stone-500">
                       • Ready by {new Date(request.quote_deadline).toLocaleDateString()}

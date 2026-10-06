@@ -12,6 +12,7 @@ import {
   User,
   ShieldCheck,
   Scissors,
+  Ruler,
 } from 'lucide-react';
 
 export default function MobileBottomNav() {
@@ -65,10 +66,10 @@ export default function MobileBottomNav() {
         ]
       : [
           {
-            label: user ? 'Profile' : 'Sign In',
-            href: user ? '/dashboard' : '/login',
-            icon: user ? LayoutDashboard : User,
-            isActive: pathname.startsWith('/login') || pathname.startsWith('/dashboard'),
+            label: 'Vault',
+            href: '/vault',
+            icon: Ruler,
+            isActive: pathname.startsWith('/vault'),
           },
         ]),
   ];

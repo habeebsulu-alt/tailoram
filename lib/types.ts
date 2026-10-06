@@ -147,12 +147,15 @@ export type RequestStatus =
   | 'completed'
   | 'cancelled';
 
+export type FabricSourcingType = 'client_provided' | 'tailor_sources';
+
 export interface OutfitRequest {
   id: string;
   client_id: string;
   designer_id: string;
   style_description: string;
   fabric: string | null;
+  fabric_sourcing?: FabricSourcingType | null; // 'client_provided' (Client will send fabric to tailor) | 'tailor_sources' (Tailor should source and buy fabric)
   budget_min: number;
   budget_max: number | null;
   deadline: string | null;
@@ -161,6 +164,8 @@ export interface OutfitRequest {
   // Quote and payment fields
   quoted_price?: number | null;
   quote_deadline?: string | null;
+  fabric_cost?: number | null; // Sourced fabric portion of quote
+  sewing_cost?: number | null; // Workmanship/tailoring labor portion
   deposit_amount?: number | null;
   deposit_paid_at?: string | null;
   balance_amount?: number | null;
@@ -173,18 +178,36 @@ export interface OutfitRequest {
 }
 
 export interface ClientMeasurements {
-  chest?: string;
-  shoulder?: string;
-  sleeve?: string;
-  neck?: string;
-  waist?: string;
-  hips?: string;
-  top_length?: string;
-  trouser_length?: string;
-  thigh?: string;
-  agbada_length?: string;
+  id?: string;
+  user_id?: string;
+  profile_name?: string; // e.g. "My Agbada / Native Fit", "Amina Bridal", "Husband Formal"
+  gender?: 'male' | 'female' | 'unisex';
+  unit?: 'in' | 'cm';
+  // Common Top / Upper Body
+  chest?: string; // Chest / Bust
+  underbust?: string; // For female corset/gowns
+  shoulder?: string; // Shoulder Width (Back)
+  sleeve?: string; // Sleeve Length (Short / Long)
+  round_sleeve?: string; // Bicep / Muscle
+  cuff_wrist?: string; // Cuff / Wrist
+  neck?: string; // Neck Circumference
+  top_length?: string; // Top / Shirt / Kaftan Length
+  shoulder_to_waist?: string; // Half-length / Nape to waist
+  shoulder_to_floor?: string; // Full gown length (with heels)
+  // Lower Body / Trousers / Skirts
+  waist?: string; // Trouser / Skirt Waist
+  hips?: string; // Hips / Seat
+  thigh?: string; // Thigh / Lap
+  knee?: string; // Knee
+  trouser_length?: string; // Inseam / Trouser Length
+  ankle?: string; // Ankle / Trouser Mouth
+  // Traditional Specials
+  agbada_length?: string; // Agbada Flow Length
+  head_circumference?: string; // Fila / Cap Size
+  // Preferences & Context
   fit_preference?: 'slim' | 'regular' | 'comfort' | 'loose' | string;
   notes?: string;
+  updated_at?: string;
 }
 
 export interface Payment {

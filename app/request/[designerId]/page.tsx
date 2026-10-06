@@ -7,11 +7,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { logEvent } from '@/lib/analytics';
 import { compressImage } from '@/lib/imageCompressor';
-import { DesignerProfile, OutfitRequest, ClientMeasurements } from '@/lib/types';
+import { DesignerProfile, OutfitRequest, ClientMeasurements, FabricSourcingType } from '@/lib/types';
 import { saveLocalCreatedRequest, saveCloudChatMessage } from '@/lib/payments';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
 import { getWhatsAppDispatchUrl } from '@/lib/whatsappNotifications';
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
+import { getMeasurementVault } from '@/lib/measurementVault';
 import { getAppBaseUrl } from '@/lib/appUrl';
 import {
   ArrowLeft,
@@ -29,6 +30,9 @@ import {
   ChevronDown,
   ChevronUp,
   MessageSquare,
+  Package,
+  ShoppingBag,
+  Check,
 } from 'lucide-react';
 
 function RequestForm() {
@@ -47,6 +51,7 @@ function RequestForm() {
   // Form fields
   const [styleDescription, setStyleDescription] = useState('');
   const [fabric, setFabric] = useState('');
+  const [fabricSourcing, setFabricSourcing] = useState<FabricSourcingType>('client_provided');
   const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -55,8 +60,10 @@ function RequestForm() {
   const [inspoPhotoUrl, setInspoPhotoUrl] = useState<string | null>(inspoUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Optional Body Measurements
+  // Client Measurement Vault & Sizing
   const [showMeasurements, setShowMeasurements] = useState(false);
+  const [vaultProfiles, setVaultProfiles] = useState<ClientMeasurements[]>([]);
+  const [selectedVaultProfileId, setSelectedVaultProfileId] = useState<string>('');
   const [measurements, setMeasurements] = useState<ClientMeasurements>({
     chest: '',
     shoulder: '',
@@ -77,6 +84,13 @@ function RequestForm() {
   const [successMessage, setSuccessMessage] = useState('');
   const [whatsappDispatchUrl, setWhatsappDispatchUrl] = useState<string | null>(null);
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+
+  // Load user measurement vault profiles
+  useEffect(() => {
+    getMeasurementVault(user?.id).then((list) => {
+      setVaultProfiles(list);
+    });
+  }, [user]);
 
   // Check if WhatsApp features are enabled platform-wide
   useEffect(() => {
@@ -226,6 +240,7 @@ function RequestForm() {
           designer_id: designerId,
           style_description: styleDescription.trim(),
           fabric: fabric.trim() || null,
+          fabric_sourcing: fabricSourcing,
           budget_min: minBudget,
           budget_max: maxBudget,
           deadline: deadline || null,
@@ -246,26 +261,25 @@ function RequestForm() {
           createdRequestId = requestData.id;
         } else if (requestError) {
           console.warn('Standard insert encountered an issue, testing fallback without measurements or with RPC:', requestError.message);
-          // If error was about missing measurements column, retry without measurements column
-          if (requestError.message?.includes('measurements')) {
-            const { data: retryData, error: retryError } = await supabase
-              .from('requests')
-              .insert([{
-                client_id: user.id,
-                designer_id: designerId,
-                style_description: styleDescription.trim(),
-                fabric: fabric.trim() || null,
-                budget_min: minBudget,
-                budget_max: maxBudget,
-                deadline: deadline || null,
-                reference_image_url: referenceImageUrl,
-                status: 'pending',
-              }])
-              .select('id')
-              .single();
-            if (!retryError && retryData?.id) {
-              createdRequestId = retryData.id;
-            }
+          // If error was about missing measurements or fabric_sourcing column, retry with base columns
+          const { data: retryData, error: retryError } = await supabase
+            .from('requests')
+            .insert([{
+              client_id: user.id,
+              designer_id: designerId,
+              style_description: styleDescription.trim(),
+              fabric: fabric.trim() || null,
+              budget_min: minBudget,
+              budget_max: maxBudget,
+              deadline: deadline || null,
+              reference_image_url: referenceImageUrl,
+              status: 'pending',
+            }])
+            .select('id')
+            .single();
+
+          if (!retryError && retryData?.id) {
+            createdRequestId = retryData.id;
           }
         }
       } catch (insertErr) {
@@ -307,6 +321,7 @@ function RequestForm() {
         designer_id: designerId,
         style_description: styleDescription.trim(),
         fabric: fabric.trim() || null,
+        fabric_sourcing: fabricSourcing,
         budget_min: minBudget,
         budget_max: maxBudget ?? null,
         deadline: deadline || null,
@@ -328,7 +343,11 @@ function RequestForm() {
               .join('\n')
           : '';
 
-        const chatContent = `👋 New bespoke request submitted:\n"${styleDescription.trim()}"\nBudget: ₦${minBudget.toLocaleString()}${maxBudget ? ` - ₦${maxBudget.toLocaleString()}` : ''}${deadline ? `\nTarget Delivery: ${new Date(deadline).toLocaleDateString()}` : ''}${hasMeasurements ? `\n\n📐 Client Body Measurements (in):\n${measurementSummary}${cleanedMeasurements.fit_preference ? `\n• Fit Preference: ${cleanedMeasurements.fit_preference.toUpperCase()}` : ''}${cleanedMeasurements.notes ? `\n• Tailoring Notes: "${cleanedMeasurements.notes}"` : ''}` : ''}`;
+        const sourcingNotice = fabricSourcing === 'tailor_sources'
+          ? `🧵 Fabric Arrangement: Tailor to source and purchase fabric (Please include fabric cost + tailoring workmanship in quote).`
+          : `📦 Fabric Arrangement: Client has fabric and will dispatch/deliver to studio.`;
+
+        const chatContent = `👋 New bespoke request submitted:\n"${styleDescription.trim()}"\nBudget: ₦${minBudget.toLocaleString()}${maxBudget ? ` - ₦${maxBudget.toLocaleString()}` : ''}${deadline ? `\nTarget Delivery: ${new Date(deadline).toLocaleDateString()}` : ''}\n\n${sourcingNotice}${hasMeasurements ? `\n\n📐 Client Body Measurements (in):\n${measurementSummary}${cleanedMeasurements.fit_preference ? `\n• Fit Preference: ${cleanedMeasurements.fit_preference.toUpperCase()}` : ''}${cleanedMeasurements.notes ? `\n• Tailoring Notes: "${cleanedMeasurements.notes}"` : ''}` : ''}`;
 
         const msgObj = {
           id: `msg-req-${Date.now()}`,
@@ -566,7 +585,7 @@ function RequestForm() {
               />
             </div>
 
-            {/* Fabric */}
+            {/* Fabric Material Preference */}
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1">
                 Fabric / Material Preference <span className="text-stone-400">(Optional)</span>
@@ -578,6 +597,77 @@ function RequestForm() {
                 placeholder="E.g. Guinea brocade, Ankara wax, Cashmere, Lace, Aso-Oke..."
                 className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
+            </div>
+
+            {/* Do you have your own fabric? (Fabric Sourcing Arrangement) */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+                  <Scissors className="w-4 h-4 text-amber-700" />
+                  <span>Fabric Sourcing Arrangement <span className="text-red-500">*</span></span>
+                </label>
+                <p className="text-xs text-stone-600 mt-0.5">
+                  Do you already have your fabric material ready, or should the designer source and buy it for you?
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Option 1: Client has fabric */}
+                <button
+                  type="button"
+                  onClick={() => setFabricSourcing('client_provided')}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                    fabricSourcing === 'client_provided'
+                      ? 'bg-white border-amber-600 shadow-md ring-2 ring-amber-500/20'
+                      : 'bg-white/60 border-stone-200 hover:border-amber-300 hover:bg-white'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    fabricSourcing === 'client_provided' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-500'
+                  }`}>
+                    <Package className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-stone-900">I Have My Own Fabric</span>
+                      {fabricSourcing === 'client_provided' && (
+                        <Check className="w-3.5 h-3.5 text-amber-600 stroke-[3]" />
+                      )}
+                    </div>
+                    <span className="text-[11px] text-stone-500 block mt-0.5 leading-snug">
+                      I will send / courier my material (e.g. Aso Ebi) to the designer's studio. Quote will only cover tailoring workmanship.
+                    </span>
+                  </div>
+                </button>
+
+                {/* Option 2: Tailor sources fabric */}
+                <button
+                  type="button"
+                  onClick={() => setFabricSourcing('tailor_sources')}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                    fabricSourcing === 'tailor_sources'
+                      ? 'bg-white border-amber-600 shadow-md ring-2 ring-amber-500/20'
+                      : 'bg-white/60 border-stone-200 hover:border-amber-300 hover:bg-white'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    fabricSourcing === 'tailor_sources' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-500'
+                  }`}>
+                    <ShoppingBag className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-stone-900">Tailor Should Source Fabric</span>
+                      {fabricSourcing === 'tailor_sources' && (
+                        <Check className="w-3.5 h-3.5 text-amber-600 stroke-[3]" />
+                      )}
+                    </div>
+                    <span className="text-[11px] text-stone-500 block mt-0.5 leading-snug">
+                      The tailor will source premium fabric matching the design. Quote will include fabric cost + tailoring labor.
+                    </span>
+                  </div>
+                </button>
+              </div>
             </div>
 
             {/* Budget Range */}
@@ -662,6 +752,62 @@ function RequestForm() {
 
               {showMeasurements && (
                 <div className="p-4 sm:p-5 pt-1 space-y-4 border-t border-stone-200/80 animate-in fade-in duration-200">
+                  
+                  {/* Quick Select from Saved Vault */}
+                  {vaultProfiles.length > 0 && (
+                    <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Load from My Measurement Vault</span>
+                        </span>
+                        <Link
+                          href="/vault"
+                          target="_blank"
+                          className="text-[11px] font-bold text-amber-800 hover:text-amber-950 underline"
+                        >
+                          Manage Vault ↗
+                        </Link>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={selectedVaultProfileId}
+                          onChange={(e) => {
+                            const pId = e.target.value;
+                            setSelectedVaultProfileId(pId);
+                            const found = vaultProfiles.find((p) => p.id === pId);
+                            if (found) {
+                              setMeasurements((prev) => ({
+                                ...prev,
+                                chest: found.chest || '',
+                                shoulder: found.shoulder || '',
+                                sleeve: found.sleeve || '',
+                                neck: found.neck || '',
+                                waist: found.waist || '',
+                                hips: found.hips || '',
+                                top_length: found.top_length || '',
+                                trouser_length: found.trouser_length || '',
+                                thigh: found.thigh || '',
+                                agbada_length: found.agbada_length || '',
+                                fit_preference: found.fit_preference || 'regular',
+                                notes: found.notes || '',
+                              }));
+                            }
+                          }}
+                          className="flex-1 px-3 py-2 rounded-xl bg-white border border-amber-300 text-xs font-medium text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        >
+                          <option value="">-- Select Saved Profile to Auto-Fill --</option>
+                          {vaultProfiles.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.profile_name} ({p.gender?.toUpperCase() || 'UNISEX'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Fit Preference */}
                   <div>
                     <label className="block text-xs font-semibold text-stone-700 mb-1.5">

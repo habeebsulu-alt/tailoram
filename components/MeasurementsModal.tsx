@@ -40,22 +40,32 @@ export default function MeasurementsModal({
   };
 
   addField('chest', 'Chest / Bust');
+  addField('underbust', 'Underbust');
   addField('shoulder', 'Shoulder Width');
   addField('sleeve', 'Sleeve Length');
+  addField('round_sleeve', 'Bicep / Armhole');
+  addField('cuff_wrist', 'Wrist / Cuff');
   addField('neck', 'Neck Circumference');
+  addField('top_length', 'Top / Shirt / Kaftan Length');
+  addField('shoulder_to_waist', 'Shoulder to Waist');
+  addField('shoulder_to_floor', 'Shoulder to Floor / Gown Length');
   addField('waist', 'Waist Circumference');
   addField('hips', 'Hips Circumference');
-  addField('top_length', 'Top / Shirt / Kaftan Length');
-  addField('trouser_length', 'Trouser / Pant Length');
   addField('thigh', 'Thigh / Lap');
+  addField('knee', 'Knee');
+  addField('trouser_length', 'Trouser / Pant Length');
+  addField('ankle', 'Ankle / Hem');
   addField('agbada_length', 'Agbada Flow Length');
+  addField('head_circumference', 'Fila / Cap Size');
 
   // Check any additional custom keys that might have been provided
   Object.keys(measurements).forEach((k) => {
     if (![
-      'chest', 'shoulder', 'sleeve', 'neck', 'waist', 'hips',
-      'top_length', 'trouser_length', 'thigh', 'agbada_length',
-      'fit_preference', 'notes'
+      'chest', 'underbust', 'shoulder', 'sleeve', 'round_sleeve', 'cuff_wrist',
+      'neck', 'top_length', 'shoulder_to_waist', 'shoulder_to_floor',
+      'waist', 'hips', 'thigh', 'knee', 'trouser_length', 'ankle',
+      'agbada_length', 'head_circumference', 'fit_preference', 'notes',
+      'id', 'user_id', 'profile_name', 'gender', 'unit', 'updated_at'
     ].includes(k)) {
       const val = (measurements as any)[k];
       if (val !== undefined && val !== null && String(val).trim() !== '') {
@@ -177,29 +187,40 @@ export default function MeasurementsModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={copyToClipboard}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 font-bold text-xs shadow-xs transition-colors cursor-pointer"
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-600" />
-                <span className="text-emerald-700">Copied to Clipboard!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4 text-stone-500" />
-                <span>Copy Measurements</span>
-              </>
-            )}
-          </button>
+        <div className="pt-3 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={copyToClipboard}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 font-bold text-xs shadow-xs transition-colors cursor-pointer"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  <span className="text-emerald-700">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 text-stone-500" />
+                  <span>Copy Card</span>
+                </>
+              )}
+            </button>
+
+            <a
+              href="/vault"
+              target="_blank"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs transition-colors"
+            >
+              <Ruler className="w-3.5 h-3.5 text-amber-700" />
+              <span>Sizing Vault ↗</span>
+            </a>
+          </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
           >
             Done
           </button>
