@@ -19,7 +19,7 @@
 Tailoram/
 ├── app/
 │   ├── page.tsx                 # Marketplace Homepage: Hero Slider, EntrySplash, Hub discovery, Filter & Ranked Designers
-│   ├── admin/page.tsx           # Master Admin Control Center: Password resets, analytics, order overrides, settings
+│   ├── entrypoint/page.tsx      # Master Admin Control Center: Password resets, analytics, order overrides, settings
 │   ├── dashboard/page.tsx       # Tailor/Designer Studio: Portfolio upload, bespoke requests, RTW store inventory, reviews
 │   ├── designer/[id]/page.tsx   # Public Designer Profile: Bio, ratings, portfolio gallery, WhatsApp link, bespoke booking
 │   ├── login/page.tsx           # Clean sign-in page with 1-click quick demo accounts (no developer SQL clutter)
@@ -98,10 +98,10 @@ Tailoram/
   - `tunde.balogun@demo.tailoram.com`, `amina.mohammed@demo.tailoram.com`, etc. (Clients)
   - **Preset Password**: `Tailoram2026!`
 - **Seamless Fallback**: In `contexts/AuthContext.tsx`, if Supabase returns unhashed credentials, the client falls back to synthetic session persistence (`localStorage.getItem('tailoram_demo_session')`), loading full profiles instantly without throwing errors.
-- **Admin Password Reset**: Admins can reset any user password in `/admin`. Changes are saved immediately into `platform_settings.user_passwords` for instant, global recognition.
-- **Admin Studio Impersonation (Passwordless Access)**: Admins in `/admin` can click "Login as Designer" on any designer to instantly assume that designer's session without entering their password. Enables admins to directly modify portfolio photos, upload/delete images, edit RTW store garments, and update studio profiles. Includes an omnipresent top banner with a 1-click "Return to Admin Panel" button.
-- **Admin Designer Rating Override**: Admins in `/admin` can manually override any designer's star rating (1.0 to 5.0) and displayed review count. Changes persist globally in `platform_settings.designer_ratings` and locally in `localStorage` (`tailoram_designer_ratings`). The marketplace directory, public profile, and studio dashboard compute effective ratings using `computeEffectiveRating`, dynamically adjusting ranking scores and display badges. Admins can revert back to natural client reviews at any time.
-- **Admin Action Dual-Layer Persistence**: All admin interventions in `/admin` (changing user roles e.g. downgrading designer to client, toggling verification/featured/store flags, overriding order statuses, updating RTW product stock, or deleting profiles/reviews) persist reliably across page refreshes via `lib/adminManager.ts`. Changes synchronize to Supabase `platform_settings` (keys: `user_roles`, `designer_overrides`, `deleted_user_profiles`, `deleted_designer_profiles`, `product_overrides`, `deleted_products`, `deleted_reviews`) and local storage, bypassing Row-Level Security client restrictions and ensuring immediate, permanent updates across the entire marketplace.
+- **Admin Password Reset**: Admins can reset any user password in `/entrypoint`. Changes are saved immediately into `platform_settings.user_passwords` for instant, global recognition.
+- **Admin Studio Impersonation (Passwordless Access)**: Admins in `/entrypoint` can click "Login as Designer" on any designer to instantly assume that designer's session without entering their password. Enables admins to directly modify portfolio photos, upload/delete images, edit RTW store garments, and update studio profiles. Includes an omnipresent top banner with a 1-click "Return to Admin Panel" button.
+- **Admin Designer Rating Override**: Admins in `/entrypoint` can manually override any designer's star rating (1.0 to 5.0) and displayed review count. Changes persist globally in `platform_settings.designer_ratings` and locally in `localStorage` (`tailoram_designer_ratings`). The marketplace directory, public profile, and studio dashboard compute effective ratings using `computeEffectiveRating`, dynamically adjusting ranking scores and display badges. Admins can revert back to natural client reviews at any time.
+- **Admin Action Dual-Layer Persistence**: All admin interventions in `/entrypoint` (changing user roles e.g. downgrading designer to client, toggling verification/featured/store flags, overriding order statuses, updating RTW product stock, or deleting profiles/reviews) persist reliably across page refreshes via `lib/adminManager.ts`. Changes synchronize to Supabase `platform_settings` (keys: `user_roles`, `designer_overrides`, `deleted_user_profiles`, `deleted_designer_profiles`, `product_overrides`, `deleted_products`, `deleted_reviews`) and local storage, bypassing Row-Level Security client restrictions and ensuring immediate, permanent updates across the entire marketplace.
 - **Login UI Rule**: Login page must remain strictly clean and customer-facing. Never expose SQL scripts, migration instructions, or developer debugging text to users.
 
 ---
@@ -115,14 +115,14 @@ Tailoram/
     2. `[ 🧭 Explore All Designers ]`
     3. `[ 🛍️ Explore the Shop  RTW ]`
 - **Geolocation**: Supports automatic GPS location matching against Nigerian fashion hubs (Lagos, Abuja, Port Harcourt, Ibadan, Kano, Enugu, Kaduna, Benin City, Calabar, Asaba, etc.).
-- **Admin Page Security**: `/admin` is protected by passkey (`tailoram` / `tailoram2026`) and role elevation. No public links in the footer or public navigation.
+- **Admin Page Security**: Dedicated control center route `/entrypoint` protected by administrative passkey `Energy#123`. No public links in the footer or public navigation.
 
 ---
 
 ## 6. Email Notification System & Gateway Architecture
 - **Central Module**: `lib/emailNotifications.ts`
 - **Supported Providers**: Resend API (`api.resend.com`), SendGrid, Postmark, Custom SMTP, and Simulated Mode (zero-config, logs directly to local audit trail).
-- **Admin Control Center**: Dedicated tab (`/admin` -> Email Settings) and Platform Settings quick card:
+- **Admin Control Center**: Dedicated tab (`/entrypoint` -> Email Settings) and Platform Settings quick card:
   - Master toggle to enable/disable emails platform-wide.
   - Delivery provider selector, custom sender name & sender email address, provider API key input.
   - Granular event toggles:
@@ -141,7 +141,7 @@ Tailoram/
 ## 7. Web Push & In-App Notification Center
 - **Push Service Worker**: `public/sw.js` (background push event listener, vibration `[200, 100, 200]`, tap-to-focus on studio dashboard, and rich hero image banner support via `options.image = data.image`).
 - **Client Manager**: `lib/pushNotifications.ts` (`isPushSupported`, `requestPushPermission`, `sendPushNotification`, `registerServiceWorker`, `sendAdminPushBroadcast`, `getAdminPushBroadcasts`, `deleteAdminPushBroadcast`).
-- **Admin Push Broadcast Center (`/admin` -> Push Broadcasts tab)**:
+- **Admin Push Broadcast Center (`/entrypoint` -> Push Broadcasts tab)**:
   - Broadcast push composer targeting `All Users`, `Master Designers`, or `Clients`.
   - Supports custom notification title, body, destination action link, and **rich image banners**.
   - Built-in 1-click Nigerian couture photo presets (Agbada, Aso Ebi, Senator suits, Adire, Bridal George).

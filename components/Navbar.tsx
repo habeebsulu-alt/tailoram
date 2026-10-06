@@ -144,7 +144,7 @@ export default function Navbar() {
 
                 {((profile?.role === 'admin') || isImpersonating || (typeof window !== 'undefined' && sessionStorage.getItem('tailoram_impersonating_admin'))) && (
                   <Link
-                    href="/admin"
+                    href="/entrypoint"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs shadow-md transition-all animate-pulse"
                     title="Return to Admin Control Center"
                   >
@@ -252,7 +252,7 @@ export default function Navbar() {
 
               {((profile?.role === 'admin') || isImpersonating || (typeof window !== 'undefined' && sessionStorage.getItem('tailoram_impersonating_admin'))) && (
                 <Link
-                  href="/admin"
+                  href="/entrypoint"
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-2 py-2 px-3 rounded-xl bg-amber-500 text-stone-950 text-sm font-black shadow-md border border-amber-600"
                 >

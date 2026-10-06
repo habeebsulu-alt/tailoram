@@ -2153,7 +2153,7 @@ export default function DesignerDashboard() {
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0 justify-end">
             <button
-              onClick={() => router.push('/admin')}
+              onClick={() => router.push('/entrypoint')}
               className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-stone-950 hover:bg-stone-900 active:scale-95 text-white font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2"
             >
               <ShieldCheck className="w-4 h-4 text-amber-400" />

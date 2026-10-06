@@ -19,7 +19,7 @@ export default function MobileBottomNav() {
   const { user, profile } = useAuth();
 
   // Hide mobile bottom nav on admin panel or messages thread to maximize screen real estate
-  if (pathname.startsWith('/admin') || pathname.startsWith('/messages')) {
+  if (pathname.startsWith('/entrypoint') || pathname.startsWith('/messages')) {
     return null;
   }
 
@@ -58,9 +58,9 @@ export default function MobileBottomNav() {
       ? [
           {
             label: 'Admin',
-            href: '/admin',
+            href: '/entrypoint',
             icon: ShieldCheck,
-            isActive: pathname.startsWith('/admin'),
+            isActive: pathname.startsWith('/entrypoint'),
           },
         ]
       : [

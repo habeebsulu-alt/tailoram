@@ -448,21 +448,15 @@ export default function AdminPage() {
   // Passkey Login Handle
   const handlePasskeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanKey = passkeyInput.trim().toLowerCase();
-    // Default passkeys: admin, admin123, tailoram, tailoram2026
-    if (
-      cleanKey === 'tailoram' ||
-      cleanKey === 'tailoram2026' ||
-      cleanKey === 'admin' ||
-      cleanKey === 'admin123' ||
-      cleanKey === 'master'
-    ) {
+    const cleanKey = passkeyInput.trim();
+    // Authorized administrative passkey: Energy#123
+    if (cleanKey === 'Energy#123') {
       setIsUnlocked(true);
       sessionStorage.setItem('tailoram_admin_session', 'granted');
       setPasskeyError('');
       showNotice('Admin authorization granted. Welcome to Tailoram Operations.');
     } else {
-      setPasskeyError('Invalid master passkey. Try "tailoram" or elevate your user role below.');
+      setPasskeyError('Invalid administrative passkey. Access denied.');
     }
   };
 
@@ -1272,7 +1266,7 @@ export default function AdminPage() {
                   type="password"
                   value={passkeyInput}
                   onChange={(e) => setPasskeyInput(e.target.value)}
-                  placeholder="Enter master passkey (e.g. tailoram)"
+                  placeholder="Enter administrative passkey"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-stone-950 border border-stone-800 text-white text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 placeholder:text-stone-600"
                 />
               </div>
@@ -1293,23 +1287,7 @@ export default function AdminPage() {
             </button>
           </form>
 
-          {/* Quick Access bypass for testing */}
           <div className="pt-4 border-t border-stone-800 space-y-3 relative z-10">
-            <div className="flex items-center justify-between text-xs text-stone-400">
-              <span>Developer Quick Test:</span>
-              <button
-                onClick={() => {
-                  setPasskeyInput('tailoram');
-                  setIsUnlocked(true);
-                  sessionStorage.setItem('tailoram_admin_session', 'granted');
-                  showNotice('Instant sandbox access granted.');
-                }}
-                className="text-amber-400 hover:underline font-bold"
-              >
-                1-Click Unlock (Passkey: tailoram)
-              </button>
-            </div>
-
             {user && (
               <button
                 onClick={handleElevateSelfToAdmin}
