@@ -1275,7 +1275,7 @@ export default function HomePage() {
           <div>
             <h2 className="text-2xl font-black text-stone-900 tracking-tight flex items-center gap-2">
               <Trophy className="w-5 h-5 text-amber-500" />
-              Tailor Rankings &amp; Directory
+              Discover Talented Designers
             </h2>
             <p className="text-xs sm:text-sm text-stone-500">
               Showing {filteredAndRankedDesigners.length} designers sorted by {
