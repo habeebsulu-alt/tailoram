@@ -1277,21 +1277,6 @@ export default function HomePage() {
               <Trophy className="w-5 h-5 text-amber-500" />
               Discover Talented Designers
             </h2>
-            <p className="text-xs sm:text-sm text-stone-500">
-              Showing {filteredAndRankedDesigners.length} designers sorted by {
-                sortBy === 'all'
-                  ? 'random discovery shuffle'
-                  : sortBy === 'ranking'
-                  ? 'highest ranking score'
-                  : sortBy === 'rating'
-                  ? 'highest star rating'
-                  : sortBy === 'reviews'
-                  ? 'most client reviews'
-                  : sortBy === 'newest'
-                  ? 'newest designers'
-                  : sortBy
-              }
-            </p>
           </div>
         </div>
 
