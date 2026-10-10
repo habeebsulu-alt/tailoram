@@ -132,8 +132,14 @@ Tailoram/
     - `notify_on_order_ready`: Notifies client when garment is tailored and ready for balance.
     - `notify_on_new_message`: Notifies recipient on new chat message in consultation thread.
     - `notify_on_welcome`: Welcomes new fashion designers and clients upon signup with direct links to studio or shop.
+    - `notify_on_portfolio_reminder`: Prompts registered designers with 0 uploaded works to showcase their attire with direct 1-click links to `/dashboard`.
   - Interactive test email dispatcher with instant status feedback (including Welcome template).
   - Live sent email audit and telemetry log table.
+- **Studio Works Activation Center (`/entrypoint` -> Works Nudges tab)**:
+  - Identifies registered fashion designers across Nigeria who have 0 uploaded portfolio items or RTW store garments.
+  - Multi-channel outreach: 1-click **Email Blast** with customizable subject/body and instant dashboard upload links, plus **Zero-Cost WhatsApp Outreach** via pre-formatted `wa.me` deep links.
+  - Interactive sequential WhatsApp Queue modal allowing admins to message inactive studios step-by-step with 1 click.
+  - Quick-action table with individual WhatsApp/Email nudges and direct 1-click "Login as Designer" studio impersonation.
 - **Persistence**: Dual-layer architecture storing in Supabase `platform_settings` (`key: 'email_settings'`) with local storage fallback (`tailoram_email_settings` and `tailoram_email_logs`).
 
 ---

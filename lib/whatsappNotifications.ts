@@ -19,7 +19,8 @@ export type WhatsAppNotificationEvent =
   | 'deposit_paid'
   | 'order_ready'
   | 'balance_paid'
-  | 'chat_followup';
+  | 'chat_followup'
+  | 'portfolio_reminder';
 
 export interface WhatsAppNotificationPayload {
   event: WhatsAppNotificationEvent;
@@ -118,6 +119,23 @@ export function buildWhatsAppMessage(payload: WhatsAppNotificationPayload): stri
       );
     }
 
+    case 'portfolio_reminder': {
+      const name = payload.recipientName || 'Master Tailor';
+      const studio = payload.styleDescription ? ` (*${payload.styleDescription}*)` : '';
+      const dashboardLink = `${baseUrl}/dashboard`;
+
+      return (
+        `🧵 Hello ${name}!\n\n` +
+        `Welcome to *Tailoram Nigeria*! We noticed your studio profile${studio} is live, but you haven't uploaded photos of your bespoke works or ready-to-wear designs yet 📸✨\n\n` +
+        `Clients across Nigeria (Lagos, Abuja, PH, and abroad) are searching for master tailors for Agbada, Senator suits, Aso Ebi, and Kaftans daily.\n\n` +
+        `⚡ *Designers who showcase their works receive 5x more commission orders and inquiries!*\n\n` +
+        `👉 *Tap here to upload your works now (takes 2 minutes):*\n` +
+        `${dashboardLink}\n\n` +
+        `Let's put your craft in front of paying clients!\n\n` +
+        `_Tailoram • Nigeria's Premier Bespoke Fashion Marketplace_`
+      );
+    }
+
     case 'chat_followup':
     default: {
       return (
@@ -128,6 +146,51 @@ export function buildWhatsAppMessage(payload: WhatsAppNotificationPayload): stri
       );
     }
   }
+}
+
+/**
+ * Builds custom copy for portfolio upload nudges.
+ */
+export function buildPortfolioReminderWhatsAppMessage(params: {
+  recipientName?: string;
+  businessName?: string;
+  customText?: string;
+}): string {
+  if (params.customText) {
+    const baseUrl = getAppBaseUrl();
+    const dashboardLink = `${baseUrl}/dashboard`;
+    return params.customText
+      .replace(/{name}/g, params.recipientName || 'there')
+      .replace(/{studio}/g, params.businessName || 'your studio')
+      .replace(/{link}/g, dashboardLink);
+  }
+
+  return buildWhatsAppMessage({
+    event: 'portfolio_reminder',
+    recipientPhone: null,
+    recipientName: params.recipientName,
+    styleDescription: params.businessName,
+    requestId: 'dashboard',
+  });
+}
+
+/**
+ * Generates direct wa.me link for sending a portfolio upload reminder.
+ */
+export function getPortfolioReminderWhatsAppUrl(params: {
+  phone?: string | null;
+  recipientName?: string;
+  businessName?: string;
+  customText?: string;
+}): string {
+  const message = buildPortfolioReminderWhatsAppMessage(params);
+  const encoded = encodeURIComponent(message);
+  const cleanPhone = normalizePhoneForWhatsApp(params.phone);
+
+  if (cleanPhone) {
+    return `https://wa.me/${cleanPhone}?text=${encoded}`;
+  }
+  return `https://api.whatsapp.com/send?text=${encoded}`;
 }
 
 /**

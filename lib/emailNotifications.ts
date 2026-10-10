@@ -18,6 +18,7 @@ export interface EmailSettings {
   notify_on_balance_paid: boolean;
   notify_on_new_message: boolean;
   notify_on_welcome: boolean;
+  notify_on_portfolio_reminder: boolean;
   admin_notification_email?: string;
 }
 
@@ -39,6 +40,7 @@ export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   notify_on_balance_paid: true,
   notify_on_new_message: true,
   notify_on_welcome: true,
+  notify_on_portfolio_reminder: true,
   admin_notification_email: 'admin@tailoram.com',
 };
 
@@ -188,15 +190,17 @@ export function resolveUserEmail(userId?: string, fallback?: string): string {
  * - 'balance_paid': Client pays 60% balance -> notifies Designer
  * - 'new_message': New message sent in chat -> notifies recipient
  * - 'welcome': Welcome email sent upon user signup -> greets Designer or Client
+ * - 'portfolio_reminder': Nudge designers to upload portfolio works -> prompts studio upload
  */
 export async function triggerEmailNotification(
   params: {
-    event: 'new_request' | 'quote_received' | 'deposit_paid' | 'order_ready' | 'balance_paid' | 'new_message' | 'welcome';
+    event: 'new_request' | 'quote_received' | 'deposit_paid' | 'order_ready' | 'balance_paid' | 'new_message' | 'welcome' | 'portfolio_reminder';
     recipientEmail: string;
     recipientName?: string;
     subject: string;
     previewText: string;
     ctaLink?: string;
+    ctaText?: string;
     metadata?: Record<string, any>;
   },
   overrideSettings?: EmailSettings
@@ -216,6 +220,7 @@ export async function triggerEmailNotification(
     balance_paid: 'notify_on_balance_paid',
     new_message: 'notify_on_new_message',
     welcome: 'notify_on_welcome',
+    portfolio_reminder: 'notify_on_portfolio_reminder',
   };
 
   const toggleKey = eventKeyMap[params.event];
@@ -252,7 +257,7 @@ export async function triggerEmailNotification(
       ${params.ctaLink ? `
         <div style="text-align: center; margin: 32px 0;">
           <a href="${params.ctaLink}" style="background-color: #b45309; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 14px; font-weight: 800; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.25);">
-            Open on Tailoram
+            ${params.ctaText || 'Open on Tailoram'}
           </a>
         </div>
       ` : ''}

@@ -92,6 +92,10 @@ import {
   Smartphone,
   Image as ImageIcon,
   Globe,
+  Copy,
+  CheckCheck,
+  Camera,
+  MessageCircle,
 } from 'lucide-react';
 import {
   getEmailSettings,
@@ -102,7 +106,13 @@ import {
   EmailNotificationLog,
   triggerEmailNotification,
   DEFAULT_EMAIL_SETTINGS,
+  resolveUserEmail,
 } from '@/lib/emailNotifications';
+import {
+  getPortfolioReminderWhatsAppUrl,
+  buildPortfolioReminderWhatsAppMessage,
+} from '@/lib/whatsappNotifications';
+import { getAppBaseUrl } from '@/lib/appUrl';
 import {
   getAdminPushBroadcasts,
   sendAdminPushBroadcast,
@@ -195,8 +205,33 @@ export default function AdminPage() {
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
-    'analytics' | 'designers' | 'users' | 'requests' | 'products' | 'reviews' | 'events' | 'emails' | 'push' | 'settings'
+    'analytics' | 'designers' | 'users' | 'requests' | 'products' | 'reviews' | 'events' | 'emails' | 'push' | 'settings' | 'reminders'
   >('analytics');
+
+  // Portfolio Upload Reminders & Outreach State
+  const [reminderSubject, setReminderSubject] = useState(
+    '📸 Showcase Your Attire on Tailoram — Start Getting Bespoke Commissions!'
+  );
+  const [reminderEmailBody, setReminderEmailBody] = useState(
+    `We noticed your Tailoram studio profile is registered, but you haven't uploaded photos of your bespoke creations (Agbada, Senator suits, Aso Ebi, or Kaftan) yet!\n\nClients across Nigeria (Lagos, Abuja, PH, and abroad) are actively browsing master tailors and ready-to-wear pieces on Tailoram right now. Studios with uploaded portfolio photos receive 5x more commission orders and customer inquiries.\n\nTap the button below to upload your latest designs directly to your studio in just 2 minutes.`
+  );
+  const [reminderWhatsAppTemplate, setReminderWhatsAppTemplate] = useState(
+    `🧵 Hello {name}!\n\nWelcome to *Tailoram Nigeria*! We noticed your studio profile (*{studio}*) is live, but you haven't uploaded photos of your bespoke work or ready-to-wear designs yet 📸✨\n\nClients across Nigeria are actively searching for master tailors for Agbada, Senator suits, Aso Ebi, and Kaftans daily.\n\n⚡ *Designers with portfolio photos receive 5x more commission orders and inquiries!*\n\n👉 *Upload your work now (takes just 2 minutes):*\n{link}\n\nLet's put your craft in front of paying clients!\n— Tailoram Nigeria`
+  );
+  const [reminderSearch, setReminderSearch] = useState('');
+  const [isSendingBulkReminders, setIsSendingBulkReminders] = useState(false);
+  const [bulkReminderProgress, setBulkReminderProgress] = useState<{
+    current: number;
+    total: number;
+    sent: number;
+    failed: number;
+  } | null>(null);
+  const [sendingSingleEmailId, setSendingSingleEmailId] = useState<string | null>(null);
+  const [whatsAppQueueIndex, setWhatsAppQueueIndex] = useState<number>(0);
+  const [isWhatsAppQueueOpen, setIsWhatsAppQueueOpen] = useState(false);
+  const [copiedNumbers, setCopiedNumbers] = useState(false);
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
+  const [isBulkConfirmOpen, setIsBulkConfirmOpen] = useState(false);
 
   // Push Notification Broadcast State
   const [pushBroadcasts, setPushBroadcasts] = useState<AdminPushBroadcast[]>([]);
@@ -1094,6 +1129,144 @@ export default function AdminPage() {
   };
 
 
+  // --- OUTREACH & WORKS REMINDER HANDLERS ---
+  const handleSendSingleEmailReminder = async (designer: DesignerProfile) => {
+    try {
+      setSendingSingleEmailId(designer.id);
+      const recipientEmail = resolveUserEmail(
+        designer.user_id,
+        DEMO_EMAILS_MAP[designer.user_id] || `${designer.business_name.toLowerCase().replace(/[^a-z0-9]/g, '')}@tailoram.com`
+      );
+      const recipientName = designer.profiles?.full_name || designer.business_name;
+      const baseUrl = getAppBaseUrl();
+
+      const res = await triggerEmailNotification({
+        event: 'portfolio_reminder',
+        recipientEmail,
+        recipientName,
+        subject: reminderSubject,
+        previewText: reminderEmailBody.replace(/\n\n/g, '<br/><br/>').replace(/\n/g, '<br/>'),
+        ctaLink: `${baseUrl}/dashboard`,
+        ctaText: '📸 Upload Your Designs to Studio →',
+        metadata: {
+          designer_id: designer.id,
+          business_name: designer.business_name,
+        },
+      });
+
+      if (res.status === 'sent' || res.status === 'simulated') {
+        showNotice(`Email reminder dispatched to ${designer.business_name} (${recipientEmail})!`, 'success');
+        setEmailLogs(getEmailLogs());
+      } else {
+        showNotice(`Email notification status: ${res.message || res.status}`, 'info');
+      }
+    } catch (err: any) {
+      showNotice(`Failed to send email: ${err.message}`, 'error');
+    } finally {
+      setSendingSingleEmailId(null);
+    }
+  };
+
+  const handleSendBulkEmailReminders = async () => {
+    if (designersWithoutWorks.length === 0) {
+      showNotice('All registered designers have already uploaded works!', 'info');
+      return;
+    }
+
+    setIsBulkConfirmOpen(false);
+    setIsSendingBulkReminders(true);
+    setBulkReminderProgress({ current: 0, total: designersWithoutWorks.length, sent: 0, failed: 0 });
+
+    let successCount = 0;
+    let failCount = 0;
+    const baseUrl = getAppBaseUrl();
+
+    for (let i = 0; i < designersWithoutWorks.length; i++) {
+      const designer = designersWithoutWorks[i];
+      const recipientEmail = resolveUserEmail(
+        designer.user_id,
+        DEMO_EMAILS_MAP[designer.user_id] || `${designer.business_name.toLowerCase().replace(/[^a-z0-9]/g, '')}@tailoram.com`
+      );
+      const recipientName = designer.profiles?.full_name || designer.business_name;
+
+      setBulkReminderProgress({
+        current: i + 1,
+        total: designersWithoutWorks.length,
+        sent: successCount,
+        failed: failCount,
+      });
+
+      try {
+        const res = await triggerEmailNotification({
+          event: 'portfolio_reminder',
+          recipientEmail,
+          recipientName,
+          subject: reminderSubject,
+          previewText: reminderEmailBody.replace(/\n\n/g, '<br/><br/>').replace(/\n/g, '<br/>'),
+          ctaLink: `${baseUrl}/dashboard`,
+          ctaText: '📸 Upload Your Designs to Studio →',
+          metadata: {
+            designer_id: designer.id,
+            business_name: designer.business_name,
+            bulk_blast: true,
+          },
+        });
+        if (res.status === 'sent' || res.status === 'simulated') {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err) {
+        failCount++;
+      }
+
+      // Small delay to prevent rate limits
+      await new Promise((r) => setTimeout(r, 150));
+    }
+
+    setIsSendingBulkReminders(false);
+    setBulkReminderProgress(null);
+    setEmailLogs(getEmailLogs());
+    showNotice(
+      `🎉 Email Outreach Complete: ${successCount} sent successfully${failCount > 0 ? `, ${failCount} failed` : ''}.`,
+      'success'
+    );
+  };
+
+  const handleSendSingleWhatsApp = (designer: DesignerProfile) => {
+    const url = getPortfolioReminderWhatsAppUrl({
+      phone: designer.whatsapp,
+      recipientName: designer.profiles?.full_name || designer.business_name,
+      businessName: designer.business_name,
+      customText: reminderWhatsAppTemplate,
+    });
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleCopyAllPhoneNumbers = () => {
+    const phones = designersWithoutWorks
+      .map((d) => d.whatsapp?.trim())
+      .filter(Boolean)
+      .join(', ');
+
+    if (!phones) {
+      showNotice('No phone numbers found for pending designers.', 'info');
+      return;
+    }
+
+    navigator.clipboard.writeText(phones);
+    setCopiedNumbers(true);
+    setTimeout(() => setCopiedNumbers(false), 3000);
+    showNotice(`Copied ${designersWithoutWorks.filter((d) => d.whatsapp).length} phone numbers to clipboard!`, 'success');
+  };
+
+  const handleCopyWhatsAppTemplate = () => {
+    navigator.clipboard.writeText(reminderWhatsAppTemplate);
+    setCopiedTemplate(true);
+    setTimeout(() => setCopiedTemplate(false), 3000);
+    showNotice('WhatsApp message template copied to clipboard!', 'success');
+  };
+
   // --- EXPORT PLATFORM AUDIT REPORT ---
   const handleExportAudit = () => {
     const report = {
@@ -1183,7 +1356,7 @@ export default function AdminPage() {
 
   // Filtering states for tabs
   const [designerSearch, setDesignerSearch] = useState('');
-  const [designerFilter, setDesignerFilter] = useState<'all' | 'verified' | 'unverified' | 'store'>('all');
+  const [designerFilter, setDesignerFilter] = useState<'all' | 'verified' | 'unverified' | 'store' | 'no_works'>('all');
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'designer' | 'client' | 'admin'>('all');
   const [requestStatusFilter, setRequestStatusFilter] = useState<string>('all');
@@ -1201,9 +1374,30 @@ export default function AdminPage() {
       if (designerFilter === 'verified') return !!d.is_verified;
       if (designerFilter === 'unverified') return !d.is_verified;
       if (designerFilter === 'store') return !!d.has_store;
+      if (designerFilter === 'no_works') return (d.portfolio_items?.length || 0) === 0;
       return true;
     });
   }, [designers, designerSearch, designerFilter]);
+
+  // Designers who have 0 uploaded portfolio items
+  const designersWithoutWorks = useMemo(() => {
+    return designers.filter((d) => (d.portfolio_items?.length || 0) === 0);
+  }, [designers]);
+
+  // Filtered list for the Works Reminders & Outreach Tab
+  const filteredRemindersList = useMemo(() => {
+    return designersWithoutWorks.filter((d) => {
+      const q = reminderSearch.toLowerCase();
+      if (!q) return true;
+      return (
+        d.business_name?.toLowerCase().includes(q) ||
+        d.state?.toLowerCase().includes(q) ||
+        d.area?.toLowerCase().includes(q) ||
+        d.whatsapp?.toLowerCase().includes(q) ||
+        (d.profiles?.full_name || '').toLowerCase().includes(q)
+      );
+    });
+  }, [designersWithoutWorks, reminderSearch]);
 
   const filteredUsers = useMemo(() => {
     return profilesList.filter((p) => {
@@ -1408,6 +1602,7 @@ export default function AdminPage() {
           {[
             { id: 'analytics', label: 'Overview & Analytics', icon: TrendingUp },
             { id: 'designers', label: `Designers (${designers.length})`, icon: Scissors },
+            { id: 'reminders', label: `Works Nudges (${designersWithoutWorks.length})`, icon: ImageIcon },
             { id: 'users', label: `Users (${profilesList.length})`, icon: Users },
             { id: 'requests', label: `Bespoke Orders (${requestsList.length})`, icon: Package },
             { id: 'products', label: `Shop Catalog (${productsList.length})`, icon: ShoppingBag },
@@ -1656,6 +1851,47 @@ export default function AdminPage() {
         {activeTab === 'designers' && (
           <div className="space-y-6 animate-fadeIn">
             
+            {/* Notice if any designers have 0 works */}
+            {designersWithoutWorks.length > 0 && (
+              <div className="bg-gradient-to-r from-amber-950/60 to-stone-900 border border-amber-500/40 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30 shadow-inner">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-white text-sm flex items-center gap-2 flex-wrap">
+                      <span>{designersWithoutWorks.length} Designers Haven't Uploaded Their Works Yet</span>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-stone-950 uppercase tracking-wider">
+                        Pending Portfolio
+                      </span>
+                    </div>
+                    <p className="text-xs text-stone-300 mt-0.5">
+                      Empty studios receive far fewer bespoke orders. Nudge them via WhatsApp deep-links or send a 1-click email blast to get their designs uploaded.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0">
+                  <button
+                    onClick={() => setDesignerFilter('no_works')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border ${
+                      designerFilter === 'no_works'
+                        ? 'bg-amber-400 text-stone-950 border-amber-400 font-black'
+                        : 'bg-stone-800 hover:bg-stone-700 text-amber-300 border-amber-500/30'
+                    }`}
+                  >
+                    Filter Table ({designersWithoutWorks.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('reminders')}
+                    className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-stone-950 font-black text-xs shadow-md shadow-amber-400/20 transition-all flex items-center gap-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Open Outreach Center →</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Filter Bar */}
             <div className="bg-stone-900 border border-stone-800 rounded-3xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="relative w-full sm:w-80">
@@ -1675,6 +1911,7 @@ export default function AdminPage() {
                   { id: 'verified', label: 'Verified Only' },
                   { id: 'unverified', label: 'Unverified' },
                   { id: 'store', label: 'With RTW Store' },
+                  { id: 'no_works', label: `No Works (${designersWithoutWorks.length})` },
                 ].map((f) => (
                   <button
                     key={f.id}
@@ -1728,6 +1965,44 @@ export default function AdminPage() {
                               <span>{designer.whatsapp}</span>
                             </div>
                           )}
+                          <div className="flex items-center gap-1.5 mt-1">
+                            {(designer.portfolio_items?.length || 0) === 0 ? (
+                              <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-950/80 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                <span>0 Works Uploaded</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-stone-950 text-stone-300 border border-stone-800 flex items-center gap-1">
+                                <ImageIcon className="w-2.5 h-2.5 text-stone-400" />
+                                <span>{designer.portfolio_items?.length} Works</span>
+                              </span>
+                            )}
+                            {(designer.portfolio_items?.length || 0) === 0 && (
+                              <div className="flex items-center gap-1 ml-1">
+                                {designer.whatsapp && (
+                                  <button
+                                    onClick={() => handleSendSingleWhatsApp(designer)}
+                                    className="p-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 transition-colors"
+                                    title="Send WhatsApp Portfolio Reminder"
+                                  >
+                                    <MessageCircle className="w-3 h-3" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleSendSingleEmailReminder(designer)}
+                                  disabled={sendingSingleEmailId === designer.id}
+                                  className="p-1 rounded-md bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors disabled:opacity-50"
+                                  title="Send Email Portfolio Reminder"
+                                >
+                                  {sendingSingleEmailId === designer.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Mail className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </td>
 
                         <td className="py-3 px-4">
@@ -3145,6 +3420,13 @@ export default function AdminPage() {
                     desc: 'Dispatched immediately when a new fashion designer or client joins the Tailoram network.',
                     icon: Sparkles,
                   },
+                  {
+                    key: 'notify_on_portfolio_reminder' as const,
+                    title: 'Portfolio & Works Upload Reminders',
+                    recipient: 'Notifies Designers With 0 Works',
+                    desc: 'Dispatched to prompt registered tailors & designers to upload photos of their craft and RTW store.',
+                    icon: ImageIcon,
+                  },
                 ].map((evt) => {
                   const Icon = evt.icon;
                   const isChecked = emailSettings[evt.key];
@@ -3877,6 +4159,453 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* ---------------------------------------------------- */}
+        {/* TAB 10: PORTFOLIO & WORKS UPLOAD REMINDERS (EMAIL & WHATSAPP) */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'reminders' && (
+          <div className="space-y-8 animate-fadeIn">
+            {/* Header Banner */}
+            <div className="bg-gradient-to-r from-stone-900 via-stone-900 to-amber-950/40 border border-stone-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+              <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black uppercase tracking-wider mb-3">
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>Studio Works Activation Center</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                    Portfolio & Works Upload Outreach
+                  </h2>
+                  <p className="text-xs sm:text-sm text-stone-400 mt-1 max-w-2xl leading-relaxed">
+                    Identify and message master tailors and fashion designers across Nigeria who have registered their studio on Tailoram but haven't uploaded photos of their bespoke work or ready-to-wear pieces yet.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkConfirmOpen(true)}
+                    disabled={isSendingBulkReminders || designersWithoutWorks.length === 0}
+                    className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSendingBulkReminders ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Sending Blast ({bulkReminderProgress?.current}/{bulkReminderProgress?.total})...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4" />
+                        <span>Send Email Blast ({designersWithoutWorks.length})</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (designersWithoutWorks.length === 0) {
+                        showNotice('All designers already have works uploaded!', 'info');
+                        return;
+                      }
+                      setWhatsAppQueueIndex(0);
+                      setIsWhatsAppQueueOpen(true);
+                    }}
+                    disabled={designersWithoutWorks.length === 0}
+                    className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg shadow-emerald-600/20 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Launch WhatsApp Queue ({designersWithoutWorks.length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Progress bar if bulk sending is active */}
+              {isSendingBulkReminders && bulkReminderProgress && (
+                <div className="mt-6 pt-6 border-t border-stone-800">
+                  <div className="flex items-center justify-between text-xs text-stone-300 font-bold mb-2">
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                      <span>Dispatching Email Reminders...</span>
+                    </span>
+                    <span>
+                      {bulkReminderProgress.current} / {bulkReminderProgress.total} ({Math.round((bulkReminderProgress.current / bulkReminderProgress.total) * 100)}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 bg-stone-950 rounded-full overflow-hidden border border-stone-800">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-300"
+                      style={{ width: `${(bulkReminderProgress.current / bulkReminderProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* KPI Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 shadow-lg relative overflow-hidden">
+                <div className="flex items-center justify-between text-xs font-bold text-stone-400 mb-2">
+                  <span>TOTAL REGISTERED STUDIOS</span>
+                  <Scissors className="w-4 h-4 text-stone-400" />
+                </div>
+                <div className="text-3xl font-black text-white">{designers.length}</div>
+                <div className="text-[11px] text-stone-500 mt-1">Across all 36 Nigerian states</div>
+              </div>
+
+              <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 shadow-lg relative overflow-hidden">
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-400 mb-2">
+                  <span>WORKS UPLOADED (ACTIVE)</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-3xl font-black text-emerald-400">
+                  {designers.length - designersWithoutWorks.length}
+                </div>
+                <div className="text-[11px] text-stone-400 mt-1">
+                  {designers.length > 0
+                    ? `${Math.round(((designers.length - designersWithoutWorks.length) / designers.length) * 100)}% studio activation rate`
+                    : 'No studios registered'}
+                </div>
+              </div>
+
+              <div className="bg-stone-900 border border-amber-500/40 rounded-3xl p-5 shadow-lg relative overflow-hidden bg-gradient-to-b from-stone-900 to-amber-950/20">
+                <div className="flex items-center justify-between text-xs font-bold text-amber-400 mb-2">
+                  <span>NO WORKS UPLOADED (PENDING)</span>
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="text-3xl font-black text-amber-300">{designersWithoutWorks.length}</div>
+                <div className="text-[11px] text-amber-200/70 mt-1 font-medium">
+                  {designers.length > 0
+                    ? `${Math.round((designersWithoutWorks.length / designers.length) * 100)}% need outreach encouragement`
+                    : 'Zero pending'}
+                </div>
+              </div>
+
+              <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 shadow-lg relative overflow-hidden">
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-400 mb-2">
+                  <span>REACHABLE ON WHATSAPP</span>
+                  <Phone className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-3xl font-black text-white">
+                  {designersWithoutWorks.filter((d) => !!d.whatsapp).length}
+                </div>
+                <div className="text-[11px] text-stone-500 mt-1">Direct 1-click wa.me chat ready</div>
+              </div>
+            </div>
+
+            {/* Outreach Channels Hub: Side-by-side Message Customizers */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Channel 1: Email Notification Campaign */}
+              <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-5 shadow-lg flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-white">Email Outreach Blast</h3>
+                        <p className="text-xs text-stone-400">
+                          Transactional email with direct 1-click upload link
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-stone-950 text-stone-300 border border-stone-800">
+                      {emailSettings.enabled ? `Provider: ${emailSettings.provider}` : 'Disabled'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-300 mb-1.5 uppercase tracking-wider">
+                      Email Subject Line
+                    </label>
+                    <input
+                      type="text"
+                      value={reminderSubject}
+                      onChange={(e) => setReminderSubject(e.target.value)}
+                      placeholder="Email subject..."
+                      className="w-full px-4 py-2.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white placeholder:text-stone-500 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-300 mb-1.5 uppercase tracking-wider">
+                      Email Message Content
+                    </label>
+                    <textarea
+                      rows={5}
+                      value={reminderEmailBody}
+                      onChange={(e) => setReminderEmailBody(e.target.value)}
+                      placeholder="Message copy..."
+                      className="w-full p-4 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white placeholder:text-stone-500 focus:outline-none focus:border-amber-400 leading-relaxed font-sans"
+                    />
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-stone-950/70 border border-stone-800/80 text-[11px] text-stone-400 flex items-start gap-2.5">
+                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>
+                      Each email automatically features Tailoram luxury branding and an action button: <strong className="text-amber-300 font-bold">"📸 Upload Your Designs to Studio →"</strong> directing tailors to their studio photo uploader.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkConfirmOpen(true)}
+                    disabled={isSendingBulkReminders || designersWithoutWorks.length === 0}
+                    className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-stone-950 font-black text-xs shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSendingBulkReminders ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-stone-950" />
+                        <span>Dispatching to {designersWithoutWorks.length} Designers...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 text-stone-950" />
+                        <span>Send Email Blast to All ({designersWithoutWorks.length} Designers)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Channel 2: WhatsApp Outreach Engine */}
+              <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 space-y-5 shadow-lg flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                        <MessageCircle className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm text-white">WhatsApp Outreach Engine</h3>
+                        <p className="text-xs text-stone-400">
+                          100% Zero-cost wa.me deep links with Nigerian couture copy
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-950/60 text-emerald-300 border border-emerald-500/30">
+                      Zero Cost • Direct
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-stone-300 uppercase tracking-wider">
+                        WhatsApp Message Template
+                      </label>
+                      <span className="text-[10px] text-stone-500">
+                        Tags: <code className="text-amber-400 font-mono">&#123;name&#125;</code>, <code className="text-amber-400 font-mono">&#123;studio&#125;</code>, <code className="text-amber-400 font-mono">&#123;link&#125;</code>
+                      </span>
+                    </div>
+                    <textarea
+                      rows={6}
+                      value={reminderWhatsAppTemplate}
+                      onChange={(e) => setReminderWhatsAppTemplate(e.target.value)}
+                      placeholder="WhatsApp template..."
+                      className="w-full p-4 rounded-xl bg-stone-950 border border-stone-800 text-xs text-emerald-200/90 placeholder:text-stone-500 focus:outline-none focus:border-emerald-400 font-mono text-[11px] leading-relaxed"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyWhatsAppTemplate}
+                      className="px-3 py-1.5 rounded-xl bg-stone-950 hover:bg-stone-800 text-stone-300 text-xs font-bold border border-stone-800 flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      {copiedTemplate ? <CheckCheck className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedTemplate ? 'Copied Template!' : 'Copy Template'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyAllPhoneNumbers}
+                      className="px-3 py-1.5 rounded-xl bg-stone-950 hover:bg-stone-800 text-stone-300 text-xs font-bold border border-stone-800 flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      {copiedNumbers ? <CheckCheck className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedNumbers ? 'Copied Numbers!' : 'Copy All Numbers'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (designersWithoutWorks.length === 0) {
+                        showNotice('All designers already have works uploaded!', 'info');
+                        return;
+                      }
+                      setWhatsAppQueueIndex(0);
+                      setIsWhatsAppQueueOpen(true);
+                    }}
+                    disabled={designersWithoutWorks.length === 0}
+                    className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Launch WhatsApp Outreach Queue ({designersWithoutWorks.length})</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Target Designers Table */}
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl overflow-hidden shadow-lg space-y-4 p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-black text-sm text-white flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    <span>Designers Without Works ({filteredRemindersList.length})</span>
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Click "Send WhatsApp" or "Send Email" for instant 1-click outreach, or impersonate their studio to upload on their behalf.
+                  </p>
+                </div>
+
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 absolute left-3.5 top-3 text-stone-500" />
+                  <input
+                    type="text"
+                    value={reminderSearch}
+                    onChange={(e) => setReminderSearch(e.target.value)}
+                    placeholder="Search studio, owner, state, phone..."
+                    className="w-full pl-9 pr-4 py-2 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white placeholder:text-stone-500 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              {filteredRemindersList.length === 0 ? (
+                <div className="py-12 text-center text-stone-400 text-xs">
+                  {designersWithoutWorks.length === 0 ? (
+                    <div className="space-y-2">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                      <p className="font-bold text-white text-sm">All Registered Designers Have Uploaded Their Works!</p>
+                      <p className="text-stone-500">Every tailor studio on Tailoram currently showcases at least one bespoke attire item.</p>
+                    </div>
+                  ) : (
+                    <p>No designers match your search filter.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="overflow-x-auto -mx-6">
+                  <table className="w-full text-left text-xs text-stone-300">
+                    <thead className="bg-stone-950 text-stone-400 uppercase text-[10px] font-black tracking-wider">
+                      <tr>
+                        <th className="py-3 px-6">Studio / Master Tailor</th>
+                        <th className="py-3 px-4">Location</th>
+                        <th className="py-3 px-4">Contact Info</th>
+                        <th className="py-3 px-4 text-center">Portfolio Status</th>
+                        <th className="py-3 px-6 text-right">Instant Outreach</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-800">
+                      {filteredRemindersList.map((designer) => {
+                        const email = resolveUserEmail(
+                          designer.user_id,
+                          DEMO_EMAILS_MAP[designer.user_id] || `${designer.business_name.toLowerCase().replace(/[^a-z0-9]/g, '')}@tailoram.com`
+                        );
+                        return (
+                          <tr key={designer.id} className="hover:bg-stone-800/40 transition-colors">
+                            <td className="py-3.5 px-6">
+                              <div className="font-bold text-white text-sm">
+                                {designer.business_name}
+                              </div>
+                              <div className="text-[11px] text-stone-400">
+                                {designer.profiles?.full_name || 'Designer'}
+                              </div>
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              <div className="font-medium text-stone-200">{designer.area}</div>
+                              <div className="text-[11px] text-stone-400">{designer.state}</div>
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              {designer.whatsapp ? (
+                                <div className="text-[11px] text-emerald-400 flex items-center gap-1 font-mono">
+                                  <Phone className="w-3 h-3" />
+                                  <span>{designer.whatsapp}</span>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-stone-500 italic">No phone registered</span>
+                              )}
+                              <div className="text-[11px] text-stone-400 flex items-center gap-1 mt-0.5 font-mono">
+                                <Mail className="w-3 h-3 text-stone-500" />
+                                <span>{email}</span>
+                              </div>
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center">
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-950/80 text-amber-300 border border-amber-500/40 inline-flex items-center gap-1.5">
+                                <AlertTriangle className="w-3 h-3 text-amber-400" />
+                                <span>0 Works Uploaded</span>
+                              </span>
+                            </td>
+
+                            <td className="py-3.5 px-6 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {/* WhatsApp Nudge */}
+                                {designer.whatsapp ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendSingleWhatsApp(designer)}
+                                    className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                                    title="Open WhatsApp chat with pre-filled message"
+                                  >
+                                    <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span>WhatsApp</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendSingleWhatsApp(designer)}
+                                    className="px-3 py-1.5 rounded-xl bg-stone-800 text-stone-400 hover:text-stone-300 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                                    title="Open WhatsApp picker"
+                                  >
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                    <span>WhatsApp</span>
+                                  </button>
+                                )}
+
+                                {/* Email Nudge */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendSingleEmailReminder(designer)}
+                                  disabled={sendingSingleEmailId === designer.id}
+                                  className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-bold text-xs transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                                  title="Send email reminder right now"
+                                >
+                                  {sendingSingleEmailId === designer.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                                  ) : (
+                                    <Mail className="w-3.5 h-3.5 text-blue-400" />
+                                  )}
+                                  <span>Email</span>
+                                </button>
+
+                                {/* Impersonate Studio */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleLoginAsDesigner(designer.user_id, designer.business_name)}
+                                  className="p-1.5 rounded-xl bg-stone-800 hover:bg-amber-400/20 text-stone-300 hover:text-amber-300 border border-stone-700 transition-colors cursor-pointer"
+                                  title={`Log in as ${designer.business_name} to directly upload photos`}
+                                >
+                                  <LogIn className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       </main>
 
@@ -4140,6 +4869,184 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* Bulk Email Blast Confirmation Modal */}
+      {isBulkConfirmOpen && (
+        <div className="fixed inset-0 z-50 bg-stone-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-2xl relative">
+            <button
+              onClick={() => setIsBulkConfirmOpen(false)}
+              className="absolute top-5 right-5 p-1.5 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                <Mail className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg text-white">Confirm Email Outreach Blast</h3>
+                <p className="text-xs text-stone-400">
+                  Ready to notify {designersWithoutWorks.length} designers with 0 uploaded works
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-stone-950 border border-stone-800 space-y-2 text-xs">
+              <div className="text-stone-400">
+                <strong className="text-stone-300">Subject:</strong> {reminderSubject}
+              </div>
+              <div className="text-stone-400">
+                <strong className="text-stone-300">Recipients:</strong> {designersWithoutWorks.length} fashion designers
+              </div>
+              <div className="text-stone-400">
+                <strong className="text-stone-300">Provider:</strong> {emailSettings.enabled ? emailSettings.provider.toUpperCase() : 'Disabled'}
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-400 leading-relaxed">
+              This will dispatch individual, personalized notification emails to every designer who has not yet uploaded works, encouraging them to showcase their designs to paying clients.
+            </p>
+
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsBulkConfirmOpen(false)}
+                className="px-4 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendBulkEmailReminders}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-stone-950 font-black text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5 text-stone-950" />
+                <span>Start Email Blast</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Outreach Sequential Queue Modal */}
+      {isWhatsAppQueueOpen && designersWithoutWorks.length > 0 && (() => {
+        const currentDesigner = designersWithoutWorks[whatsAppQueueIndex] || designersWithoutWorks[0];
+        const currentMsg = buildPortfolioReminderWhatsAppMessage({
+          recipientName: currentDesigner.profiles?.full_name || currentDesigner.business_name,
+          businessName: currentDesigner.business_name,
+          customText: reminderWhatsAppTemplate,
+        });
+        const currentUrl = getPortfolioReminderWhatsAppUrl({
+          phone: currentDesigner.whatsapp,
+          recipientName: currentDesigner.profiles?.full_name || currentDesigner.business_name,
+          businessName: currentDesigner.business_name,
+          customText: reminderWhatsAppTemplate,
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 bg-stone-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+            <div className="bg-stone-900 border border-stone-800 rounded-3xl max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-2xl relative">
+              <button
+                onClick={() => setIsWhatsAppQueueOpen(false)}
+                className="absolute top-5 right-5 p-1.5 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <MessageCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg text-white">WhatsApp Outreach Queue</h3>
+                    <p className="text-xs text-stone-400">
+                      Step {whatsAppQueueIndex + 1} of {designersWithoutWorks.length} Designers
+                    </p>
+                  </div>
+                </div>
+
+                <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-stone-950 text-emerald-400 border border-emerald-500/30">
+                  {whatsAppQueueIndex + 1} / {designersWithoutWorks.length}
+                </span>
+              </div>
+
+              {/* Current Designer Card */}
+              <div className="p-4 rounded-2xl bg-stone-950 border border-stone-800 flex items-center justify-between gap-4">
+                <div>
+                  <div className="font-black text-white text-base">{currentDesigner.business_name}</div>
+                  <div className="text-xs text-stone-400 mt-0.5">
+                    {currentDesigner.profiles?.full_name || 'Master Designer'} • {currentDesigner.area}, {currentDesigner.state}
+                  </div>
+                  <div className="text-xs text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                    <Phone className="w-3 h-3" />
+                    <span>{currentDesigner.whatsapp || 'No WhatsApp phone on file'}</span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-950/80 text-amber-300 border border-amber-500/40">
+                    0 Works
+                  </span>
+                </div>
+              </div>
+
+              {/* Message Live Preview */}
+              <div>
+                <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">
+                  Live Message Preview
+                </label>
+                <div className="p-4 rounded-2xl bg-stone-950 border border-stone-800 text-xs font-mono text-emerald-200/90 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                  {currentMsg}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-stone-800">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setWhatsAppQueueIndex((prev) => Math.max(0, prev - 1))}
+                    disabled={whatsAppQueueIndex === 0}
+                    className="px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold disabled:opacity-40 transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setWhatsAppQueueIndex((prev) => Math.min(designersWithoutWorks.length - 1, prev + 1))
+                    }
+                    disabled={whatsAppQueueIndex === designersWithoutWorks.length - 1}
+                    className="px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold disabled:opacity-40 transition-colors"
+                  >
+                    Next Designer
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <a
+                    href={currentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      if (whatsAppQueueIndex < designersWithoutWorks.length - 1) {
+                        setWhatsAppQueueIndex((prev) => prev + 1);
+                      }
+                    }}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-center"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Open in WhatsApp (wa.me) →</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
