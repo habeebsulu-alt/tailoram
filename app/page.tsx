@@ -582,6 +582,7 @@ export default function HomePage() {
   const [sortBy, setSortBy] = useState<HomepageSortOption>('ranking');
   const [configuredDefaultSort, setConfiguredDefaultSort] = useState<HomepageSortOption>('ranking');
   const [randomSeed, setRandomSeed] = useState(() => Math.floor(Math.random() * 100000));
+  const [showPendingStudios, setShowPendingStudios] = useState(false);
 
   // Geolocation & Around Me state
   const [geoLocating, setGeoLocating] = useState(false);
@@ -762,6 +763,22 @@ export default function HomePage() {
     });
   }, [designers, searchQuery, selectedState, selectedArea, selectedCategory, selectedGender, sortBy, randomSeed]);
 
+  // Separate designers into those who have uploaded works vs those who have 0 works
+  const { designersWithWorks, designersWithoutWorks } = useMemo(() => {
+    const withWorks: any[] = [];
+    const withoutWorks: any[] = [];
+
+    for (const d of filteredAndRankedDesigners) {
+      if (d.portfolio_items && d.portfolio_items.length > 0) {
+        withWorks.push(d);
+      } else {
+        withoutWorks.push(d);
+      }
+    }
+
+    return { designersWithWorks: withWorks, designersWithoutWorks: withoutWorks };
+  }, [filteredAndRankedDesigners]);
+
   // Day 1 Analytics: Log searches (debounced)
   useEffect(() => {
     const hasFilter =
@@ -784,13 +801,13 @@ export default function HomePage() {
           category: selectedCategory,
           gender: selectedGender,
           sort_by: sortBy,
-          results_count: filteredAndRankedDesigners.length,
+          results_count: designersWithWorks.length,
         },
       });
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, selectedState, selectedArea, selectedCategory, selectedGender, sortBy, filteredAndRankedDesigners.length, user]);
+  }, [searchQuery, selectedState, selectedArea, selectedCategory, selectedGender, sortBy, designersWithWorks.length, user]);
 
   const resetFilters = () => {
     setSearchQuery('');
@@ -800,6 +817,7 @@ export default function HomePage() {
     setSelectedGender('all');
     setSortBy('ranking');
     setNearMeLocation(null);
+    setShowPendingStudios(false);
   };
 
   const handleFindAroundMe = () => {
@@ -1213,12 +1231,17 @@ export default function HomePage() {
           {hasActiveFilters && (
             <div className="flex items-center justify-between pt-2 border-t border-stone-100 text-xs">
               <span className="text-stone-600">
-                Found <strong className="text-stone-900">{filteredAndRankedDesigners.length}</strong> matching designer
-                {filteredAndRankedDesigners.length === 1 ? '' : 's'}
+                Found <strong className="text-stone-900">{designersWithWorks.length}</strong> matching designer
+                {designersWithWorks.length === 1 ? '' : 's'} with portfolios
+                {designersWithoutWorks.length > 0 && (
+                  <span className="text-stone-400 font-normal ml-1">
+                    ({designersWithoutWorks.length} pending works)
+                  </span>
+                )}
               </span>
               <button
                 onClick={resetFilters}
-                className="inline-flex items-center gap-1 font-bold text-brand-600 hover:text-brand-800"
+                className="inline-flex items-center gap-1 font-bold text-brand-600 hover:text-brand-800 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
                 Reset all filters
@@ -1245,7 +1268,7 @@ export default function HomePage() {
                     Proximity Filter Active
                   </span>
                   <span className="text-xs text-stone-500 font-medium">
-                    {filteredAndRankedDesigners.length} Studios in Region
+                    {designersWithWorks.length} Studios in Region
                   </span>
                 </div>
                 <p className="text-sm font-bold text-stone-900 mt-0.5">
@@ -1285,7 +1308,7 @@ export default function HomePage() {
             <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
             <p className="text-sm font-bold">Curating top Nigerian designers...</p>
           </div>
-        ) : filteredAndRankedDesigners.length === 0 ? (
+        ) : designersWithWorks.length === 0 && designersWithoutWorks.length === 0 ? (
           <div className="bg-white border-2 border-dashed border-stone-200 rounded-3xl p-14 text-center max-w-md mx-auto space-y-4">
             <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
               <Filter className="w-6 h-6" />
@@ -1300,32 +1323,142 @@ export default function HomePage() {
             </div>
             <button
               onClick={resetFilters}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer"
             >
               Show All Designers
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7">
-            {filteredAndRankedDesigners.map((designer: any, index: number) => {
-              const cleanPhone = normalizePhoneForWhatsApp(designer.whatsapp);
-              const isTopThree = index < 3 && designer.avg_rating >= 4.0;
-              const genderFocus = getDesignerGender(designer);
-              const genderBadge = GENDER_FOCUS_OPTIONS.find((g) => g.id === genderFocus);
+          <div className="space-y-12">
+            {/* Primary Marketplace Grid: ONLY designers who have uploaded portfolio works */}
+            {designersWithWorks.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7">
+                {designersWithWorks.map((designer: any, index: number) => {
+                  const cleanPhone = normalizePhoneForWhatsApp(designer.whatsapp);
+                  const isTopThree = index < 3 && designer.avg_rating >= 4.0;
+                  const genderFocus = getDesignerGender(designer);
+                  const genderBadge = GENDER_FOCUS_OPTIONS.find((g) => g.id === genderFocus);
 
-              return (
-                <DesignerMarketplaceCard
-                  key={designer.id}
-                  designer={designer}
-                  index={index}
-                  isTopThree={isTopThree}
-                  cleanPhone={cleanPhone}
-                  genderFocus={genderFocus}
-                  genderBadge={genderBadge}
-                  whatsappEnabled={whatsappEnabled}
-                />
-              );
-            })}
+                  return (
+                    <DesignerMarketplaceCard
+                      key={designer.id}
+                      designer={designer}
+                      index={index}
+                      isTopThree={isTopThree}
+                      cleanPhone={cleanPhone}
+                      genderFocus={genderFocus}
+                      genderBadge={genderBadge}
+                      whatsappEnabled={whatsappEnabled}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              /* If no designers with uploaded works match this filter, but pending studios exist */
+              <div className="bg-stone-50 border border-stone-200 rounded-3xl p-8 text-center max-w-lg mx-auto space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-stone-200 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
+                  <Scissors className="w-6 h-6 text-amber-600" />
+                </div>
+                <h3 className="text-base font-bold text-stone-900">
+                  No studios with uploaded portfolios match this filter
+                </h3>
+                <p className="text-xs text-stone-500">
+                  There {designersWithoutWorks.length === 1 ? 'is' : 'are'} <strong className="text-stone-800">{designersWithoutWorks.length} newly registered {designersWithoutWorks.length === 1 ? 'studio' : 'studios'}</strong> in this filter currently setting up their portfolio gallery.
+                </p>
+                <div className="pt-2 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPendingStudios(true)}
+                    className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+                  >
+                    View {designersWithoutWorks.length} Registered Studios
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="px-4 py-2.5 rounded-xl bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 font-bold text-xs transition-all cursor-pointer"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Expandable "View More" Section: Designers Without Works (Always at the bottom after scrolling through works) */}
+            {designersWithoutWorks.length > 0 && (
+              <div className="pt-8 border-t border-stone-200/80">
+                <div className="bg-gradient-to-r from-stone-50 via-amber-50/30 to-stone-50 border border-stone-200/90 rounded-3xl p-6 sm:p-8 text-center max-w-2xl mx-auto shadow-xs">
+                  <div className="w-12 h-12 rounded-2xl bg-white border border-stone-200 text-amber-600 flex items-center justify-center mx-auto mb-3 shadow-xs">
+                    <Scissors className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <h4 className="text-base sm:text-lg font-black text-stone-900">
+                    {showPendingStudios
+                      ? `Showing ${designersWithoutWorks.length} Newly Registered Studios`
+                      : `Looking for More Studios? (${designersWithoutWorks.length} Registered)`}
+                  </h4>
+                  <p className="text-xs text-stone-500 mt-1 max-w-lg mx-auto">
+                    {showPendingStudios
+                      ? 'These master tailors and brands are registered on Tailoram and are currently preparing their bespoke photo galleries.'
+                      : 'These fashion studios are registered on Tailoram but have not uploaded their portfolio photos yet. You can still view their details, location, and commission custom attire.'}
+                  </p>
+
+                  <div className="mt-4 flex items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowPendingStudios(!showPendingStudios)}
+                      className="px-6 py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <span>
+                        {showPendingStudios
+                          ? `Hide Studios Without Works (${designersWithoutWorks.length})`
+                          : `View More Studios (${designersWithoutWorks.length} Pending Portfolio)`}
+                      </span>
+                      <ChevronRight
+                        className={`w-4 h-4 transition-transform duration-300 ${
+                          showPendingStudios ? '-rotate-90' : 'rotate-90'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded Grid for Designers Without Works */}
+                {showPendingStudios && (
+                  <div className="mt-8 space-y-4 animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between text-xs font-bold text-stone-500 uppercase tracking-wider px-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Newly Registered Studios (Portfolios in Preparation)</span>
+                      </div>
+                      <span className="text-[11px] text-stone-400 font-mono">
+                        {designersWithoutWorks.length} {designersWithoutWorks.length === 1 ? 'Studio' : 'Studios'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7">
+                      {designersWithoutWorks.map((designer: any, idx: number) => {
+                        const cleanPhone = normalizePhoneForWhatsApp(designer.whatsapp);
+                        const genderFocus = getDesignerGender(designer);
+                        const genderBadge = GENDER_FOCUS_OPTIONS.find((g) => g.id === genderFocus);
+
+                        return (
+                          <DesignerMarketplaceCard
+                            key={designer.id}
+                            designer={designer}
+                            index={designersWithWorks.length + idx}
+                            isTopThree={false}
+                            cleanPhone={cleanPhone}
+                            genderFocus={genderFocus}
+                            genderBadge={genderBadge}
+                            whatsappEnabled={whatsappEnabled}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
