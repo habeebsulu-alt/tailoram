@@ -2526,6 +2526,15 @@ export default function DesignerDashboard() {
               </>
             )}
 
+            <Link
+              href="/forum"
+              className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-amber-500/40 text-amber-900 bg-amber-500/10 hover:bg-amber-500/20 text-xs sm:text-sm font-bold transition-all shadow-xs"
+              title="Visit Master Tailors' Guild Forum & Advice Hub"
+            >
+              <MessageSquare className="w-4 h-4 text-amber-600" />
+              <span>Tailors' Guild Forum</span>
+            </Link>
+
             <button
               onClick={() => setUploadModalOpen(true)}
               className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-brand-600/20 transition-all hover:scale-[1.01]"
@@ -2658,6 +2667,36 @@ export default function DesignerDashboard() {
           </div>
         </div>
       )}
+
+      {/* Master Tailors' Guild & Craft Advice Forum Banner */}
+      <div className="bg-gradient-to-r from-stone-900 via-stone-950 to-stone-900 border border-amber-500/30 rounded-3xl p-5 sm:p-6 text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fadeIn">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-amber-500 text-stone-950 flex items-center justify-center shrink-0 shadow-md">
+            <Scissors className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-black text-sm sm:text-base text-white">
+                Nigeria Master Tailors' Guild &amp; Craft Forum
+              </span>
+              <span className="text-[10px] bg-amber-500 text-stone-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                Peer Advice
+              </span>
+            </div>
+            <p className="text-xs text-stone-300 font-medium mt-0.5 max-w-2xl leading-relaxed">
+              Got a challenging client fitting, collar bubbling issue, or fabric pricing question? Discuss cutting formulas, Balogun wholesale rates, and machine setups with verified tailors across all 36 states.
+            </p>
+          </div>
+        </div>
+
+        <Link
+          href="/forum"
+          className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm shadow-md transition-all active:scale-95 shrink-0 flex items-center justify-center gap-2 whitespace-nowrap"
+        >
+          <MessageSquare className="w-4 h-4 text-stone-950" />
+          <span>Ask or Browse Tailoring Advice &rarr;</span>
+        </Link>
+      </div>
 
       {/* Modern Navigation Tabs */}
       <div className="flex border-b border-stone-200 gap-6 sm:gap-8 overflow-x-auto no-scrollbar">

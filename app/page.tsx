@@ -1539,6 +1539,13 @@ export default function HomePage() {
                   <LogIn className="w-4 h-4 text-amber-300" />
                   <span>Log In to Your Account</span>
                 </Link>
+                <Link
+                  href="/forum"
+                  className="px-6 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 hover:text-white font-bold text-xs sm:text-sm backdrop-blur-sm transition-all flex items-center gap-2"
+                >
+                  <MessageSquare className="w-4 h-4 text-amber-400" />
+                  <span>Explore Tailors' Forum &amp; Advice</span>
+                </Link>
               </div>
             </div>
           </div>

@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Scissors,
   Ruler,
+  MessageSquare,
 } from 'lucide-react';
 
 export default function MobileBottomNav() {
@@ -39,6 +40,12 @@ export default function MobileBottomNav() {
       href: '/shop',
       icon: ShoppingBag,
       isActive: pathname.startsWith('/shop'),
+    },
+    {
+      label: 'Forum',
+      href: '/forum',
+      icon: MessageSquare,
+      isActive: pathname.startsWith('/forum'),
     },
     {
       label: 'Orders',
