@@ -2751,6 +2751,18 @@ export default function DesignerDashboard() {
         >
           Brand Settings
         </button>
+
+        <Link
+          href="/forum"
+          className="pb-3 text-sm font-bold transition-all relative flex-shrink-0 flex items-center gap-1.5 text-amber-700 hover:text-amber-600 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1 rounded-xl border border-amber-500/30 mb-2"
+          title="Connect with Nigerian master tailors, discuss patterns & get sewing advice"
+        >
+          <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+          <span>Tailors' Guild Forum</span>
+          <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500 text-stone-950 px-1.5 py-0.2 rounded-full">
+            Active
+          </span>
+        </Link>
       </div>
 
       {/* TAB 1: PORTFOLIO GALLERY */}

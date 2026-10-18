@@ -781,4 +781,109 @@ export interface CommissionSettings {
   settlement_schedule: string;
 }
 
+// ==========================================
+// TAILORAM ARTISAN GUILD & FORUM TYPES
+// ==========================================
+
+export type ForumCategory =
+  | 'pattern_drafting'
+  | 'fabric_sourcing'
+  | 'machines_equipment'
+  | 'pricing_business'
+  | 'troubleshooting'
+  | 'showcase_critique';
+
+export const FORUM_CATEGORIES: {
+  id: ForumCategory;
+  label: string;
+  description: string;
+  iconName: string;
+  color: string;
+}[] = [
+  {
+    id: 'pattern_drafting',
+    label: 'Pattern Drafting & Cutting',
+    description: 'Agbada balance, Senator collar curves, corset drafting, sleeve armholes & fitting formulas',
+    iconName: 'Scissors',
+    color: 'amber',
+  },
+  {
+    id: 'troubleshooting',
+    label: 'Tailoring Advice & Fixes',
+    description: 'Solve fabric puckering, collar bubbling, broken needles, tension flaws & fitting disasters',
+    iconName: 'HelpCircle',
+    color: 'rose',
+  },
+  {
+    id: 'fabric_sourcing',
+    label: 'Fabric Sourcing & Markets',
+    description: 'Balogun, Aba, Kano Kantin Kwari price updates, original cashmere, lace, brocade & Adire sourcing',
+    iconName: 'Layers',
+    color: 'blue',
+  },
+  {
+    id: 'machines_equipment',
+    label: 'Sewing Machines & Equipment',
+    description: 'Jack F4, Juki, overlockers, steam boilers, embroidery rigs & inverter/generator power tips',
+    iconName: 'Settings',
+    color: 'emerald',
+  },
+  {
+    id: 'pricing_business',
+    label: 'Pricing & Client Studio Growth',
+    description: 'How to charge for couture, emergency Owambe rush pricing, client deposits & apprentice retention',
+    iconName: 'DollarSign',
+    color: 'purple',
+  },
+  {
+    id: 'showcase_critique',
+    label: 'Showcase & Fit Check',
+    description: 'Peer review of finished garments before client delivery, design feedback & artisan praise',
+    iconName: 'Sparkles',
+    color: 'brand',
+  },
+];
+
+export type ForumThreadType = 'advice_needed' | 'pro_tip' | 'discussion' | 'showcase';
+
+export interface ForumReply {
+  id: string;
+  thread_id: string;
+  author_id: string;
+  author_name: string;
+  author_role: 'designer' | 'client' | 'admin';
+  author_studio?: string;
+  author_state?: string;
+  author_verified?: boolean;
+  content: string;
+  helpful_count: number;
+  is_solution?: boolean;
+  created_at: string;
+}
+
+export interface ForumThread {
+  id: string;
+  title: string;
+  category: ForumCategory;
+  thread_type: ForumThreadType;
+  tags: string[];
+  content: string;
+  author_id: string;
+  author_name: string;
+  author_role: 'designer' | 'client' | 'admin';
+  author_studio?: string;
+  author_state?: string;
+  author_verified?: boolean;
+  media_url?: string;
+  media_type?: 'image' | 'video';
+  views_count: number;
+  upvotes_count: number;
+  replies_count: number;
+  is_solved?: boolean;
+  is_pinned?: boolean;
+  created_at: string;
+  updated_at?: string;
+  replies?: ForumReply[];
+}
+
 

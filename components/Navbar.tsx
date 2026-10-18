@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Scissors, Menu, X, User, LogOut, LayoutDashboard, ShoppingBag, ShieldCheck, Sparkles, Ruler } from 'lucide-react';
+import { Scissors, Menu, X, User, LogOut, LayoutDashboard, ShoppingBag, ShieldCheck, Sparkles, Ruler, MessageSquare } from 'lucide-react';
 
 export default function Navbar() {
   const { user, profile, designerProfile, signOut, isImpersonating } = useAuth();
@@ -103,6 +103,15 @@ export default function Navbar() {
             >
               <Ruler className="w-4 h-4 text-amber-600" />
               <span>Sizing Vault</span>
+            </Link>
+
+            <Link
+              href="/forum"
+              className="flex items-center gap-1.5 text-stone-700 hover:text-amber-600 font-medium text-sm transition-colors"
+              title="Tailors' Guild, discussions & craft advice"
+            >
+              <MessageSquare className="w-4 h-4 text-amber-600" />
+              <span>Tailors' Forum</span>
             </Link>
 
             {user ? (
@@ -249,6 +258,15 @@ export default function Navbar() {
           >
             <Ruler className="w-4 h-4 text-amber-600" />
             <span>Sizing Vault</span>
+          </Link>
+
+          <Link
+            href="/forum"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center gap-2 py-2 text-base font-medium text-stone-800 hover:text-amber-600"
+          >
+            <MessageSquare className="w-4 h-4 text-amber-600" />
+            <span>Tailors' Forum &amp; Advice</span>
           </Link>
 
           {user ? (

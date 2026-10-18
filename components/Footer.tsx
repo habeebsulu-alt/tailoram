@@ -41,16 +41,32 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Specialties */}
+          {/* Marketplace & Guild Links */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-brand-400 mb-3">
-              Specialties
+              Marketplace &amp; Guild
             </h4>
             <ul className="text-sm space-y-2 text-stone-400">
-              <li>Ankara &amp; Adire Styles</li>
-              <li>Aso Ebi &amp; Owambe Glam</li>
-              <li>Agbada &amp; Senator Suits</li>
-              <li>Bespoke Bridal &amp; Wedding Wear</li>
+              <li>
+                <a href="/" className="hover:text-amber-400 transition-colors">
+                  Explore Master Designers
+                </a>
+              </li>
+              <li>
+                <a href="/shop" className="hover:text-amber-400 transition-colors">
+                  Ready-To-Wear (RTW) Shop
+                </a>
+              </li>
+              <li>
+                <a href="/vault" className="hover:text-amber-400 transition-colors">
+                  Body Sizing Vault
+                </a>
+              </li>
+              <li>
+                <a href="/forum" className="hover:text-amber-400 transition-colors font-bold text-amber-300">
+                  🧵 Tailors' Guild &amp; Forum
+                </a>
+              </li>
             </ul>
           </div>
 

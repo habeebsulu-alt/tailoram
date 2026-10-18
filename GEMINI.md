@@ -210,4 +210,21 @@ Tailoram/
 - **Android App Links & Play Store TWA (`public/.well-known/assetlinks.json`)**: Digital Asset Links template for opening `tailoram.com` directly in the native Android app shell.
 - **Capacitor Mobile Bridge (`capacitor.config.ts`)**: Pre-configured with `appId: 'com.tailoram.app'` and `server.url: 'https://tailoram.com'`, enabling instant zero-rebuild over-the-air updates whenever Vercel deploys.
 
+---
 
+## 9. Master Tailors' Guild & Community Forum (`/forum`)
+- **Central Module**: `lib/forumManager.ts` (`fetchForumThreads`, `createForumThread`, `addForumReply`, `toggleUpvoteThread`, `toggleHelpfulReply`, `toggleMarkSolution`, `deleteForumThread`).
+- **Route**: `app/forum/page.tsx`.
+- **Purpose**: A dedicated peer-to-peer craft community connecting tailors across all 36 Nigerian states to share knowledge, benchmark market prices, compare studio machines, and troubleshoot garment fittings.
+- **6 Discussion Categories**:
+  1. `pattern_drafting`: Agbada shoulder balance formulas, Senator collar curves, corset boning, sleeve armscye drafting.
+  2. `troubleshooting`: Solving fabric puckering, collar bubbling with cheap interlining, needle breakage, zipper insertion.
+  3. `fabric_sourcing`: Balogun, Aba Ariaria, and Kano Kantin Kwari market price surveys, original cashmere vs blends, Swiss Voile, pure cotton Adire.
+  4. `machines_equipment`: Jack F4 direct-drive vs Juki, overlockers, steam boilers, embroidery rigs, 1.5kVA solar inverter power draw benchmarks.
+  5. `pricing_business`: Couture sewing charges, 48-hour emergency Owambe rush fee formulas, workshop overtime management.
+  6. `showcase_critique`: Peer fit-checks before client delivery, design feedback, and artisan praise.
+- **Community Mechanics**:
+  - Artisan Endorsements (upvotes) and "Helpful Advice" votes.
+  - "Mark as Solved / Best Advice" badge highlighting proven solutions.
+  - Verification badges linked to public designer profiles (`/designer/[id]`).
+- **Persistence**: Dual-layer architecture storing in Supabase `platform_settings` (`key: 'forum_threads'`) with local storage fallback (`tailoram_forum_threads`).

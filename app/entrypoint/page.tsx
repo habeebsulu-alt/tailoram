@@ -1698,6 +1698,14 @@ export default function AdminPage() {
             </button>
 
             <Link
+              href="/forum"
+              className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-xs font-bold text-stone-300 flex items-center gap-1.5 transition-colors border border-stone-700"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+              <span>Tailors' Forum</span>
+            </Link>
+
+            <Link
               href="/"
               className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-xs font-bold text-stone-300 flex items-center gap-1.5 transition-colors border border-stone-700"
             >
