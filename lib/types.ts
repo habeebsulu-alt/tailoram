@@ -243,9 +243,23 @@ export interface InAppNotification {
   image?: string;
 }
 
+export type AnalyticsEventType =
+  | 'search'
+  | 'profile_view'
+  | 'request_sent'
+  | 'request_status_change'
+  | 'share_designer_profile'
+  | 'page_view'
+  | 'login_success'
+  | 'login_failure'
+  | 'signup_success'
+  | 'signup_failure'
+  | 'admin_unlocked'
+  | 'admin_unlock_failure';
+
 export interface AnalyticsEvent {
   id?: string;
-  event_type: 'search' | 'profile_view' | 'request_sent' | 'request_status_change' | 'share_designer_profile';
+  event_type: AnalyticsEventType | string;
   user_id?: string | null;
   designer_id?: string | null;
   metadata?: Record<string, any>;

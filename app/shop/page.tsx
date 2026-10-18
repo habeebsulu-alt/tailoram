@@ -2,11 +2,13 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { StoreProduct, STORE_CATEGORIES } from '@/lib/types';
 import { checkIsWhatsAppEnabled } from '@/lib/whatsappSettings';
 import { normalizePhoneForWhatsApp } from '@/lib/phoneUtils';
 import { fetchDeletedProductIds, fetchProductOverrides } from '@/lib/adminManager';
+import { logEvent } from '@/lib/analytics';
 import {
   ShoppingBag,
   Search,
@@ -38,6 +40,10 @@ export default function ShopPage() {
   // Fetch products & settings
   useEffect(() => {
     checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+    logEvent({
+      event_type: 'page_view',
+      metadata: { page: 'shop', path: '/shop' },
+    });
     async function fetchProducts() {
       try {
         setLoading(true);
@@ -232,9 +238,11 @@ export default function ShopPage() {
                     className="group cursor-pointer bg-white rounded-3xl border border-stone-200/90 overflow-hidden shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col justify-between"
                   >
                     <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
-                      <img
+                      <Image
                         src={product.image_url}
                         alt={product.title}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                         className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                         loading="lazy"
                       />
@@ -352,10 +360,12 @@ export default function ShopPage() {
             </button>
 
             {/* Product Image */}
-            <div className="md:w-1/2 aspect-square md:aspect-auto bg-stone-100 relative">
-              <img
+            <div className="md:w-1/2 aspect-square md:aspect-auto bg-stone-100 relative min-h-[300px]">
+              <Image
                 src={selectedProduct.image_url}
                 alt={selectedProduct.title}
+                fill
+                sizes="(max-width: 768px) 100vw, 50vw"
                 className="w-full h-full object-cover"
               />
             </div>

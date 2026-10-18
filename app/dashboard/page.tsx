@@ -992,7 +992,7 @@ export default function DesignerDashboard() {
       const { error: storageError } = await supabase.storage
         .from('portfolio')
         .upload(fileName, compressedFile, {
-          cacheControl: '3600',
+          cacheControl: '31536000',
           upsert: true,
           contentType: 'image/webp',
         });
@@ -1176,7 +1176,7 @@ export default function DesignerDashboard() {
         const { error: storageError } = await supabase.storage
           .from('portfolio')
           .upload(fileName, finalFile, {
-            cacheControl: '3600',
+            cacheControl: '31536000',
             upsert: true,
             contentType: isVideo ? file.type || 'video/mp4' : 'image/webp',
           });
@@ -1407,7 +1407,7 @@ export default function DesignerDashboard() {
         const { error: storageError } = await supabase.storage
           .from('portfolio')
           .upload(fileName, uploadFile, {
-            cacheControl: '3600',
+            cacheControl: '31536000',
             upsert: true,
             contentType: isVideo ? editReplacementFile.type || 'video/mp4' : 'image/webp',
           });
@@ -1643,7 +1643,7 @@ export default function DesignerDashboard() {
 
           const { error: uploadError } = await supabase.storage
             .from('requests')
-            .upload(fileName, compressed, { cacheControl: '3600', upsert: true });
+            .upload(fileName, compressed, { cacheControl: '31536000', upsert: true });
 
           if (!uploadError) {
             const { data: { publicUrl } } = supabase.storage.from('requests').getPublicUrl(fileName);
@@ -2032,7 +2032,7 @@ export default function DesignerDashboard() {
       const { error: storageError } = await supabase.storage
         .from('portfolio')
         .upload(fileName, compressedFile, {
-          cacheControl: '3600',
+          cacheControl: '31536000',
           upsert: true,
           contentType: 'image/webp',
         });

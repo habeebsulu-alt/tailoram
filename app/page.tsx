@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import EntrySplash from '@/components/EntrySplash';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -235,9 +236,11 @@ function DesignerMarketplaceCard({
                       className="w-full h-full object-cover object-top"
                     />
                   ) : (
-                    <img
+                    <Image
                       src={item.media_url}
                       alt={item.caption || designer.business_name}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                       className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700"
                       loading="lazy"
                     />
@@ -324,9 +327,11 @@ function DesignerMarketplaceCard({
           <div className="absolute bottom-3 left-3 z-30 flex items-center gap-2">
             <div className="relative w-12 h-12 rounded-full aspect-square overflow-hidden border-2 border-white shadow-xl bg-stone-900 group-hover:scale-105 transition-transform duration-300 ring-2 ring-black/25 flex items-center justify-center">
               {designer.profile_image_url ? (
-                <img
+                <Image
                   src={designer.profile_image_url}
                   alt={designer.business_name}
+                  fill
+                  sizes="48px"
                   className="w-full h-full object-cover object-center"
                 />
               ) : (
@@ -596,6 +601,16 @@ export default function HomePage() {
     getHomepageDefaultSort().then((defSort) => {
       setSortBy(defSort);
       setConfiguredDefaultSort(defSort);
+    });
+
+    // Log homepage visitation telemetry
+    logEvent({
+      event_type: 'page_view',
+      metadata: {
+        page: 'home',
+        path: '/',
+        referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+      },
     });
 
     async function fetchDesigners() {
@@ -909,13 +924,15 @@ export default function HomePage() {
                   isActive ? 'opacity-100' : 'opacity-0'
                 }`}
               >
-                <img
+                <Image
                   src={slide.image}
                   alt={slide.title}
+                  fill
+                  priority={idx === 0}
+                  sizes="100vw"
                   className={`w-full h-full object-cover object-top transform transition-transform duration-[6000ms] ease-out ${
                     isActive ? 'scale-105' : 'scale-100'
                   }`}
-                  loading={idx === 0 ? 'eager' : 'lazy'}
                 />
               </div>
             );

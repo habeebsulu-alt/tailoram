@@ -96,7 +96,17 @@ import {
   CheckCheck,
   Camera,
   MessageCircle,
+  UserX,
+  UserCheck,
+  KeyRound,
+  Shield,
 } from 'lucide-react';
+import {
+  fetchUserLastLogins,
+  getLocalBufferedEvents,
+  UserLoginRecord,
+  logEvent,
+} from '@/lib/analytics';
 import {
   getEmailSettings,
   saveEmailSettings,
@@ -188,6 +198,14 @@ export default function AdminPage() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passkeyError, setPasskeyError] = useState('');
   const [isElevatingRole, setIsElevatingRole] = useState(false);
+  const [failedPasskeyAttempts, setFailedPasskeyAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState(0);
+
+  // Security Telemetry & User Logins State
+  const [userLastLogins, setUserLastLogins] = useState<Record<string, UserLoginRecord>>({});
+  const [eventCategoryFilter, setEventCategoryFilter] = useState<'all' | 'traffic' | 'auth' | 'requests' | 'admin'>('all');
+  const [eventSearchQuery, setEventSearchQuery] = useState('');
 
   // Password Reset Modal State
   const [resetModalUser, setResetModalUser] = useState<{ id: string; name: string; email: string } | null>(null);
@@ -306,6 +324,38 @@ export default function AdminPage() {
     }
   }, [profile?.role]);
 
+  // Lockout countdown timer
+  useEffect(() => {
+    if (!lockoutUntil) return;
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockoutUntil(null);
+        setLockoutSecondsLeft(0);
+        setPasskeyError('');
+        clearInterval(interval);
+      } else {
+        setLockoutSecondsLeft(remaining);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [lockoutUntil]);
+
+  // Helper: Format relative time
+  const formatTimeAgo = (isoString?: string): string => {
+    if (!isoString) return 'Never';
+    const diff = Date.now() - new Date(isoString).getTime();
+    if (diff < 0) return 'Just now';
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(isoString).toLocaleDateString();
+  };
+
   // Master Data Fetcher
   const fetchAllAdminData = async () => {
     try {
@@ -412,16 +462,30 @@ export default function AdminPage() {
       const mergedRevs = mergeWithLocalReviews(rawRevs);
       setReviewsList(mergedRevs);
 
-      // 6. Analytics Events
+      // 6. Analytics Events & Local Telemetry Buffer
       const { data: evData, error: evErr } = await supabase
         .from('events')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(250);
 
-      if (!evErr && evData) {
-        setEventsList(evData as AnalyticsEvent[]);
-      }
+      const cloudEvents = (!evErr && evData ? evData : []) as AnalyticsEvent[];
+      const localEvents = getLocalBufferedEvents();
+      const combinedEvents = [...cloudEvents];
+      localEvents.forEach((localEv) => {
+        const alreadyExists = combinedEvents.some(
+          (ce) => (ce.id && ce.id === localEv.id) || (ce.event_type === localEv.event_type && ce.created_at === localEv.created_at)
+        );
+        if (!alreadyExists) {
+          combinedEvents.push(localEv);
+        }
+      });
+      combinedEvents.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      setEventsList(combinedEvents);
+
+      // 6b. User Last Logins Telemetry
+      const loginsMap = await fetchUserLastLogins();
+      setUserLastLogins(loginsMap);
 
       // 7. Platform Settings
       const { data: settsData } = await supabase
@@ -481,17 +545,54 @@ export default function AdminPage() {
   }, [isUnlocked]);
 
   // Passkey Login Handle
-  const handlePasskeySubmit = (e: React.FormEvent) => {
+  const handlePasskeySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (lockoutUntil && Date.now() < lockoutUntil) {
+      setPasskeyError(`Too many failed attempts. Console locked for ${lockoutSecondsLeft}s.`);
+      return;
+    }
+
     const cleanKey = passkeyInput.trim();
     // Authorized administrative passkey: Energy#123
     if (cleanKey === 'Energy#123') {
       setIsUnlocked(true);
       sessionStorage.setItem('tailoram_admin_session', 'granted');
       setPasskeyError('');
+      setFailedPasskeyAttempts(0);
+      setLockoutUntil(null);
       showNotice('Admin authorization granted. Welcome to Tailoram Operations.');
+
+      await logEvent({
+        event_type: 'admin_unlocked',
+        user_id: user?.id || null,
+        metadata: {
+          email: user?.email || 'admin_session',
+          timestamp: new Date().toISOString(),
+        },
+      });
     } else {
-      setPasskeyError('Invalid administrative passkey. Access denied.');
+      const nextAttempts = failedPasskeyAttempts + 1;
+      setFailedPasskeyAttempts(nextAttempts);
+
+      await logEvent({
+        event_type: 'admin_unlock_failure',
+        user_id: user?.id || null,
+        metadata: {
+          email: user?.email || 'anonymous',
+          attempts: nextAttempts,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      if (nextAttempts >= 5) {
+        const lockoutTime = Date.now() + 30000;
+        setLockoutUntil(lockoutTime);
+        setLockoutSecondsLeft(30);
+        setPasskeyError('Too many failed attempts. Access temporarily locked for 30 seconds.');
+      } else {
+        setPasskeyError(`Invalid administrative passkey. Access denied. (${5 - nextAttempts} attempts remaining)`);
+      }
     }
   };
 
@@ -1341,6 +1442,23 @@ export default function AdminPage() {
       unisex: designers.filter((d) => !d.gender_focus || d.gender_focus === 'unisex').length,
     };
 
+    // 6. Platform Visitations & Route Popularity
+    const pageViewEvents = eventsList.filter((e) => e.event_type === 'page_view');
+    const totalVisits = pageViewEvents.length;
+    const visitsByPath: Record<string, number> = {};
+    pageViewEvents.forEach((e) => {
+      const path = (e.metadata?.path as string) || (e.metadata?.pathname as string) || '/';
+      visitsByPath[path] = (visitsByPath[path] || 0) + 1;
+    });
+
+    // 7. Security & Authentication Telemetry
+    const loginFailures = eventsList.filter((e) => e.event_type === 'login_failure');
+    const loginSuccesses = eventsList.filter((e) => e.event_type === 'login_success');
+    const signupFailures = eventsList.filter((e) => e.event_type === 'signup_failure');
+    const signupSuccesses = eventsList.filter((e) => e.event_type === 'signup_success');
+    const adminUnlockFailures = eventsList.filter((e) => e.event_type === 'admin_unlock_failure');
+    const adminUnlocks = eventsList.filter((e) => e.event_type === 'admin_unlocked');
+
     return {
       totalGMV,
       completedOrdersBudget,
@@ -1351,8 +1469,16 @@ export default function AdminPage() {
       genderCounts,
       verifiedCount: designers.filter((d) => d.is_verified).length,
       storeEnabledCount: designers.filter((d) => d.has_store).length,
+      totalVisits,
+      visitsByPath,
+      loginFailures,
+      loginSuccesses,
+      signupFailures,
+      signupSuccesses,
+      adminUnlockFailures,
+      adminUnlocks,
     };
-  }, [designers, requestsList, productsList, reviewsList]);
+  }, [designers, requestsList, productsList, reviewsList, eventsList]);
 
   // Filtering states for tabs
   const [designerSearch, setDesignerSearch] = useState('');
@@ -1460,8 +1586,9 @@ export default function AdminPage() {
                   type="password"
                   value={passkeyInput}
                   onChange={(e) => setPasskeyInput(e.target.value)}
-                  placeholder="Enter administrative passkey"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-stone-950 border border-stone-800 text-white text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 placeholder:text-stone-600"
+                  disabled={!!lockoutUntil && lockoutSecondsLeft > 0}
+                  placeholder={lockoutSecondsLeft > 0 ? `Locked for ${lockoutSecondsLeft}s...` : 'Enter administrative passkey'}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-stone-950 border border-stone-800 text-white text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 placeholder:text-stone-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
               {passkeyError && (
@@ -1474,26 +1601,21 @@ export default function AdminPage() {
 
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-stone-950 font-black text-sm shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+              disabled={!!lockoutUntil && lockoutSecondsLeft > 0}
+              className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed text-stone-950 font-black text-sm shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
             >
               <Unlock className="w-4 h-4" />
-              <span>Unlock Admin Console</span>
+              <span>{lockoutSecondsLeft > 0 ? `Access Locked (${lockoutSecondsLeft}s)` : 'Unlock Admin Console'}</span>
             </button>
           </form>
 
           <div className="pt-4 border-t border-stone-800 space-y-3 relative z-10">
-            {user && (
-              <button
-                onClick={handleElevateSelfToAdmin}
-                disabled={isElevatingRole}
-                className="w-full py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-xs font-bold text-stone-200 border border-stone-700 transition-colors flex items-center justify-center gap-2"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>
-                  {isElevatingRole ? 'Elevating...' : `Promote My Account (${user.email}) to Admin`}
-                </span>
-              </button>
-            )}
+            <div className="p-3 rounded-xl bg-stone-950/60 border border-stone-800 text-[11px] text-stone-400 flex items-start gap-2">
+              <Shield className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                Authorized administrator passkey required. All access and authorization attempts are actively monitored and logged to the security audit ledger.
+              </span>
+            </div>
 
             <div className="text-center">
               <Link href="/" className="text-xs text-stone-500 hover:text-stone-300">
@@ -1698,6 +1820,261 @@ export default function AdminPage() {
                 </div>
               </div>
 
+            </div>
+
+            {/* Platform Security, Failed Auth & Visitation Insights Hub */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-amber-400" />
+                    <span>Security Telemetry, Failed Auth & Platform Visitations</span>
+                  </h3>
+                  <p className="text-xs text-stone-400">
+                    Real-time monitoring of client & tailor logins, credential errors, sign-up conversions, and audience traffic
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-stone-400 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="font-bold text-white">Live Monitor</span>
+                </div>
+              </div>
+
+              {/* 4 Security & Traffic KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                {/* Platform Visitations */}
+                <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 shadow-lg relative overflow-hidden">
+                  <div className="flex items-center justify-between text-xs font-bold text-stone-400 mb-2">
+                    <span>PLATFORM VISITATIONS</span>
+                    <Globe className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-white">
+                    {analyticsSummary.totalVisits.toLocaleString()}
+                  </div>
+                  <div className="mt-2 text-xs text-stone-400 flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5 text-blue-400" />
+                    <span>{Object.keys(analyticsSummary.visitsByPath).length} routes tracked</span>
+                  </div>
+                </div>
+
+                {/* Failed Login Attempts */}
+                <div className={`border rounded-3xl p-5 shadow-lg relative overflow-hidden ${
+                  analyticsSummary.loginFailures.length > 0
+                    ? 'bg-red-950/20 border-red-500/40 text-red-100'
+                    : 'bg-stone-900 border-stone-800'
+                }`}>
+                  <div className="flex items-center justify-between text-xs font-bold text-stone-400 mb-2">
+                    <span>FAILED LOGINS</span>
+                    <UserX className={`w-4 h-4 ${analyticsSummary.loginFailures.length > 0 ? 'text-red-400' : 'text-stone-500'}`} />
+                  </div>
+                  <div className={`text-2xl sm:text-3xl font-black ${
+                    analyticsSummary.loginFailures.length > 0 ? 'text-red-400' : 'text-white'
+                  }`}>
+                    {analyticsSummary.loginFailures.length}
+                  </div>
+                  <div className="mt-2 text-xs">
+                    {analyticsSummary.loginFailures.length > 0 ? (
+                      <span className="text-red-400 font-bold">⚠️ Credential typo / brute monitoring</span>
+                    ) : (
+                      <span className="text-emerald-400 font-bold">✓ 0 failed login attempts</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Failed Signup Attempts */}
+                <div className={`border rounded-3xl p-5 shadow-lg relative overflow-hidden ${
+                  analyticsSummary.signupFailures.length > 0
+                    ? 'bg-amber-950/20 border-amber-500/40'
+                    : 'bg-stone-900 border-stone-800'
+                }`}>
+                  <div className="flex items-center justify-between text-xs font-bold text-stone-400 mb-2">
+                    <span>FAILED SIGN-UPS</span>
+                    <AlertTriangle className={`w-4 h-4 ${analyticsSummary.signupFailures.length > 0 ? 'text-amber-400' : 'text-stone-500'}`} />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-white">
+                    {analyticsSummary.signupFailures.length}
+                  </div>
+                  <div className="mt-2 text-xs">
+                    {analyticsSummary.signupFailures.length > 0 ? (
+                      <span className="text-amber-400 font-bold">Registration drop-offs detected</span>
+                    ) : (
+                      <span className="text-emerald-400 font-bold">✓ Smooth registration flow</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* User Last Logins & Active Sessions */}
+                <div className="bg-stone-900 border border-stone-800 rounded-3xl p-5 shadow-lg relative overflow-hidden">
+                  <div className="flex items-center justify-between text-xs font-bold text-stone-400 mb-2">
+                    <span>RECORDED LOGINS</span>
+                    <UserCheck className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-white">
+                    {Object.keys(userLastLogins).length}
+                  </div>
+                  <div className="mt-2 text-xs text-stone-400">
+                    <span className="text-emerald-400 font-bold">{analyticsSummary.loginSuccesses.length} successful logins</span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Security & Traffic Two-Column Details */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Security Audit Table (Recent Auth Attempts) */}
+                <div className="lg:col-span-2 bg-stone-900 border border-stone-800 rounded-3xl p-6 shadow-lg space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-black text-sm text-white flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-amber-400" />
+                      <span>Recent Authentication & Security Events</span>
+                    </h4>
+                    <span className="text-[11px] text-stone-400">
+                      {analyticsSummary.loginFailures.length + analyticsSummary.signupFailures.length + analyticsSummary.loginSuccesses.length + analyticsSummary.adminUnlockFailures.length} attempts
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto max-h-72 overflow-y-auto pr-1">
+                    {eventsList.filter((e) =>
+                      e.event_type.startsWith('login_') ||
+                      e.event_type.startsWith('signup_') ||
+                      e.event_type.startsWith('admin_')
+                    ).length === 0 ? (
+                      <div className="py-8 text-center text-xs text-stone-500">
+                        No authentication or security incidents logged yet. All platform sessions are normal.
+                      </div>
+                    ) : (
+                      <table className="w-full text-left text-xs text-stone-300">
+                        <thead className="bg-stone-950/80 text-stone-400 uppercase text-[10px] font-black tracking-wider sticky top-0">
+                          <tr>
+                            <th className="py-2 px-3 rounded-l-xl">Event</th>
+                            <th className="py-2 px-3">Target Account</th>
+                            <th className="py-2 px-3">Method / Failure Reason</th>
+                            <th className="py-2 px-3 rounded-r-xl text-right">Time</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-800/60">
+                          {eventsList
+                            .filter((e) =>
+                              e.event_type.startsWith('login_') ||
+                              e.event_type.startsWith('signup_') ||
+                              e.event_type.startsWith('admin_')
+                            )
+                            .slice(0, 10)
+                            .map((ev, i) => {
+                              const isFailure =
+                                ev.event_type === 'login_failure' ||
+                                ev.event_type === 'signup_failure' ||
+                                ev.event_type === 'admin_unlock_failure';
+                              const meta = ev.metadata || {};
+                              const accountEmail =
+                                (meta.email as string) ||
+                                (ev.user_id ? ev.user_id.slice(0, 12) + '...' : 'Anonymous');
+
+                              return (
+                                <tr key={ev.id || i} className="hover:bg-stone-800/30">
+                                  <td className="py-2.5 px-3">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase inline-block ${
+                                        ev.event_type === 'login_failure'
+                                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                          : ev.event_type === 'signup_failure'
+                                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                          : ev.event_type === 'admin_unlock_failure'
+                                          ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                                          : ev.event_type === 'admin_unlocked'
+                                          ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
+                                          : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                      }`}
+                                    >
+                                      {ev.event_type.replace(/_/g, ' ')}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-3 font-mono text-[11px] text-stone-200">
+                                    {accountEmail}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-stone-400 text-[11px]">
+                                    {isFailure ? (
+                                      <span className="text-red-400 font-medium">
+                                        {(meta.failure_reason as string) || (meta.attempts ? `Bad Passkey (${meta.attempts} att.)` : 'Invalid credentials')}
+                                      </span>
+                                    ) : (
+                                      <span className="text-stone-300 capitalize">
+                                        {(meta.method as string) || (meta.role as string) || 'Authorized'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-stone-500 text-right whitespace-nowrap text-[11px]">
+                                    {ev.created_at ? formatTimeAgo(ev.created_at) : 'Just now'}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+
+                {/* Visitation Breakdown by Page Route */}
+                <div className="bg-stone-900 border border-stone-800 rounded-3xl p-6 shadow-lg space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-black text-sm text-white flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-blue-400" />
+                      <span>Traffic by Page Route</span>
+                    </h4>
+                    <span className="text-[11px] text-stone-400">
+                      {analyticsSummary.totalVisits} views
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 pt-1">
+                    {Object.keys(analyticsSummary.visitsByPath).length === 0 ? (
+                      <div className="py-8 text-center text-xs text-stone-500">
+                        No page views logged yet. Visit the homepage or store to register traffic.
+                      </div>
+                    ) : (
+                      Object.entries(analyticsSummary.visitsByPath)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 5)
+                        .map(([path, count]) => {
+                          const percent = analyticsSummary.totalVisits > 0
+                            ? Math.round((count / analyticsSummary.totalVisits) * 100)
+                            : 0;
+                          const pathLabel =
+                            path === '/'
+                              ? 'Homepage (/)'
+                              : path === '/shop'
+                              ? 'RTW Shop (/shop)'
+                              : path === '/login'
+                              ? 'Sign In (/login)'
+                              : path === '/signup'
+                              ? 'Sign Up (/signup)'
+                              : path === '/entrypoint'
+                              ? 'Admin (/entrypoint)'
+                              : path;
+
+                          return (
+                            <div key={path} className="space-y-1">
+                              <div className="flex justify-between text-xs font-bold text-stone-300">
+                                <span className="font-mono text-[11px] text-stone-200 truncate max-w-[160px]">{pathLabel}</span>
+                                <span className="text-amber-400 font-mono">{count} ({percent}%)</span>
+                              </div>
+                              <div className="w-full h-1.5 rounded-full bg-stone-800 overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-amber-500 to-amber-400"
+                                  style={{ width: `${percent}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
+
+              </div>
             </div>
 
             {/* Breakdowns & Distribution Grids */}
@@ -2221,12 +2598,14 @@ export default function AdminPage() {
                       <th className="py-3.5 px-4">Email / ID</th>
                       <th className="py-3.5 px-4">Current Role</th>
                       <th className="py-3.5 px-4">Joined Date</th>
+                      <th className="py-3.5 px-4">Last Active / Login</th>
                       <th className="py-3.5 px-4 text-right">Actions / Role</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-800">
                     {filteredUsers.map((u) => {
                       const userEmail = DEMO_EMAILS_MAP[u.id] || (u.id === user?.id ? user.email || '' : '');
+                      const loginRecord = (userEmail ? userLastLogins[userEmail.toLowerCase()] : null) || userLastLogins[u.id.toLowerCase()];
                       return (
                         <tr key={u.id} className="hover:bg-stone-800/40 transition-colors">
                           <td className="py-3 px-4 font-bold text-white">
@@ -2254,6 +2633,33 @@ export default function AdminPage() {
                           </td>
                           <td className="py-3 px-4 text-stone-400 text-[11px]">
                             {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-stone-300 text-[11px]">
+                            {loginRecord ? (
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1.5 font-bold">
+                                  {loginRecord.status === 'success' ? (
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                                  ) : (
+                                    <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
+                                  )}
+                                  <span className={loginRecord.status === 'success' ? 'text-white' : 'text-red-400'}>
+                                    {formatTimeAgo(loginRecord.lastLoginAt)}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-stone-500 font-mono">
+                                  {loginRecord.status === 'success' ? (
+                                    <span className="capitalize">{loginRecord.loginMethod} Auth</span>
+                                  ) : (
+                                    <span className="text-red-400 truncate max-w-[120px] block" title={loginRecord.failureReason}>
+                                      {loginRecord.failureReason || 'Failed'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-stone-600 text-[10px] italic">No recent record</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -2606,32 +3012,131 @@ export default function AdminPage() {
                 </div>
                 <button
                   onClick={fetchAllAdminData}
-                  className="px-3 py-1.5 rounded-xl bg-stone-800 text-xs font-bold text-stone-200"
+                  disabled={refreshing}
+                  className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-xs font-bold text-stone-200 border border-stone-700 transition-colors flex items-center gap-1.5"
                 >
-                  Refresh Feed
+                  <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-amber-400' : ''}`} />
+                  <span>Refresh Feed</span>
                 </button>
               </div>
 
-              <div className="space-y-2">
-                {eventsList.map((ev, i) => (
-                  <div
-                    key={ev.id || i}
-                    className="p-3 rounded-2xl bg-stone-950 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold text-[10px] uppercase">
-                        {ev.event_type}
-                      </span>
-                      <span className="font-mono text-stone-300 text-[11px]">
-                        {JSON.stringify(ev.metadata || {})}
-                      </span>
-                    </div>
+              {/* Filter & Search Bar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                  {[
+                    { id: 'all', label: `All (${eventsList.length})` },
+                    { id: 'traffic', label: `🌐 Visitations (${eventsList.filter((e) => e.event_type === 'page_view').length})` },
+                    { id: 'auth', label: `🛡️ Security & Auth (${eventsList.filter((e) => e.event_type.startsWith('login_') || e.event_type.startsWith('signup_') || e.event_type.startsWith('admin_')).length})` },
+                    { id: 'requests', label: `📦 Orders (${eventsList.filter((e) => e.event_type.includes('request') || e.event_type.includes('order') || e.event_type.includes('quote') || e.event_type.includes('deposit')).length})` },
+                  ].map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setEventCategoryFilter(cat.id as any)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                        eventCategoryFilter === cat.id
+                          ? 'bg-amber-400 text-stone-950 font-black shadow-sm'
+                          : 'bg-stone-950 text-stone-400 hover:text-white border border-stone-800'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
 
-                    <div className="text-[10px] text-stone-500">
-                      {ev.created_at ? new Date(ev.created_at).toLocaleString() : 'Recent'}
-                    </div>
-                  </div>
-                ))}
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-stone-500" />
+                  <input
+                    type="text"
+                    value={eventSearchQuery}
+                    onChange={(e) => setEventSearchQuery(e.target.value)}
+                    placeholder="Search event, email, or meta..."
+                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-stone-950 border border-stone-800 text-xs text-white placeholder:text-stone-500 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                {eventsList
+                  .filter((ev) => {
+                    if (eventCategoryFilter === 'traffic' && ev.event_type !== 'page_view') return false;
+                    if (
+                      eventCategoryFilter === 'auth' &&
+                      !(
+                        ev.event_type.startsWith('login_') ||
+                        ev.event_type.startsWith('signup_') ||
+                        ev.event_type.startsWith('admin_')
+                      )
+                    )
+                      return false;
+                    if (
+                      eventCategoryFilter === 'requests' &&
+                      !(
+                        ev.event_type.includes('request') ||
+                        ev.event_type.includes('order') ||
+                        ev.event_type.includes('quote') ||
+                        ev.event_type.includes('deposit')
+                      )
+                    )
+                      return false;
+
+                    if (eventSearchQuery.trim()) {
+                      const q = eventSearchQuery.toLowerCase();
+                      const typeMatch = ev.event_type.toLowerCase().includes(q);
+                      const metaMatch = JSON.stringify(ev.metadata || {}).toLowerCase().includes(q);
+                      const userMatch = (ev.user_id || '').toLowerCase().includes(q);
+                      const desMatch = (ev.designer_id || '').toLowerCase().includes(q);
+                      return typeMatch || metaMatch || userMatch || desMatch;
+                    }
+                    return true;
+                  })
+                  .map((ev, i) => {
+                    const isFailure =
+                      ev.event_type === 'login_failure' ||
+                      ev.event_type === 'signup_failure' ||
+                      ev.event_type === 'admin_unlock_failure';
+                    const isSuccess =
+                      ev.event_type === 'login_success' ||
+                      ev.event_type === 'signup_success' ||
+                      ev.event_type === 'admin_unlocked';
+                    const isTraffic = ev.event_type === 'page_view';
+
+                    return (
+                      <div
+                        key={ev.id || i}
+                        className={`p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition-colors ${
+                          isFailure
+                            ? 'bg-red-950/20 border-red-500/30 text-red-200'
+                            : isTraffic
+                            ? 'bg-stone-950/90 border-blue-500/20 text-stone-300'
+                            : 'bg-stone-950 border-stone-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-full font-bold text-[10px] uppercase border ${
+                              isFailure
+                                ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                                : isSuccess
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                : isTraffic
+                                ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                                : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                            }`}
+                          >
+                            {ev.event_type.replace(/_/g, ' ')}
+                          </span>
+
+                          <span className="font-mono text-stone-300 text-[11px] truncate max-w-lg">
+                            {JSON.stringify(ev.metadata || {})}
+                          </span>
+                        </div>
+
+                        <div className="text-[11px] text-stone-500 whitespace-nowrap font-mono">
+                          {ev.created_at ? formatTimeAgo(ev.created_at) : 'Recent'}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
 

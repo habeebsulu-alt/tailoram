@@ -200,7 +200,7 @@ function RequestForm() {
 
         const { error: uploadError } = await supabase.storage
           .from('requests')
-          .upload(fileName, compressed, { cacheControl: '3600', upsert: true });
+          .upload(fileName, compressed, { cacheControl: '31536000', upsert: true });
 
         if (uploadError) {
           console.warn('Reference image upload failed:', uploadError.message);

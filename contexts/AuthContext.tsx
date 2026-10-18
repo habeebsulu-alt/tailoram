@@ -5,6 +5,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Profile, DesignerProfile, UserRole } from '@/lib/types';
 import { fetchUserRoleOverrides, getLocalUserRoleOverrides } from '@/lib/adminManager';
+import { recordLoginAttempt, recordSignupAttempt } from '@/lib/analytics';
 
 interface AuthContextType {
   user: User | null;
@@ -261,6 +262,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const effectiveRole = roleOverrides[data.user.id] || (prof?.role as UserRole) || 'client';
 
         await fetchProfiles(data.user.id);
+
+        // Record successful login telemetry
+        await recordLoginAttempt({
+          userId: data.user.id,
+          email: cleanEmail,
+          role: effectiveRole,
+          lastLoginAt: new Date().toISOString(),
+          loginMethod: 'password',
+          status: 'success',
+        });
+
         return { error: null, role: effectiveRole };
       }
 
@@ -329,15 +341,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const roleOverrides = await fetchUserRoleOverrides();
           const effectiveRole = roleOverrides[demoInfo.id] || demoInfo.role;
 
+          // Record successful login telemetry for demo/custom password
+          await recordLoginAttempt({
+            userId: demoInfo.id,
+            email: cleanEmail,
+            role: effectiveRole,
+            lastLoginAt: new Date().toISOString(),
+            loginMethod: 'demo',
+            status: 'success',
+          });
+
           return { error: null, role: effectiveRole };
         }
       }
+
+      // Record failed login attempt
+      await recordLoginAttempt({
+        email: cleanEmail,
+        lastLoginAt: new Date().toISOString(),
+        loginMethod: 'password',
+        status: 'failed',
+        failureReason: error?.message || 'Incorrect password or unverified account',
+      });
 
       // Return clean, human-friendly error without technical hints
       return {
         error: new Error('Invalid email or password. Please try again.'),
       };
     } catch (err: any) {
+      await recordLoginAttempt({
+        email: cleanEmail,
+        lastLoginAt: new Date().toISOString(),
+        loginMethod: 'password',
+        status: 'failed',
+        failureReason: err.message || 'Authentication exception',
+      });
+
       return {
         error: new Error(err.message || 'Invalid email or password. Please try again.'),
       };
@@ -436,11 +475,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (hasActiveSession) {
         await fetchProfiles(newUserId);
+        await recordSignupAttempt({
+          email,
+          fullName,
+          role,
+          status: 'success',
+          userId: newUserId,
+        });
         return { error: null, needsEmailConfirmation: false };
       } else {
+        await recordSignupAttempt({
+          email,
+          fullName,
+          role,
+          status: 'success',
+          userId: newUserId,
+        });
         return { error: null, needsEmailConfirmation: true };
       }
     } catch (err: any) {
+      await recordSignupAttempt({
+        email,
+        fullName,
+        role,
+        status: 'failed',
+        failureReason: err?.message || 'Registration exception',
+      });
       return { error: err };
     }
   };

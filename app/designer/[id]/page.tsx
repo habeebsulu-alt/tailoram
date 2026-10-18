@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { logEvent } from '@/lib/analytics';
@@ -475,9 +476,11 @@ export default function DesignerProfilePage() {
               >
                 {designer.profile_image_url ? (
                   <>
-                    <img
+                    <Image
                       src={designer.profile_image_url}
                       alt={designer.business_name}
+                      fill
+                      sizes="(max-width: 640px) 96px, 128px"
                       className={`w-full h-full ${
                         (typeof window !== 'undefined' && localStorage.getItem(`tailoram_avatar_fit_${designer.id}`) === 'contain')
                           ? 'object-contain p-1 sm:p-1.5'
@@ -852,9 +855,11 @@ export default function DesignerProfilePage() {
                         </div>
                       </div>
                     ) : (
-                      <img
+                      <Image
                         src={item.media_url}
                         alt={item.caption || 'Tailor Outfit'}
+                        fill
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                         className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
                         loading="lazy"
                       />
@@ -927,9 +932,11 @@ export default function DesignerProfilePage() {
                     className="group cursor-pointer bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-xl transition-all hover:-translate-y-1 flex flex-col justify-between"
                   >
                     <div className="relative aspect-[4/5] bg-stone-100 overflow-hidden">
-                      <img
+                      <Image
                         src={product.image_url}
                         alt={product.title}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
                       />
