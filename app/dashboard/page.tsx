@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { compressImage, compressAvatarImage } from '@/lib/imageCompressor';
+import { compressImage, compressAvatarImage, isValidImageFile, prepareImageFile } from '@/lib/imageCompressor';
 import { logEvent } from '@/lib/analytics';
 import {
   PortfolioItem,
@@ -967,12 +967,12 @@ export default function DesignerDashboard() {
     if (!e.target.files || !e.target.files[0]) return;
     const file = e.target.files[0];
 
-    if (!file.type.startsWith('image/')) {
-      setAvatarError('Please select a valid image (.jpg, .png, .webp).');
+    if (!isValidImageFile(file)) {
+      setAvatarError('Please select a valid image (.jpg, .png, .webp, .heic).');
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
-      setAvatarError('Profile photo must be under 15MB.');
+    if (file.size > 25 * 1024 * 1024) {
+      setAvatarError('Profile photo must be under 25MB.');
       return;
     }
     if (!designerProfile?.id) {
@@ -1057,7 +1057,7 @@ export default function DesignerDashboard() {
   };
 
   // Handle File selection (Supports multiple outfit photos or single video reel)
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setUploadError('');
     if (!e.target.files || e.target.files.length === 0) return;
 
@@ -1081,15 +1081,17 @@ export default function DesignerDashboard() {
       const validFiles: File[] = [];
       const newPreviews: { id: string; file: File; url: string; isVideo: boolean }[] = [];
 
-      for (const file of files) {
-        if (!file.type.startsWith('image/')) {
-          setUploadError('Please select valid image files (.jpg, .png, .webp).');
+      for (const rawFile of files) {
+        if (!isValidImageFile(rawFile)) {
+          setUploadError('Please select valid image files (.jpg, .png, .webp, .heic).');
           continue;
         }
-        if (file.size > 15 * 1024 * 1024) {
-          setUploadError(`"${file.name}" exceeds 15MB limit.`);
+        if (rawFile.size > 25 * 1024 * 1024) {
+          setUploadError(`"${rawFile.name}" exceeds 25MB limit.`);
           continue;
         }
+        // Normalize HEIC to JPEG so browser image preview works instantly
+        const file = await prepareImageFile(rawFile);
         validFiles.push(file);
         newPreviews.push({
           id: Math.random().toString(36).substring(2, 9),
@@ -1356,20 +1358,26 @@ export default function DesignerDashboard() {
   };
 
   // Select replacement photo or video
-  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setUpdateError('');
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
-    const isVideo = file.type.startsWith('video/');
-    if (isVideo && file.size > 40 * 1024 * 1024) {
+    const isVideo = rawFile.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(rawFile.name);
+    if (isVideo && rawFile.size > 40 * 1024 * 1024) {
       setUpdateError('Video file exceeds 40MB limit.');
       return;
     }
-    if (!isVideo && file.size > 15 * 1024 * 1024) {
-      setUpdateError('Image file exceeds 15MB limit.');
+    if (!isVideo && !isValidImageFile(rawFile)) {
+      setUpdateError('Please select a valid image or video file (.jpg, .png, .webp, .heic).');
       return;
     }
+    if (!isVideo && rawFile.size > 25 * 1024 * 1024) {
+      setUpdateError('Image file exceeds 25MB limit.');
+      return;
+    }
+
+    const file = !isVideo ? await prepareImageFile(rawFile) : rawFile;
 
     setEditReplacementFile(file);
     if (editPreviewUrl && editPreviewUrl.startsWith('blob:')) {
@@ -1978,15 +1986,23 @@ export default function DesignerDashboard() {
   };
 
   // Handle product image selection
-  const handleProductImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProductImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setProductError('');
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.size > 15 * 1024 * 1024) {
-        setProductError('Photo file is too large (max 15MB).');
+      const rawFile = e.target.files[0];
+      if (!isValidImageFile(rawFile)) {
+        setProductError('Please select a valid image file (.jpg, .png, .webp, .heic).');
         return;
       }
+      if (rawFile.size > 25 * 1024 * 1024) {
+        setProductError('Photo file is too large (max 25MB).');
+        return;
+      }
+      const file = await prepareImageFile(rawFile);
       setProductImageFile(file);
+      if (productPreviewUrl && productPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(productPreviewUrl);
+      }
       setProductPreviewUrl(URL.createObjectURL(file));
     }
   };
@@ -2222,7 +2238,7 @@ export default function DesignerDashboard() {
                 <input
                   type="file"
                   ref={avatarInputRef}
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
                   onChange={handleAvatarChange}
                   className="hidden"
                 />
@@ -4887,7 +4903,7 @@ export default function DesignerDashboard() {
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
                   {uploadMediaType === 'video'
                     ? 'Select Video Reel (.mp4, .mov)'
-                    : 'Select One or Multiple Photos (.jpg, .png, .webp)'}{' '}
+                    : 'Select One or Multiple Photos (.jpg, .png, .webp, .heic)'}{' '}
                   <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -4897,7 +4913,7 @@ export default function DesignerDashboard() {
                   accept={
                     uploadMediaType === 'video'
                       ? 'video/mp4,video/quicktime,video/webm'
-                      : 'image/jpeg,image/png,image/webp'
+                      : 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif'
                   }
                   onChange={handleFileChange}
                   className="w-full text-xs text-stone-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer"
@@ -5119,7 +5135,7 @@ export default function DesignerDashboard() {
                 <input
                   type="file"
                   ref={productImageInputRef}
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
                   onChange={handleProductImageChange}
                   className="w-full text-xs text-stone-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer"
                 />
@@ -5387,7 +5403,7 @@ export default function DesignerDashboard() {
                 <input
                   type="file"
                   ref={editFileInputRef}
-                  accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,video/mp4,video/quicktime,video/webm"
                   onChange={handleEditFileChange}
                   className="hidden"
                 />
@@ -5771,11 +5787,16 @@ export default function DesignerDashboard() {
                   <input
                     type="file"
                     ref={raiseFileInputRef}
-                    accept="image/*"
-                    onChange={(e) => {
+                    accept="image/*,.heic,.heif"
+                    onChange={async (e) => {
                       if (e.target.files && e.target.files[0]) {
-                        const file = e.target.files[0];
+                        const rawFile = e.target.files[0];
+                        if (!isValidImageFile(rawFile)) return;
+                        const file = await prepareImageFile(rawFile);
                         setRaiseReferenceFile(file);
+                        if (raisePreviewUrl && raisePreviewUrl.startsWith('blob:')) {
+                          URL.revokeObjectURL(raisePreviewUrl);
+                        }
                         setRaisePreviewUrl(URL.createObjectURL(file));
                       }
                     }}

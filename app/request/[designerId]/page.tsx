@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { logEvent } from '@/lib/analytics';
-import { compressImage } from '@/lib/imageCompressor';
+import { compressImage, isValidImageFile, prepareImageFile } from '@/lib/imageCompressor';
 import { DesignerProfile, OutfitRequest, ClientMeasurements, FabricSourcingType } from '@/lib/types';
 import { saveLocalCreatedRequest, saveCloudChatMessage } from '@/lib/payments';
 import { triggerEmailNotification, resolveUserEmail } from '@/lib/emailNotifications';
@@ -144,10 +144,18 @@ function RequestForm() {
     }
   }, [user, authLoading, router, designerId, inspoUrl, styleTitle]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
+      const rawFile = e.target.files[0];
+      if (!isValidImageFile(rawFile)) {
+        setErrorMessage('Please select a valid image file (.jpg, .png, .webp, .heic).');
+        return;
+      }
+      const file = await prepareImageFile(rawFile);
       setReferenceFile(file);
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
       setPreviewUrl(URL.createObjectURL(file));
       setInspoPhotoUrl(null); // Overridden with custom file
     }
@@ -920,7 +928,7 @@ function RequestForm() {
               <input
                 type="file"
                 ref={fileInputRef}
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
                 onChange={handleFileChange}
                 className="mt-2 w-full text-xs text-stone-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 cursor-pointer"
               />
