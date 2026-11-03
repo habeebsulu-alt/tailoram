@@ -128,11 +128,11 @@ export default function Navbar() {
                       <LayoutDashboard className="w-4 h-4 text-brand-600" />
                       Dashboard
                     </Link>
-                    <Link
-                      href="/dashboard?tab=assistant"
+                    <button
+                      type="button"
                       onClick={() => {
                         if (typeof window !== 'undefined') {
-                          window.dispatchEvent(new CustomEvent('tailoram_switch_tab', { detail: 'assistant' }));
+                          window.dispatchEvent(new CustomEvent('tailoram_open_assistant'));
                         }
                       }}
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 font-bold text-xs sm:text-sm border border-amber-500/30 transition-all shadow-xs cursor-pointer"
@@ -143,7 +143,7 @@ export default function Navbar() {
                       <span className="text-[9px] font-black uppercase bg-amber-500 text-stone-950 px-1.5 py-0.2 rounded-full">
                         AI
                       </span>
-                    </Link>
+                    </button>
                     <Link
                       href="/requests"
                       className="flex items-center gap-1.5 text-stone-700 hover:text-brand-600 font-medium text-sm transition-colors"
@@ -323,15 +323,15 @@ export default function Navbar() {
 
               {profile?.role === 'designer' ? (
                 <>
-                  <Link
-                    href="/dashboard?tab=assistant"
+                  <button
+                    type="button"
                     onClick={() => {
                       setMobileMenuOpen(false);
                       if (typeof window !== 'undefined') {
-                        window.dispatchEvent(new CustomEvent('tailoram_switch_tab', { detail: 'assistant' }));
+                        window.dispatchEvent(new CustomEvent('tailoram_open_assistant'));
                       }
                     }}
-                    className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-sm font-bold text-amber-900"
+                    className="w-full flex items-center justify-between py-2.5 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-sm font-bold text-amber-900 cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
@@ -340,7 +340,7 @@ export default function Navbar() {
                     <span className="text-[10px] font-black uppercase bg-amber-500 text-stone-950 px-2 py-0.5 rounded-full">
                       AI
                     </span>
-                  </Link>
+                  </button>
                   <Link
                     href="/dashboard"
                     onClick={() => setMobileMenuOpen(false)}

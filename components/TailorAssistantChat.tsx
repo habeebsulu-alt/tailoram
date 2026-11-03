@@ -19,6 +19,9 @@ import {
   CheckCircle2,
   Trash2,
   Layers,
+  Minus,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { prepareImageFile, compressImage, isValidImageFile } from '@/lib/imageCompressor';
 
@@ -37,12 +40,20 @@ interface TailorAssistantChatProps {
   tailorId: string;
   tailorName?: string;
   onClose?: () => void;
+  onMinimize?: () => void;
+  onToggleExpand?: () => void;
+  isExpanded?: boolean;
+  className?: string;
 }
 
 export default function TailorAssistantChat({
   tailorId,
   tailorName = 'Master Tailor',
   onClose,
+  onMinimize,
+  onToggleExpand,
+  isExpanded = false,
+  className = '',
 }: TailorAssistantChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -276,7 +287,7 @@ export default function TailorAssistantChat({
   const remainingQuota = Math.max(0, 15 - usedToday);
 
   return (
-    <div className="flex flex-col h-[750px] max-h-[85vh] bg-stone-900 border border-stone-800 rounded-3xl overflow-hidden shadow-2xl text-stone-100 relative">
+    <div className={`flex flex-col bg-stone-900 border border-stone-800 rounded-3xl overflow-hidden shadow-2xl text-stone-100 relative ${className || 'h-[750px] max-h-[85vh]'}`}>
       {/* Header */}
       <div className="px-4 py-3.5 bg-stone-950 border-b border-stone-800 flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-3">
@@ -298,7 +309,7 @@ export default function TailorAssistantChat({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Daily Quota Counter Badge */}
           <div
             title="Limit of 15 questions per tailor per day"
@@ -319,9 +330,31 @@ export default function TailorAssistantChat({
               type="button"
               onClick={handleClearChat}
               title="Clear chat history"
-              className="p-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800/80 rounded-xl transition-colors"
+              className="p-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800/80 rounded-xl transition-colors cursor-pointer"
             >
               <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+
+          {onToggleExpand && (
+            <button
+              type="button"
+              onClick={onToggleExpand}
+              title={isExpanded ? 'Restore window size' : 'Expand window'}
+              className="hidden sm:inline-flex p-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800/80 rounded-xl transition-colors cursor-pointer"
+            >
+              {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          )}
+
+          {onMinimize && (
+            <button
+              type="button"
+              onClick={onMinimize}
+              title="Minimize chat"
+              className="p-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800/80 rounded-xl transition-colors cursor-pointer"
+            >
+              <Minus className="w-4 h-4" />
             </button>
           )}
 
@@ -329,7 +362,8 @@ export default function TailorAssistantChat({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-stone-400 hover:text-white hover:bg-stone-800/80 rounded-xl transition-colors"
+              title="Close Co-Tailor"
+              className="p-2 text-stone-400 hover:text-white hover:bg-stone-800/80 rounded-xl transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>

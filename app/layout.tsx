@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import AndroidInstallPrompt from '@/components/AndroidInstallPrompt';
+import CoTailorPopup from '@/components/CoTailorPopup';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://tailoram.com'),
@@ -55,6 +56,7 @@ export default function RootLayout({
           <Footer />
           <MobileBottomNav />
           <AndroidInstallPrompt />
+          <CoTailorPopup />
         </AuthProvider>
       </body>
     </html>

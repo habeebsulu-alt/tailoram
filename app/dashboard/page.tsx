@@ -2585,13 +2585,12 @@ export default function DesignerDashboard() {
             <button
               type="button"
               onClick={() => {
-                setActiveTab('assistant');
                 if (typeof window !== 'undefined') {
-                  window.history.replaceState({}, '', '/dashboard?tab=assistant');
+                  window.dispatchEvent(new CustomEvent('tailoram_open_assistant'));
                 }
               }}
               className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-amber-500/50 text-stone-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-xs sm:text-sm font-black shadow-md shadow-amber-500/20 transition-all hover:scale-[1.01] active:scale-95 cursor-pointer"
-              title="Open Co-Tailor: Yardage calculator, pricing ranges & cutting advice"
+              title="Open Co-Tailor AI: Yardage calculator, pricing ranges & cutting advice"
             >
               <Sparkles className="w-4 h-4 text-stone-950 animate-pulse" />
               <span>Ask Co-Tailor</span>
@@ -6264,8 +6263,8 @@ export default function DesignerDashboard() {
                   setShowAssistantOnboarding(false);
                   if (typeof window !== 'undefined') {
                     localStorage.setItem('tailoram_onboarding_assistant_pending', 'dismissed');
+                    window.dispatchEvent(new CustomEvent('tailoram_open_assistant'));
                   }
-                  setActiveTab('assistant');
                 }}
                 className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-sm shadow-xl shadow-amber-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >

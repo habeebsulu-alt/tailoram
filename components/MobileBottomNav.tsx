@@ -84,19 +84,19 @@ export default function MobileBottomNav() {
 
   return (
     <>
-      {isDesigner && !pathname.includes('tab=assistant') && (
-        <Link
-          href="/dashboard?tab=assistant"
+      {isDesigner && (
+        <button
+          type="button"
           onClick={() => {
             if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('tailoram_switch_tab', { detail: 'assistant' }));
+              window.dispatchEvent(new CustomEvent('tailoram_open_assistant'));
             }
           }}
           className="fixed bottom-20 right-4 z-40 md:hidden flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-black text-xs shadow-xl shadow-amber-500/25 border border-amber-300/60 active:scale-95 transition-all cursor-pointer"
         >
           <Sparkles className="w-4 h-4 text-stone-950 animate-pulse" />
           <span>Co-Tailor</span>
-        </Link>
+        </button>
       )}
 
       <nav
