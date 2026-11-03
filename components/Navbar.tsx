@@ -131,12 +131,12 @@ export default function Navbar() {
                     <Link
                       href="/dashboard?tab=assistant"
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 font-bold text-xs sm:text-sm border border-amber-500/30 transition-all shadow-xs"
-                      title="Open AI Assistant for tailors: yardage, pricing and cutting formulas"
+                      title="Open Co-Tailor AI: yardage, pricing and cutting formulas for Nigerian tailors"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                      <span>Tailor AI</span>
+                      <span>Co-Tailor</span>
                       <span className="text-[9px] font-black uppercase bg-amber-500 text-stone-950 px-1.5 py-0.2 rounded-full">
-                        New
+                        AI
                       </span>
                     </Link>
                     <Link
@@ -325,10 +325,10 @@ export default function Navbar() {
                   >
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
-                      <span>Tailor AI Assistant</span>
+                      <span>Co-Tailor (AI Copilot)</span>
                     </div>
                     <span className="text-[10px] font-black uppercase bg-amber-500 text-stone-950 px-2 py-0.5 rounded-full">
-                      New
+                      AI
                     </span>
                   </Link>
                   <Link

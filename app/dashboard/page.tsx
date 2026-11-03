@@ -2832,7 +2832,7 @@ export default function DesignerDashboard() {
           }`}
         >
           <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-          <span>AI Assistant</span>
+          <span>Co-Tailor</span>
           <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-stone-950">
             ✦ AI
           </span>
@@ -6203,7 +6203,7 @@ export default function DesignerDashboard() {
                 Welcome to Tailoram Studio
               </span>
               <h3 className="text-xl sm:text-2xl font-black text-white font-serif">
-                Try Your Tailor Assistant
+                Try Co-Tailor
               </h3>
               <p className="text-sm text-stone-300 leading-relaxed font-medium">
                 Try it, upload a dress photo and get a price estimate.
@@ -6223,7 +6223,7 @@ export default function DesignerDashboard() {
                 className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-sm shadow-xl shadow-amber-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Sparkles className="w-4 h-4 text-stone-950" />
-                <span>Open Assistant &amp; Upload Photo</span>
+                <span>Open Co-Tailor &amp; Upload Photo</span>
               </button>
 
               <button

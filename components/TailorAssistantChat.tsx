@@ -286,14 +286,14 @@ export default function TailorAssistantChat({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-black text-sm text-white tracking-wide">
-                Tailoram AI Assistant
+                Co-Tailor
               </h3>
               <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-extrabold uppercase tracking-wider">
                 Flash-Lite
               </span>
             </div>
             <p className="text-[11px] text-stone-400">
-              Pricing, yardage &amp; cutting formulas for Nigerian tailors
+              Nigeria&apos;s Workshop &amp; Cutting Copilot for Tailors
             </p>
           </div>
         </div>
@@ -355,7 +355,7 @@ export default function TailorAssistantChat({
 
             <div className="space-y-1.5">
               <h4 className="text-base font-black text-white">
-                How can I assist your workshop today, {tailorName}?
+                How can Co-Tailor assist your workshop today, {tailorName}?
               </h4>
               <p className="text-xs text-stone-400 leading-relaxed">
                 Upload a client's inspiration photo for a breakdown of style details, fabric needed, cutting steps, and suggested price range in Naira.
@@ -421,7 +421,7 @@ export default function TailorAssistantChat({
                   <div className="mt-3 pt-2.5 border-t border-stone-700/80 flex items-center justify-between gap-3 text-[11px] text-stone-400 flex-wrap">
                     <div className="flex items-center gap-1.5">
                       <Sparkles className="w-3 h-3 text-amber-400" />
-                      <span>Tailoram Guide • {msg.timestamp}</span>
+                      <span>Co-Tailor Guide • {msg.timestamp}</span>
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -479,7 +479,7 @@ export default function TailorAssistantChat({
             <div className="bg-stone-800/90 border border-stone-700/80 rounded-2xl rounded-bl-xs p-4 text-xs sm:text-sm text-stone-300 space-y-2">
               <div className="flex items-center gap-2 font-semibold text-amber-300 text-xs">
                 <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                <span>Consulting Tailoram pattern &amp; pricing benchmark data...</span>
+                <span>Co-Tailor is consulting pattern &amp; pricing benchmark data...</span>
               </div>
               <p className="text-[11px] text-stone-400">
                 Calculating fabric yardage, breakdown steps, and Nigerian market price range.

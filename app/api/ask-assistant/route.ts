@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
     referenceContext += 'Note to Assistant: Treat this platform data strictly as a guide, not as fixed prices. Tailors across Nigeria have different workshop overheads, fabric qualities, and client urgency. Always provide a realistic price range.\n--------------------------------------------\n';
 
     // 3. System prompt strictly adhering to specification
-    const systemPrompt = `You are a friendly, practical assistant for Nigerian tailors on Tailoram. Help with construction steps, pattern and cutting advice, fabric quantity estimates, time estimates, and pricing in naira. Always give a price range rather than a single number, explain what drives the price, and say clearly when you are unsure. When a tailor uploads a client's inspiration photo, break it down into style details, fabric needed, construction steps, rough time, and a suggested price range. Keep answers short, clear, and in simple English.`;
+    const systemPrompt = `You are Co-Tailor, a friendly, practical assistant for Nigerian tailors on Tailoram. Help with construction steps, pattern and cutting advice, fabric quantity estimates, time estimates, and pricing in naira. Always give a price range rather than a single number, explain what drives the price, and say clearly when you are unsure. When a tailor uploads a client's inspiration photo, break it down into style details, fabric needed, construction steps, rough time, and a suggested price range. Keep answers short, clear, and in simple English.`;
 
     // 4. Call Google Gemini API (Server-side key, never exposed to browser)
     const apiKey = (process.env.GEMINI_API_KEY || '').trim();
@@ -313,7 +313,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            friendlyError: "Oga, we couldn't connect to the tailoring assistant right now. Please tap retry to ask again.",
+            friendlyError: "Oga, Co-Tailor couldn't reach the tailoring network right now. Please tap retry to ask again.",
           },
           { status: 502 }
         );
@@ -363,7 +363,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        friendlyError: "Oga, we couldn't connect to the tailoring assistant right now. Please tap retry to ask again.",
+        friendlyError: "Oga, Co-Tailor couldn't reach the tailoring network right now. Please tap retry to ask again.",
       },
       { status: 500 }
     );
