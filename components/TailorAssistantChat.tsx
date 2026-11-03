@@ -224,7 +224,7 @@ export default function TailorAssistantChat({
         sender: 'assistant',
         text: data.answer,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        modelUsed: data.modelUsed || 'gemini-2.0-flash-lite',
+        modelUsed: data.modelUsed || 'gemini-3.5-flash-lite',
         feedback: null,
       };
 

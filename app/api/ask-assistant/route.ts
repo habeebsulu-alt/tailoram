@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Server-side configurable Gemini model (Flash-Lite for fast, low-cost responses)
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 // Server-side Supabase client for database logging and context retrieval
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';

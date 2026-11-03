@@ -9,7 +9,7 @@ create table if not exists public.assistant_interactions (
   question text not null,
   image_url text,
   answer text not null,
-  model_used text not null default 'gemini-2.0-flash-lite',
+  model_used text not null default 'gemini-3.5-flash-lite',
   reference_jobs_count integer not null default 0,
   feedback text check (feedback in ('up', 'down')),
   created_at timestamptz not null default now()
