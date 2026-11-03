@@ -14,6 +14,7 @@ import {
   Scissors,
   Ruler,
   MessageSquare,
+  Sparkles,
 } from 'lucide-react';
 
 export default function MobileBottomNav() {
@@ -82,11 +83,22 @@ export default function MobileBottomNav() {
   ];
 
   return (
-    <nav
-      aria-label="Mobile Navigation"
-      className="fixed bottom-0 left-0 right-0 z-40 bg-stone-950/95 backdrop-blur-xl border-t border-stone-800/80 md:hidden px-2 pt-1.5 pb-safe shadow-[0_-8px_20px_rgba(0,0,0,0.4)]"
-      style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
-    >
+    <>
+      {isDesigner && !pathname.includes('tab=assistant') && (
+        <Link
+          href="/dashboard?tab=assistant"
+          className="fixed bottom-20 right-4 z-40 md:hidden flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-stone-950 font-black text-xs shadow-xl shadow-amber-500/25 border border-amber-300/60 active:scale-95 transition-all"
+        >
+          <Sparkles className="w-4 h-4 text-stone-950 animate-pulse" />
+          <span>Tailor AI</span>
+        </Link>
+      )}
+
+      <nav
+        aria-label="Mobile Navigation"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-stone-950/95 backdrop-blur-xl border-t border-stone-800/80 md:hidden px-2 pt-1.5 pb-safe shadow-[0_-8px_20px_rgba(0,0,0,0.4)]"
+        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+      >
       <div className="flex items-center justify-around max-w-lg mx-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -124,5 +136,6 @@ export default function MobileBottomNav() {
         })}
       </div>
     </nav>
+  </>
   );
 }

@@ -886,4 +886,16 @@ export interface ForumThread {
   replies?: ForumReply[];
 }
 
+export interface AssistantInteraction {
+  id: string;
+  tailor_id: string;
+  question: string;
+  image_url?: string | null;
+  answer: string;
+  model_used: string;
+  reference_jobs_count: number;
+  feedback?: 'up' | 'down' | null;
+  created_at: string;
+}
+
 

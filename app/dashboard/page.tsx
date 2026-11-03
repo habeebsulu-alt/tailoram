@@ -23,6 +23,7 @@ import {
 } from '@/lib/types';
 import { formatNigerianPhoneForInput } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
+import TailorAssistantChat from '@/components/TailorAssistantChat';
 import {
   markOrderReadyForBalance,
   getLocalRequestOverrides,
@@ -125,7 +126,8 @@ export default function DesignerDashboard() {
   const router = useRouter();
   const { user, profile, designerProfile, refreshProfile, loading: authLoading, isImpersonating } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'portfolio' | 'requests' | 'wallet' | 'payout' | 'reviews' | 'profile' | 'store'>('portfolio');
+  const [activeTab, setActiveTab] = useState<'portfolio' | 'requests' | 'wallet' | 'payout' | 'reviews' | 'profile' | 'store' | 'assistant'>('portfolio');
+  const [showAssistantOnboarding, setShowAssistantOnboarding] = useState(false);
 
   // Portfolio items state
   const [items, setItems] = useState<PortfolioItem[]>([]);
@@ -287,6 +289,20 @@ export default function DesignerDashboard() {
 
   useEffect(() => {
     checkIsWhatsAppEnabled().then(setWhatsappEnabled);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'assistant') {
+        setActiveTab('assistant');
+      }
+
+      // Requirement 7: Show one-time prompt to try assistant and upload photo
+      const onboardingParam = params.get('onboarding');
+      const pendingOnboarding = localStorage.getItem('tailoram_onboarding_assistant_pending');
+      if (onboardingParam === 'ai_assistant' || pendingOnboarding === 'true') {
+        setShowAssistantOnboarding(true);
+      }
+    }
   }, []);
 
   const toggleAvatarFit = () => {
@@ -2807,6 +2823,21 @@ export default function DesignerDashboard() {
           Brand Settings
         </button>
 
+        <button
+          onClick={() => setActiveTab('assistant')}
+          className={`pb-3 text-sm font-bold transition-all relative flex-shrink-0 flex items-center gap-1.5 ${
+            activeTab === 'assistant'
+              ? 'text-amber-600 border-b-2 border-amber-500'
+              : 'text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+          <span>AI Assistant</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-stone-950">
+            ✦ AI
+          </span>
+        </button>
+
         <Link
           href="/forum"
           className="pb-3 text-sm font-bold transition-all relative flex-shrink-0 flex items-center gap-1.5 text-amber-700 hover:text-amber-600 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1 rounded-xl border border-amber-500/30 mb-2"
@@ -4819,6 +4850,16 @@ export default function DesignerDashboard() {
         </div>
       )}
 
+      {/* TAB 8: TAILOR AI ASSISTANT */}
+      {activeTab === 'assistant' && (
+        <div className="space-y-6 max-w-4xl mx-auto">
+          <TailorAssistantChat
+            tailorId={user?.id || designerProfile?.id || 'anonymous_tailor'}
+            tailorName={designerProfile?.business_name || profile?.full_name || 'Master Tailor'}
+          />
+        </div>
+      )}
+
       {/* UPLOAD MODAL (Supports Multiple Photos or Single Video Reel) */}
       {uploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
@@ -6131,6 +6172,71 @@ export default function DesignerDashboard() {
                 className="w-full py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-black text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
               >
                 <span>Understood</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Requirement 7: One-time Tailor Onboarding Prompt */}
+      {showAssistantOnboarding && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-stone-900 border border-amber-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white shadow-2xl relative text-center space-y-5">
+            <button
+              onClick={() => {
+                setShowAssistantOnboarding(false);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('tailoram_onboarding_assistant_pending', 'dismissed');
+                }
+              }}
+              className="absolute top-4 right-4 p-2 text-stone-400 hover:text-white rounded-full bg-stone-800/80 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="mx-auto w-16 h-16 rounded-3xl bg-gradient-to-tr from-amber-500 to-amber-300 text-stone-950 flex items-center justify-center shadow-lg shadow-amber-500/25">
+              <Sparkles className="w-8 h-8 animate-pulse" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-black uppercase tracking-wider border border-amber-500/30">
+                Welcome to Tailoram Studio
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black text-white font-serif">
+                Try Your Tailor Assistant
+              </h3>
+              <p className="text-sm text-stone-300 leading-relaxed font-medium">
+                Try it, upload a dress photo and get a price estimate.
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAssistantOnboarding(false);
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('tailoram_onboarding_assistant_pending', 'dismissed');
+                  }
+                  setActiveTab('assistant');
+                }}
+                className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-sm shadow-xl shadow-amber-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-stone-950" />
+                <span>Open Assistant &amp; Upload Photo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAssistantOnboarding(false);
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem('tailoram_onboarding_assistant_pending', 'dismissed');
+                  }
+                }}
+                className="w-full py-2.5 text-xs text-stone-400 hover:text-stone-200 transition-colors cursor-pointer"
+              >
+                Explore Dashboard First
               </button>
             </div>
           </div>
