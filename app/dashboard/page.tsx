@@ -289,20 +289,44 @@ export default function DesignerDashboard() {
 
   useEffect(() => {
     checkIsWhatsAppEnabled().then(setWhatsappEnabled);
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab');
-      if (tabParam === 'assistant') {
-        setActiveTab('assistant');
-      }
 
-      // Requirement 7: Show one-time prompt to try assistant and upload photo
-      const onboardingParam = params.get('onboarding');
-      const pendingOnboarding = localStorage.getItem('tailoram_onboarding_assistant_pending');
-      if (onboardingParam === 'ai_assistant' || pendingOnboarding === 'true') {
-        setShowAssistantOnboarding(true);
+    const checkTabState = () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const tabParam = params.get('tab');
+        if (tabParam === 'assistant') {
+          setActiveTab('assistant');
+        } else if (tabParam && ['portfolio', 'requests', 'wallet', 'payout', 'reviews', 'profile', 'store', 'assistant'].includes(tabParam)) {
+          setActiveTab(tabParam as any);
+        }
+
+        // Requirement 7: Show one-time prompt to try assistant and upload photo
+        const onboardingParam = params.get('onboarding');
+        const pendingOnboarding = localStorage.getItem('tailoram_onboarding_assistant_pending');
+        if (onboardingParam === 'ai_assistant' || pendingOnboarding === 'true') {
+          setShowAssistantOnboarding(true);
+        }
       }
-    }
+    };
+
+    checkTabState();
+
+    // Instant tab switch event listener (from Navbar, Floating button, or external links)
+    const handleSwitchTab = (e: any) => {
+      const targetTab = e?.detail || 'assistant';
+      if (['portfolio', 'requests', 'wallet', 'payout', 'reviews', 'profile', 'store', 'assistant'].includes(targetTab)) {
+        setActiveTab(targetTab as any);
+        window.scrollTo({ top: 200, behavior: 'smooth' });
+      }
+    };
+
+    window.addEventListener('tailoram_switch_tab', handleSwitchTab);
+    window.addEventListener('popstate', checkTabState);
+
+    return () => {
+      window.removeEventListener('tailoram_switch_tab', handleSwitchTab);
+      window.removeEventListener('popstate', checkTabState);
+    };
   }, []);
 
   const toggleAvatarFit = () => {
@@ -2558,6 +2582,24 @@ export default function DesignerDashboard() {
               </>
             )}
 
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('assistant');
+                if (typeof window !== 'undefined') {
+                  window.history.replaceState({}, '', '/dashboard?tab=assistant');
+                }
+              }}
+              className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-amber-500/50 text-stone-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-xs sm:text-sm font-black shadow-md shadow-amber-500/20 transition-all hover:scale-[1.01] active:scale-95 cursor-pointer"
+              title="Open Co-Tailor: Yardage calculator, pricing ranges & cutting advice"
+            >
+              <Sparkles className="w-4 h-4 text-stone-950 animate-pulse" />
+              <span>Ask Co-Tailor</span>
+              <span className="text-[9px] font-black uppercase bg-stone-950 text-amber-300 px-1.5 py-0.2 rounded-full">
+                AI
+              </span>
+            </button>
+
             <Link
               href="/forum"
               className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-amber-500/40 text-amber-900 bg-amber-500/10 hover:bg-amber-500/20 text-xs sm:text-sm font-bold transition-all shadow-xs"
@@ -2744,6 +2786,26 @@ export default function DesignerDashboard() {
         </button>
 
         <button
+          onClick={() => {
+            setActiveTab('assistant');
+            if (typeof window !== 'undefined') {
+              window.history.replaceState({}, '', '/dashboard?tab=assistant');
+            }
+          }}
+          className={`pb-3 text-sm font-bold transition-all relative flex-shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'assistant'
+              ? 'text-amber-600 border-b-2 border-amber-500 font-extrabold'
+              : 'text-stone-600 hover:text-amber-700 font-bold'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+          <span>Co-Tailor (AI Copilot)</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-stone-950">
+            ✦ AI
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('requests')}
           className={`pb-3 text-sm font-bold transition-all relative flex-shrink-0 flex items-center gap-2 ${
             activeTab === 'requests'
@@ -2821,21 +2883,6 @@ export default function DesignerDashboard() {
           }`}
         >
           Brand Settings
-        </button>
-
-        <button
-          onClick={() => setActiveTab('assistant')}
-          className={`pb-3 text-sm font-bold transition-all relative flex-shrink-0 flex items-center gap-1.5 ${
-            activeTab === 'assistant'
-              ? 'text-amber-600 border-b-2 border-amber-500'
-              : 'text-stone-500 hover:text-stone-800'
-          }`}
-        >
-          <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-          <span>Co-Tailor</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-stone-950">
-            ✦ AI
-          </span>
         </button>
 
         <Link
