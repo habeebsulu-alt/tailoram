@@ -24,6 +24,7 @@ import {
 import { formatNigerianPhoneForInput } from '@/lib/phoneUtils';
 import { fetchManualRatings, computeEffectiveRating, mergeWithLocalReviews, resolveReviewClientName, ManualRatingData } from '@/lib/ratingsManager';
 import TailorAssistantChat from '@/components/TailorAssistantChat';
+import DesignerWorksOnboardingModal from '@/components/DesignerWorksOnboardingModal';
 import {
   markOrderReadyForBalance,
   getLocalRequestOverrides,
@@ -128,6 +129,8 @@ export default function DesignerDashboard() {
 
   const [activeTab, setActiveTab] = useState<'portfolio' | 'requests' | 'wallet' | 'payout' | 'reviews' | 'profile' | 'store' | 'assistant'>('portfolio');
   const [showAssistantOnboarding, setShowAssistantOnboarding] = useState(false);
+  const [showWorksOnboardingModal, setShowWorksOnboardingModal] = useState(false);
+  const [hideSetupProgressBanner, setHideSetupProgressBanner] = useState(false);
 
   // Portfolio items state
   const [items, setItems] = useState<PortfolioItem[]>([]);
@@ -300,10 +303,13 @@ export default function DesignerDashboard() {
           setActiveTab(tabParam as any);
         }
 
-        // Requirement 7: Show one-time prompt to try assistant and upload photo
+        // Check studio works setup onboarding or assistant onboarding
         const onboardingParam = params.get('onboarding');
+        const pendingStudioSetup = localStorage.getItem('tailoram_designer_onboarding_pending');
         const pendingOnboarding = localStorage.getItem('tailoram_onboarding_assistant_pending');
-        if (onboardingParam === 'ai_assistant' || pendingOnboarding === 'true') {
+        if (onboardingParam === 'studio_setup' || pendingStudioSetup === 'true') {
+          setShowWorksOnboardingModal(true);
+        } else if (onboardingParam === 'ai_assistant' || pendingOnboarding === 'true') {
           setShowAssistantOnboarding(true);
         }
       }
@@ -320,11 +326,15 @@ export default function DesignerDashboard() {
       }
     };
 
+    const handleOpenWorksOnboarding = () => setShowWorksOnboardingModal(true);
+
     window.addEventListener('tailoram_switch_tab', handleSwitchTab);
+    window.addEventListener('tailoram_open_works_onboarding', handleOpenWorksOnboarding);
     window.addEventListener('popstate', checkTabState);
 
     return () => {
       window.removeEventListener('tailoram_switch_tab', handleSwitchTab);
+      window.removeEventListener('tailoram_open_works_onboarding', handleOpenWorksOnboarding);
       window.removeEventListener('popstate', checkTabState);
     };
   }, []);
@@ -438,6 +448,15 @@ export default function DesignerDashboard() {
           .filter((i) => !deletedIds.includes(i.id))
           .map((i) => (updatedMap[i.id] ? { ...i, ...updatedMap[i.id] } : i));
         setItems(activeItems);
+
+        // Check if designer has 0 works and hasn't dismissed the onboarding wizard in the last 24 hours
+        if (activeItems.length === 0 && typeof window !== 'undefined') {
+          const dismissedAt = localStorage.getItem(`tailoram_designer_works_dismissed_${designerId}`);
+          const oneDayMs = 24 * 60 * 60 * 1000;
+          if (!dismissedAt || (Date.now() - parseInt(dismissedAt, 10)) > oneDayMs) {
+            setShowWorksOnboardingModal(true);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to load portfolio items:', err);
@@ -2222,6 +2241,88 @@ export default function DesignerDashboard() {
               <ShieldCheck className="w-4 h-4 text-amber-400" />
               <span>Return to Admin Panel</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Studio Onboarding & Works Setup Progress Bar (For designers with < 3 works or missing logo) */}
+      {!hideSetupProgressBanner && (items.length < 3 || !designerProfile?.profile_image_url) && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-stone-900/5 rounded-3xl border border-amber-500/40 p-5 sm:p-6 shadow-sm relative overflow-hidden animate-in fade-in duration-300">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-stone-950 flex items-center justify-center font-black shadow-md shadow-amber-500/20 shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500 text-stone-950">
+                    Studio Setup Checklist
+                  </span>
+                  <span className="text-xs font-bold text-stone-700">
+                    {items.length === 0 ? '1 of 3 Steps Completed' : items.length < 3 ? '2 of 3 Steps Completed' : 'Setup Almost Done'}
+                  </span>
+                </div>
+                <h3 className="text-base font-black text-stone-900">
+                  {items.length === 0
+                    ? 'Publish your first outfit photos to start receiving client commissions'
+                    : 'Add more bespoke works to reach top search rankings'}
+                </h3>
+                <p className="text-xs text-stone-600 leading-relaxed max-w-2xl">
+                  Tailoram clients browse designer profiles specifically for Agbada, Senator, Ankara, and Bridal photos. Studios with at least 3 photos receive 8x more client orders!
+                </p>
+
+                {/* 3 Step Pills */}
+                <div className="flex items-center gap-2 pt-2 flex-wrap text-[11px] font-bold">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Studio Registered</span>
+                  </span>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border ${
+                    designerProfile?.profile_image_url
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-stone-100 text-stone-700 border-stone-200'
+                  }`}>
+                    {designerProfile?.profile_image_url ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    )}
+                    <span>Studio Logo</span>
+                  </span>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border ${
+                    items.length >= 3
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-amber-100 text-amber-900 border-amber-300 font-black'
+                  }`}>
+                    {items.length >= 3 ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                    )}
+                    <span>{items.length}/3 Outfits Uploaded</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-end pt-2 md:pt-0">
+              <button
+                type="button"
+                onClick={() => setShowWorksOnboardingModal(true)}
+                className="w-full md:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm shadow-xl shadow-amber-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Upload className="w-4 h-4 text-stone-950" />
+                <span>Upload Works &amp; Complete Setup</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setHideSetupProgressBanner(true)}
+                className="p-2 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                title="Dismiss banner"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -6287,6 +6388,25 @@ export default function DesignerDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Structured Studio Works & Logo Onboarding Wizard Modal */}
+      {designerProfile && (
+        <DesignerWorksOnboardingModal
+          isOpen={showWorksOnboardingModal}
+          onClose={() => setShowWorksOnboardingModal(false)}
+          designerProfile={designerProfile}
+          onWorksUploaded={async () => {
+            if (designerProfile?.id) {
+              await loadPortfolio(designerProfile.id);
+            }
+          }}
+          onAvatarUpdated={(newUrl) => {
+            if (designerProfile) {
+              designerProfile.profile_image_url = newUrl;
+            }
+          }}
+        />
       )}
 
     </div>

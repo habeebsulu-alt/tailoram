@@ -154,9 +154,10 @@ export default function SignUpPage() {
         // Direct user according to role
         if (role === 'designer') {
           if (typeof window !== 'undefined') {
+            localStorage.setItem('tailoram_designer_onboarding_pending', 'true');
             localStorage.setItem('tailoram_onboarding_assistant_pending', 'true');
           }
-          router.push('/dashboard?onboarding=ai_assistant');
+          router.push('/dashboard?onboarding=studio_setup');
         } else {
           router.push('/');
         }
