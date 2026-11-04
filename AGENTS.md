@@ -140,6 +140,13 @@ Tailoram/
   - Multi-channel outreach: 1-click **Email Blast** with customizable subject/body and instant dashboard upload links, plus **Zero-Cost WhatsApp Outreach** via pre-formatted `wa.me` deep links.
   - Interactive sequential WhatsApp Queue modal allowing admins to message inactive studios step-by-step with 1 click.
   - Quick-action table with individual WhatsApp/Email nudges and direct 1-click "Login as Designer" studio impersonation.
+- **Designer Works & Logo Onboarding Wizard (`components/DesignerWorksOnboardingModal.tsx`)**:
+  - Automatically prompts designers right after registration or whenever an active designer's studio has 0 uploaded works.
+  - **Structured 3-Step Guided Flow**:
+    1. **Studio Identity (Logo & Profile Picture)**: 1-tap logo upload via camera or file picker, instant WebP compression, saving to `portfolio` bucket avatars and updating `designer_profiles.profile_image_url` with live checkmarks. Skippable with 1 click.
+    2. **Showcase Craftsmanship (Batch Outfits Upload)**: Multi-photo selection from gallery or phone camera, category chips (`Agbada`, `Senator Suits`, `Ankara`, `Kaftan`, `Aso Ebi & Lace`, `Bridal`, `RTW`), client-side WebP compression (< 200 KB), batch AJAX upload to `portfolio_items` table with live progress text and uploaded thumbnails.
+    3. **Go Live & Share**: Congratulations celebration screen, public profile link generation (`tailoram.com/designer/[id]`), 1-click **Share on WhatsApp** with pre-formatted Nigerian client copy, and 1-tap studio entrance.
+  - **Persistent Studio Setup Checklist**: High-visibility progress banner at the top of `/dashboard` tracking Brand Registration, Studio Logo, and First 3 Works, allowing tailors who skipped the popup to complete their catalog anytime with 1 click.
 - **Persistence**: Dual-layer architecture storing in Supabase `platform_settings` (`key: 'email_settings'`) with local storage fallback (`tailoram_email_settings` and `tailoram_email_logs`).
 
 ---
