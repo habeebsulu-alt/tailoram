@@ -10,6 +10,7 @@
 - **Language**: TypeScript (`tsconfig.json` strict mode)
 - **Backend & Database**: Supabase (PostgreSQL, Row Level Security, Auth, Storage)
 - **Deployment**: Vercel (Primary Domain: `https://tailoram.com`, Fallback: `https://tailoram.vercel.app`)
+- **Image Optimization**: Set to `unoptimized: true` in `next.config.mjs` to bypass Vercel's 1,000 monthly transformation quota on the Hobby tier. All client uploads are already compressed client-side to WebP (<150KB) via `lib/imageCompressor.ts`.
 - **Version Control**: Git (`main` branch, tagged `v1.0.0` / `v1`)
 
 ---
