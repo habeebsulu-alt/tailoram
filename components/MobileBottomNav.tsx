@@ -42,12 +42,16 @@ export default function MobileBottomNav() {
       icon: ShoppingBag,
       isActive: pathname.startsWith('/shop'),
     },
-    {
-      label: 'Forum',
-      href: '/forum',
-      icon: MessageSquare,
-      isActive: pathname.startsWith('/forum'),
-    },
+    ...(isDesigner
+      ? [
+          {
+            label: 'Forum',
+            href: '/forum',
+            icon: MessageSquare,
+            isActive: pathname.startsWith('/forum'),
+          },
+        ]
+      : []),
     {
       label: 'Orders',
       href: '/requests',

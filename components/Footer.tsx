@@ -1,7 +1,12 @@
+'use client';
+
 import React from 'react';
 import { Scissors, Heart } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Footer() {
+  const { user, profile } = useAuth();
+  const isDesigner = Boolean(user && profile?.role === 'designer');
   return (
     <footer className="bg-lagos-dark text-stone-300 pt-12 pb-8 border-t border-stone-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -62,11 +67,13 @@ export default function Footer() {
                   Body Sizing Vault
                 </a>
               </li>
-              <li>
-                <a href="/forum" className="hover:text-amber-400 transition-colors font-bold text-amber-300">
-                  🧵 Tailors' Guild &amp; Forum
-                </a>
-              </li>
+              {isDesigner && (
+                <li>
+                  <a href="/forum" className="hover:text-amber-400 transition-colors font-bold text-amber-300">
+                    🧵 Tailors' Guild &amp; Forum
+                  </a>
+                </li>
+              )}
             </ul>
           </div>
 

@@ -495,7 +495,8 @@ function DesignerMarketplaceCard({
 }
 
 export default function HomePage() {
-  const { user } = useAuth();
+  const { user, profile, designerProfile } = useAuth();
+  const isSignedIdDesigner = Boolean(user && (profile?.role === 'designer' || designerProfile));
 
   // Designers state
   const [designers, setDesigners] = useState<DesignerProfile[]>([]);
@@ -1312,31 +1313,33 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Tailors' Guild & Community Forum Spotlight Banner */}
-        <div className="bg-gradient-to-r from-stone-900 via-stone-950 to-stone-900 border border-amber-500/30 rounded-3xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="absolute top-0 right-0 w-80 h-40 bg-amber-500/10 blur-3xl pointer-events-none rounded-full" />
-          
-          <div className="space-y-2 text-center md:text-left z-10">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/30">
-              <Scissors className="w-3.5 h-3.5" />
-              <span>Tailors' Guild &amp; Community Forum</span>
+        {/* Tailors' Guild & Community Forum Spotlight Banner - Only shows for signed in tailors */}
+        {isSignedIdDesigner && (
+          <div className="bg-gradient-to-r from-stone-900 via-stone-950 to-stone-900 border border-amber-500/30 rounded-3xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="absolute top-0 right-0 w-80 h-40 bg-amber-500/10 blur-3xl pointer-events-none rounded-full" />
+            
+            <div className="space-y-2 text-center md:text-left z-10">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/30">
+                <Scissors className="w-3.5 h-3.5" />
+                <span>Tailors' Guild &amp; Community Forum</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-white">
+                Connect with Master Tailors Across Nigeria
+              </h3>
+              <p className="text-xs sm:text-sm text-stone-300 max-w-xl">
+                Discuss pattern drafting formulas, Balogun &amp; Aba fabric prices, sewing machine setups, and get professional peer advice on challenging bespoke fittings.
+              </p>
             </div>
-            <h3 className="text-xl sm:text-2xl font-black text-white">
-              Connect with Master Tailors Across Nigeria
-            </h3>
-            <p className="text-xs sm:text-sm text-stone-300 max-w-xl">
-              Discuss pattern drafting formulas, Balogun &amp; Aba fabric prices, sewing machine setups, and get professional peer advice on challenging bespoke fittings.
-            </p>
-          </div>
 
-          <Link
-            href="/forum"
-            className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm shadow-xl shadow-amber-500/20 active:scale-95 transition-all whitespace-nowrap z-10 flex items-center gap-2"
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>Join Tailors' Forum &rarr;</span>
-          </Link>
-        </div>
+            <Link
+              href="/forum"
+              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm shadow-xl shadow-amber-500/20 active:scale-95 transition-all whitespace-nowrap z-10 flex items-center gap-2"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>Join Tailors' Forum &rarr;</span>
+            </Link>
+          </div>
+        )}
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
@@ -1538,13 +1541,6 @@ export default function HomePage() {
                 >
                   <LogIn className="w-4 h-4 text-amber-300" />
                   <span>Log In to Your Account</span>
-                </Link>
-                <Link
-                  href="/forum"
-                  className="px-6 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 hover:text-white font-bold text-xs sm:text-sm backdrop-blur-sm transition-all flex items-center gap-2"
-                >
-                  <MessageSquare className="w-4 h-4 text-amber-400" />
-                  <span>Explore Tailors' Forum &amp; Advice</span>
                 </Link>
               </div>
             </div>

@@ -105,22 +105,21 @@ export default function Navbar() {
               <span>Sizing Vault</span>
             </Link>
 
-            <Link
-              href="/forum"
-              className="flex items-center gap-1.5 text-stone-700 hover:text-amber-600 font-bold text-sm transition-colors"
-              title="Tailors' Guild, discussions & craft advice"
-            >
-              <MessageSquare className="w-4 h-4 text-amber-600" />
-              <span>Tailors' Forum</span>
-              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">
-                Guild
-              </span>
-            </Link>
-
             {user ? (
               <div className="flex items-center gap-4">
                 {profile?.role === 'designer' ? (
                   <>
+                    <Link
+                      href="/forum"
+                      className="flex items-center gap-1.5 text-stone-700 hover:text-amber-600 font-bold text-sm transition-colors"
+                      title="Tailors' Guild, discussions & craft advice"
+                    >
+                      <MessageSquare className="w-4 h-4 text-amber-600" />
+                      <span>Forum</span>
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">
+                        Guild
+                      </span>
+                    </Link>
                     <Link
                       href="/dashboard"
                       className="flex items-center gap-1.5 text-stone-700 hover:text-brand-600 font-medium text-sm transition-colors"
@@ -279,20 +278,6 @@ export default function Navbar() {
             <span>Sizing Vault</span>
           </Link>
 
-          <Link
-            href="/forum"
-            onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center justify-between py-2 text-base font-bold text-stone-800 hover:text-amber-600"
-          >
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-amber-600" />
-              <span>Tailors' Forum &amp; Advice</span>
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-              Guild
-            </span>
-          </Link>
-
           {user ? (
             <div className="pt-2 border-t border-stone-100 space-y-3">
               <div className="bg-brand-50 p-3 rounded-xl flex items-center justify-between">
@@ -348,6 +333,19 @@ export default function Navbar() {
                   >
                     <LayoutDashboard className="w-4 h-4 text-brand-600" />
                     Designer Dashboard
+                  </Link>
+                  <Link
+                    href="/forum"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between py-2 text-sm font-bold text-stone-800 hover:text-amber-600"
+                  >
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-amber-600" />
+                      <span>Tailors' Guild Forum</span>
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                      Guild
+                    </span>
                   </Link>
                   <Link
                     href="/requests"
