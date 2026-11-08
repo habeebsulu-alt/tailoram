@@ -350,18 +350,6 @@ function DesignerMarketplaceCard({
               </span>
             )}
           </div>
-
-          {/* Portfolio count / dynamic active slide counter */}
-          <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-sm text-white text-[10px] font-bold tracking-wide z-20 flex items-center gap-1 shadow-sm">
-            {portfolioItems.length > 1 ? (
-              <>
-                <span className="text-amber-400 font-black">{activeMediaIndex + 1}</span>
-                <span className="text-stone-300">/{portfolioItems.length} Works</span>
-              </>
-            ) : (
-              <span>{portfolioItems.length} {portfolioItems.length === 1 ? 'Work' : 'Works'}</span>
-            )}
-          </span>
         </div>
 
         {/* Designer Details */}
@@ -1251,12 +1239,7 @@ export default function HomePage() {
             <div className="flex items-center justify-between pt-2 border-t border-stone-100 text-xs">
               <span className="text-stone-600">
                 Found <strong className="text-stone-900">{designersWithWorks.length}</strong> matching designer
-                {designersWithWorks.length === 1 ? '' : 's'} with portfolios
-                {designersWithoutWorks.length > 0 && (
-                  <span className="text-stone-400 font-normal ml-1">
-                    ({designersWithoutWorks.length} pending works)
-                  </span>
-                )}
+                {designersWithWorks.length === 1 ? '' : 's'}
               </span>
               <button
                 onClick={resetFilters}
@@ -1410,7 +1393,7 @@ export default function HomePage() {
                   No studios with uploaded portfolios match this filter
                 </h3>
                 <p className="text-xs text-stone-500">
-                  There {designersWithoutWorks.length === 1 ? 'is' : 'are'} <strong className="text-stone-800">{designersWithoutWorks.length} newly registered {designersWithoutWorks.length === 1 ? 'studio' : 'studios'}</strong> in this filter currently setting up their portfolio gallery.
+                  Newly registered studios in this filter are currently setting up their portfolio gallery.
                 </p>
                 <div className="pt-2 flex items-center justify-center gap-2">
                   <button
@@ -1418,7 +1401,7 @@ export default function HomePage() {
                     onClick={() => setShowPendingStudios(true)}
                     className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
                   >
-                    View {designersWithoutWorks.length} Registered Studios
+                    View Registered Studios
                   </button>
                   <button
                     type="button"
@@ -1440,8 +1423,8 @@ export default function HomePage() {
                   </div>
                   <h4 className="text-base sm:text-lg font-black text-stone-900">
                     {showPendingStudios
-                      ? `Showing ${designersWithoutWorks.length} Newly Registered Studios`
-                      : `Looking for More Studios? (${designersWithoutWorks.length} Registered)`}
+                      ? 'Showing Newly Registered Studios'
+                      : 'Looking for More Studios?'}
                   </h4>
                   <p className="text-xs text-stone-500 mt-1 max-w-lg mx-auto">
                     {showPendingStudios
@@ -1457,8 +1440,8 @@ export default function HomePage() {
                     >
                       <span>
                         {showPendingStudios
-                          ? `Hide Studios Without Works (${designersWithoutWorks.length})`
-                          : `View More Studios (${designersWithoutWorks.length} Pending Portfolio)`}
+                          ? 'Hide Newly Registered Studios'
+                          : 'View More Studios'}
                       </span>
                       <ChevronRight
                         className={`w-4 h-4 transition-transform duration-300 ${
@@ -1477,9 +1460,6 @@ export default function HomePage() {
                         <Clock className="w-3.5 h-3.5 text-amber-500" />
                         <span>Newly Registered Studios (Portfolios in Preparation)</span>
                       </div>
-                      <span className="text-[11px] text-stone-400 font-mono">
-                        {designersWithoutWorks.length} {designersWithoutWorks.length === 1 ? 'Studio' : 'Studios'}
-                      </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7">
