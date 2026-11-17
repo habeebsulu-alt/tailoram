@@ -1,0 +1,112 @@
+# Campaign network infrastructure. Used to check live connections and to build
+# egress blocklists. Hostnames first, then IPv4 addresses reported by
+# opensourcemalware.com. IP addresses rotate: block them, do not rely on them.
+default-configuration.vercel.app
+vscode-settings-bootstrap.vercel.app
+vscode-settings-config.vercel.app
+vscode-bootstrapper.vercel.app
+vscode-load-config.vercel.app
+260120.vercel.app
+api.trongrid.io
+fullnode.mainnet.aptoslabs.com
+166.88.54.158
+198.105.127.210
+23.27.202.27
+154.91.0.103
+136.0.9.8
+166.88.4.2
+23.27.120.142
+202.155.8.173
+166.88.134.82
+188.43.33.249
+23.27.13.43
+
+# --- MicrosoftSystem64 controller and delivery (related DPRK malware),
+# corroborated by two independent analyses (safedep.io and JFrog Security
+# Research), April-May 2026
+195.201.194.107
+copilot-ai.whisdev.org
+
+# --- NullReceiver C2, decoded from the recipient bytes of a zero-value
+# Ethereum transfer. The trailing bytes of the same address spell "helloipbot!!".
+# Source: OpenSourceMalware, August 2026.
+166.88.134.62
+
+# --- NullReceiver C2, the two configurations published to the dead-drop wallet
+# between 2026-08-30 and 2026-09-15, decoded from the recipient bytes by reading
+# the Ethereum ledger directly. 166.88.73.46 sits in the same /16 as the
+# 166.88.134.62 already listed above. The wallet rotates roughly every 1,000
+# blocks, so expect these to be stale and read the chain for the current one.
+# Source: CloudSEK, "GHAPPIER", September 2026.
+193.247.144.38
+166.88.73.46
+
+# --- the 0x33ff Ethereum dead-drop rotation, recovered by decoding every
+# heartbeat recipient that wallet has sent since 2026-06-23. 198.105.127.210,
+# already listed above, is the current first server; these are the rest of the
+# rotation. Eight of the eleven servers across both wallets sit on AS149440
+# (Evoxt), which is a better block than any single address here.
+# Source: SafeDep, "PolinRider Switches to Ethereum C2 in 30+ Repositories",
+# September 2026.
+45.137.198.133
+181.214.149.147
+181.214.149.148
+23.27.20.187
+
+# --- the 0xa322 rotation, from the same source and decoded the same way. It
+# independently confirms 166.88.134.62, 166.88.73.46 and 193.247.144.38, all
+# already above from OpenSourceMalware and CloudSEK, and adds the two the chain
+# had not been read far enough back to see.
+23.27.13.135
+166.88.134.75
+91.218.183.174
+
+# --- stealer exfiltration, port 8443, from a honeypot capture of an operator
+# working interactively on an infected host for about 167 hours. The same
+# report's loader C2, 23.27.13.135, is independently confirmed just above, which
+# is why this address is carried.
+# Source: Deception.Pro, "[Op Report] Hands-on-Keyboard Activity from the DPRK
+# PolinRider Supply Chain Attack", September 2026.
+150.251.113.223
+
+# --- MicrosoftSystem64 C2 of the ULID-impersonation cluster, WebSocket and HTTP
+# on port 8010 -- the same port as 195.201.194.107 above, and like it on
+# Hetzner. The package installs the same MicrosoftSystem64 directories and the
+# same com.launchkeeper LaunchAgent this set already carries.
+# Source: OpenSSF malicious-packages MAL-2026-6672 (`ulid-xyz`; Amazon
+# Inspector, SafeDep), July 2026. See docs-site/src/content/docs/indicator-reviews/2026-10-12.md.
+95.216.232.162
+
+# --- MicrosoftSystem64 C2 of the ULID-impersonation cluster, port 8010, the
+# third address of the three Island lists: 95.216.232.162 and 195.201.194.107
+# are carried above, and all three are Hetzner.
+# Source: Island, "How Attackers Built Software an AI Would Recommend", indicator
+# table, October 2026. See docs-site/src/content/docs/indicator-reviews/2026-11-02.md.
+65.21.30.171
+
+# --- the 0x1eef dead-drop rotation: every server that wallet has advertised
+# since 2026-09-04, decoded from the recipient bytes of its transactions.
+# 166.88.134.75, its first, is already above from the 0xa322 rotation, so the
+# two wallets share infrastructure. 95.135.181.151 has been current since
+# 2026-10-16 and is also the address hardcoded in the npm persistence script;
+# it answers plain HTTP on ports 443 and 80.
+# Sources: Greenflagged, "@adminide-stack npm compromise", 2026-11-03, updated
+# 2026-11-04 (all three); GitGuardian, 2026-10-27, Sonatype, 2026-11-04, and
+# Abnormal AI, 2026-11-12 (95.135.181.151); StepSecurity, 2026-11-13
+# (23.27.13.72). See docs-site/src/content/docs/indicator-reviews/2026-11-16.md.
+95.135.181.151
+103.179.143.219
+23.27.13.72
+
+# --- the newest server on the 0xa322 wallet, in the /24 next to that of
+# 103.179.143.219 above. Abnormal AI recovered it from the loaders in two fake
+# coding-assignment repositories; StepSecurity decoded it from the wallet.
+# Sources: Abnormal AI, "PolinRider: How Malicious Coding Assignments Steal
+# Developer Secrets and Backdoor Their Tools", 2026-11-12; StepSecurity, "The
+# Take-Home Test That Runs on Your Work Laptop", 2026-11-13.
+103.179.142.155
+
+# --- the fake hiring company's careers site and payload server.
+# Source: JFrog Security Research, "Contagious Interview: One Interview Away
+# From Infection", November 2026.
+accurasofthire.com

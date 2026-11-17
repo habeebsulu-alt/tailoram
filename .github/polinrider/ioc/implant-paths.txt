@@ -1,0 +1,73 @@
+# Install locations of known implants: MicrosoftSystem64 (related DPRK malware,
+# Contagious Interview) and, below, files of PolinRider's own later stages.
+# Existence of any of these is a confirmed compromise, not a signal to weigh.
+#
+# The implant is a Node.js Single Executable Application: a native binary with
+# the V8 engine and the JavaScript payload statically linked in. It does not
+# need Node installed, and it sets its own process title to look like a system
+# service. Endpoint tooling that expects either a native executable or an
+# interpreted script tends to miss it.
+#
+# Sources: safedep.io MicrosoftSystem64 binary analysis; JFrog Security Research
+# "Hugging Face as a malware CDN" (js-logger-pack), both April-May 2026.
+#
+# "~" is expanded to the user's home directory. Windows paths are checked by
+# Windows only.
+
+# --- install locations
+~/.local/share/MicrosoftSystem64
+~/Library/Application Support/MicrosoftSystem64
+%LOCALAPPDATA%\MicrosoftSystem64
+%LOCALAPPDATA%\MicrosoftSystem64.exe
+
+# --- working directories written by the implant
+~/.pcl-data
+~/.pcl-state
+
+# --- persistence
+~/Library/LaunchAgents/com.launchkeeper.MicrosoftSystem64.plist
+~/.config/systemd/user/MicrosoftSystem64.service
+~/.config/autostart/MicrosoftSystem64.desktop
+~/Library/LaunchAgents/com.bablu.helper.plist
+
+# --- dropped payloads seen on Linux and macOS
+/tmp/0001.dat
+/tmp/tmp7A863DD1.tmp
+
+# --- the Python stealer's lock file on Windows, beside the Linux and macOS path
+# already listed above. ~/.node_modules (the private npm prefix the stage-4
+# script installs axios into) and /tmp/.pip (its fallback pip target) are
+# deliberately absent: both are paths a developer could plausibly create, and
+# this file is INFECTED tier with no weaker path tier to put them in.
+# Source: SafeDep, "PolinRider Switches to Ethereum C2 in 30+ Repositories",
+# September 2026.
+%LOCALAPPDATA%\Temp\tmp7A863DD1.tmp
+
+# --- the same agent under a new name. The pino-ulid dropper installs the
+# MicrosoftSystem64 agent's persistence as `pkg-agent`. Only the LaunchAgent is
+# carried: com.launchkeeper is the MicrosoftSystem64 family's own reverse-DNS
+# prefix, already in the MicrosoftSystem64 plist above.
+# ~/.config/systemd/user/pkg-agent.service and
+# ~/.config/autostart/pkg-agent.desktop are deliberately absent -- `pkg-agent`
+# is a name a legitimate tool could use, and this file is INFECTED tier.
+# Source: OpenSSF malicious-packages MAL-2026-16154 (`pino-ulid`; Amazon
+# Inspector, SafeDep), September 2026.
+# See docs-site/src/content/docs/indicator-reviews/2026-10-19.md.
+~/Library/LaunchAgents/com.launchkeeper.pkg-agent.plist
+
+# --- persistence through npm, written by the /0x/npm-migrate stage of the
+# November 2026 loaders: a runner that refetches the loader, its configuration
+# (the C2 addresses), its pid and its error log. Every npm command restarts the
+# runner from the snippet appended to npm's lib/cli.js, which the npm
+# program-file check reads. The 2026-10-05 entry left ~/.node_modules itself
+# out as a directory a developer could create; these are files inside it that
+# nothing else writes.
+# Sources: Greenflagged, "@adminide-stack npm compromise", 2026-11-03, updated
+# 2026-11-04 (all four); GitGuardian, "GhostAction Crosses Paths With
+# PolinRider: Inside the October Escalation", 2026-10-27 (the first three);
+# Abnormal AI, 2026-11-12 (~/.node_modules/.npm-ws*).
+# See docs-site/src/content/docs/indicator-reviews/2026-11-16.md.
+~/.node_modules/.npm-ws-runner.js
+~/.node_modules/.npm-ws.json
+~/.node_modules/.npm-ws.pid
+~/.node_modules/.npm-ws.log

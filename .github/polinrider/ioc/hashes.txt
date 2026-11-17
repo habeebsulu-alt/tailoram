@@ -1,0 +1,46 @@
+# SHA-256 of files known from this campaign. A match is confirmed, whatever
+# the file is called.
+#
+# Where a match is looked for (ADR-0045, ADR-0051):
+#   - every file of 10 MB to 300 MB, for the MicrosoftSystem64 binaries
+#     (related DPRK malware)
+#   - every .vscode/tasks.json, font file and build config, at any size,
+#     because the checks read those files anyway, on this computer, in
+#     folders, and on every branch, tag and commit of a GitHub repository
+# A smaller file of any other kind is not hashed. The print.cjs dropper below
+# is matched only if it sits in one of those places or is renamed into one.
+#
+# Format: <sha256>  <label>
+# Sources: JFrog Security Research (four platform binaries and the dropper),
+# safedep.io (Linux ELF, build 1.0.8). April-May 2026.
+# OpenSourceMalware, PolinRider npm case study, "File SHA-256 hashes (as they
+# ship on npm today)": the tasks.json and the fake font. September 2026.
+f2c754a7f7b56e0e2a6dd429f06c42a1860c52c37b25d0a8e91c67d1239fa577  MicrosoftSystem64 Windows
+457a3323fe0cfa82d6e102074c6f07a399f55c7e0ce2d3b40643d9cfde0cf220  MicrosoftSystem64 macOS x64
+2fec04f2985510654d9656d57f6817de1ca0d6ae49e7085b1e33abb38f89cc55  MicrosoftSystem64 macOS arm64
+b505f1d1ca3dca8cb7e2b2dd99991b5a929ec9387f3de31ad36549823af07dfd  MicrosoftSystem64 Linux
+b2954c945b51dbd6fa88ac72338b7fbf76dec7d9909ceada9d36b21330842c97  MicrosoftSystem64 Linux build 1.0.8
+33401580619ae79bf3f87aab16208f169a44a038f18671b1def7836fb2682c9a  print.cjs dropper
+f5c6be4753d6613c97f1b10c4d93a5d97a8f4fb21eb13da0ed04b23a8a61c2f6  .vscode/tasks.json that runs the fake font on folder open
+9fbb31129c04e8eb1a50519fc864c74d1b20d57c07d4099348f8fbc9a1a1eae6  fake font public/fonts/fa-solid-400.woff2
+
+# --- the ulid-xyz dropper, from Island's indicator table, October 2026. The
+# tarballs and payload.js are not files the checks read by default (see the note
+# at the top), so these catch a copy kept on disk or renamed into a hashed place.
+# See docs-site/src/content/docs/indicator-reviews/2026-11-02.md.
+a95cf5562a556ab60733fa3d5a24f42ce2ed4e67f81b1c959162475e93074b16  ulid-xyz 2.12.2 tarball
+a3c28435295fed4babdeefedcefdd0ed037ff24ed3ff363a49d080c2768d07f2  ulid-xyz 2.12.2 payload.js
+3e668d429988573ccece394a0e6140cb4a96ba65aef8a92edfb13ced5010a0c9  ulid-xyz 2.12.3 tarball
+3a9089e9db3650dd6d1584fae709022002dc34854b961abfb014a90f0a7c6a50  ulid-xyz 2.12.3 payload.js
+aa01a83c7a420c22a719b02ec327451ddd751ab5b189fd0127824ea43533b96a  ulid-xyz utils.js launcher
+10f41901a3e5da8a9d1f64d6dd3ac504afbb4b1e43eae4635fea189c8a7d1727  os-ulid-void payload
+
+# --- the loaders force-pushed into GitHub repositories from 2026-10-22 to
+# 2026-10-26, from GitGuardian's indicator table, 2026-10-27. The tasks.json is
+# read wherever it sits. The font is a .ttf, which the font check does not
+# read, and api.js is a source file, so those two catch a copy renamed into a
+# hashed place; the strings in strong.txt are what find them where they lie.
+# See docs-site/src/content/docs/indicator-reviews/2026-11-16.md.
+284d167f51c93b90100b7faeaec971959c1f8bb642e7ea0de50190a5a306f3d8  .vscode/tasks.json that runs fa-solid-300.ttf on folder open
+7ba0a30eabfa46008d6417532533199bbf351b27f3841477e9133f43fb404d24  fake font public/fonts/fa-solid-300.ttf
+b59e598ded824c7318ca9fae4e9a6d98c9600873677ece7d9896870e3e7ced8e  api.js with the loader after whitespace

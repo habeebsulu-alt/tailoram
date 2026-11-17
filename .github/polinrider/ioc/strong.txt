@@ -1,0 +1,209 @@
+# PolinRider strong indicators. A match here means infected.
+# Matched as FIXED strings (grep -F). One per line. '#' comments and blank lines ignored.
+#
+# Obfuscator markers
+rmcej%otb%
+Cot%3t=shtP
+_$_1e42
+function MDy
+global['!']
+global['_V']
+global["_V"]
+2[gWfGj;<:-93Z^C
+m6:tTh^D)cBz?NM]
+#
+# Stage-2 fetch addresses (TRON / BNB Smart Chain)
+TMfKQEd7TJJa5xNZJZ2Lep838vrzrs7mAP
+TXfxHUet9pJVU1BgVkBAbrES4YUc1nGzcG
+0xbe037400670fbf1c32364f762975908dc43eeb38759263e7dfcdabc76380811e
+0x3f0e5781d0855fb460661ac63257376db1941b2bb522499e4757ecb3ebd5dce3
+#
+# Campaign identifiers and C2 hosts
+e9b53a7c-2342-4b15-b02d-bd8b8f6a03f9
+default-configuration.vercel.app
+vscode-settings-bootstrap.vercel.app
+vscode-settings-config.vercel.app
+vscode-bootstrapper.vercel.app
+vscode-load-config.vercel.app
+260120.vercel.app
+
+# Second-variant version tag, injected alongside the marker (8-st1 ... 8-st59
+# and a parallel numeric batch). Source: OpenSourceMalware dossier, April 2026.
+global['_V']='8-
+global["_V"]="8-
+#
+# Delivery and exfiltration infrastructure for MicrosoftSystem64 (related DPRK
+# malware).
+# Sources: JFrog Security Research, safedep.io, April-May 2026.
+Lordplay/system-releases
+jpeek998/system-releases
+copilot-ai.whisdev.org
+
+# The tasks.json command that runs a file presenting as a WOFF2 font through
+# node. There is no legitimate reason to execute a font file as JavaScript.
+# The .vscode/tasks.json path itself stays out of filenames.txt because it is
+# legitimate in most repositories; this command string is the part that is not.
+# Source: OpenSourceMalware, "A Developer's Guide to Getting Rid of
+# PolinRider", August 2026.
+node ./public/fonts/fa-solid-400.woff2
+#
+# NullReceiver: the campaign marker and the sending wallet. The technique reads
+# its C2 out of the recipient address of a zero-value, zero-data Ethereum
+# transfer; that recipient is disposable by design and is deliberately not
+# listed, but the sending wallet is reused across the campaign.
+# Source: OpenSourceMalware, "NullReceiver's Blank Crypto Transfers Solves the
+# Challenges of EtherHiding", August 2026.
+A10-npm3!
+0xa322e5f3d311d3080e6f0121063e9adc2490ef1a
+
+# The A8 campaign-marker assignment, written literally into the payload that is
+# appended to a config file. Published as a grep-friendly signature in three
+# forms -- global.i="A8-*#" for the fake-font variant, and global.i="A8-3292-1"
+# and global.i="A8-3292-2" for the babel.config.cjs variant -- so the shared
+# prefix is carried here instead of the three. Nothing legitimate assigns a
+# string beginning "A8-" to global.i.
+# Source: OpenSourceMalware, "NPM Isn't Prepared For North Korean PolinRider
+# Attack", August 2026.
+global.i="A8-
+
+# The A8 marker again, in the other quote style. The entry above was taken from
+# a sample written global.i="A8-3292-1". The September 2026 fake-font build
+# opens its payload with global.i = 'A8'; -- single quotes, spaces around the
+# '=' -- so the double-quoted prefix does not match it, and a build in a second
+# repository carries the related marker A8-n*. Carried as its own prefix rather
+# than by relaxing the other entry, because ioc/ is matched as fixed strings and
+# cannot express "either quote".
+# Source: OpenSourceMalware, "PolinRider is A/B Testing its Way Past Your
+# Detections", September 2026.
+global.i = 'A8
+
+# The two XOR keys in the string table of the 500-variant fake-font payload,
+# readable without deobfuscating the file. The second is carried as the
+# whitespace-free tail of the published key: the source prints it inside a
+# pre-formatted table as Sr3=@   y-p_>d$0B&@^1aQk, and the run of spaces cannot
+# be distinguished from column alignment, so the part that can be established
+# byte for byte is what is matched.
+# Source: OpenSourceMalware, "PolinRider is A/B Testing its Way Past Your
+# Detections", September 2026.
+q4FZkxX{!h
+y-p_>d$0B&@^1aQk
+
+# The Ethereum dead-drop branch, from the 0x33ff operator wallet: the same
+# technique as NullReceiver above -- the C2 address is read out of the recipient
+# field of a heartbeat transaction -- but a different wallet, a different
+# obfuscator and a different marker letter. The 32-hex string is the sender
+# check the loader embeds verbatim (`var r = '33ff3eda...'`), and it is
+# deliberately the truncated form: it also matches the full operator address
+# 0x33ff3edaf55a8e03dcbc7cb40d498a49cd499891 and the `X:` request header, which
+# the full address would not. `_$_fed0` is the string-table name of this build,
+# the same shape as `_$_1e42` above. `global.o='5-` is the campaign-marker
+# assignment with the counter dropped; the published markers are 5-841-du,
+# 5-1169-du and 5-1460-du. Nothing legitimate assigns a "5-" string to global.o.
+# Source: SafeDep, "PolinRider Switches to Ethereum C2 in 30+ Repositories",
+# September 2026.
+33ff3edaf55a8e03dcbc7cb40d498a49
+_$_fed0
+global.o='5-
+YU7m{rE/>|==b>#~
+
+# The second operator wallet again, in the checksummed mixed case the loader
+# actually embeds. `ioc/` is matched with grep -F and no -i, so the lowercase
+# entry earlier in this file does not match an infected file: the source prints
+# the literal as '0xa322E5f3D311D3080e6f0121063e9aDC2490Ef1a'.toLowerCase(),
+# and the OpenSSF record for `pybitjs` cites the same casing. Both forms are
+# carried; neither subsumes the other.
+# Source: as above. See docs-site/src/content/docs/indicator-reviews/2026-10-05.md.
+0xa322E5f3D311D3080e6f0121063e9aDC2490Ef1a
+
+# The Tron and Aptos dead drops of the paired "1-NN-1" loader -- a second
+# loader file written into the same project beside the Ethereum one. The source
+# reports finding none of these four addresses in any earlier public report.
+# Source: as above.
+TCqf6ZkaQD84vYsC2cuu1jRwB6JveTaRrF
+TFMryB9m6d4kBMRjEVyFRbqKSV1cV2NcpH
+0x3d2075f97b7b1e3234bd653779d21c605d7d8c6ec9c98d983880be5c7f4f9471
+0x9d202c824402ca89e9aaccd2390b6f8b332ae743caa1469c695feb2781d56519
+
+# The first XOR key of the 0xa322 branch, complete. The 2026-09-28 entry read
+# OpenSourceMalware's column-aligned table `q4FZkxX{!h,Sr3=@   y-p_>d$0B&@^1aQk`
+# as two keys separated by that comma, and carried `q4FZkxX{!h` -- the part it
+# could establish byte for byte -- for the first. This source prints the pair as
+# two arguments in source code, rl(..., 'q4FZkxX{!h,Sr3=@', !1) and
+# rl(..., 'y-p_>d$0B&@^1aQk', !0), so the comma is inside the first key and both
+# keys are sixteen characters. The shorter entry above is a prefix of this one
+# and is kept rather than replaced: it still matches, and it covers a build that
+# reuses only the first half.
+# Source: as above. See docs-site/src/content/docs/indicator-reviews/2026-10-05.md.
+q4FZkxX{!h,Sr3=@
+
+# Second-stage loader staging on GitLab. The account name is the indicator and
+# the project is attacker-owned, in the same way as the two GitHub
+# `system-releases` accounts above.
+# Source: Deception.Pro, "[Op Report] Hands-on-Keyboard Activity from the DPRK
+# PolinRider Supply Chain Attack", September 2026. Carried because that report
+# is corroborated twice over: its loader C2 23.27.13.135 is independently
+# confirmed by SafeDep as the 0xa322 C2 for 2026-08-22 to 2026-08-27, and the
+# OpenSSF record for `pybitjs` cites the report as a reference.
+test26330331/test
+
+# The third operator wallet: the Ethereum sender whose transactions the loader
+# reads for its C2, the same dead-drop technique as 0xa322 and 0x33ff above.
+# Found in loaders in compromised GitHub repositories in October 2026 and in
+# twelve releases of ten hijacked npm packages on 2026-11-03 and 2026-11-04.
+# Carried in lower case, which is how all three sources print it and how the
+# loader sends it to Blockscout; none of them prints the literal as the loader
+# embeds it, so a checksummed mixed-case form may exist and is not carried.
+# Sources: GitGuardian, "GhostAction Crosses Paths With PolinRider: Inside the
+# October Escalation", 2026-10-27; Greenflagged, "@adminide-stack npm
+# compromise", 2026-11-03; Sonatype, "PolinRider Loader Reappears in Hijacked
+# npm Packages", 2026-11-04.
+# See docs-site/src/content/docs/indicator-reviews/2026-11-16.md.
+0x1eef0849eda15d87f64e51c73c8442cf3c8bcef3
+
+# The first statement of the hijacked-npm loader, as it sits in the file: the
+# loader is appended to the package's entry file as eval(atob("...")) after
+# 131 or 157 tabs, and the blob opens Z2xvYmFsLmkgPSAnQTEwLW5wbV9pbmplY3Qn,
+# which is base64 for global.i = 'A10-npm_inject'. The first sixteen characters
+# are base64 for the twelve bytes of global.i = ' and so are the same whatever
+# campaign tag follows; that prefix is what is carried. Nothing legitimate
+# base64-encodes an assignment to global.i. The second entry is the tag itself,
+# which the loader also sends as its Sec-V request header.
+# Sources: Greenflagged, as above (the payload line is quoted from
+# client-redux lib/index.js:292); OpenSSF malicious-packages MAL-2026-18643
+# (`@adminide-stack/utils`; Amazon Inspector), 2026-11-04; Sonatype, as above.
+Z2xvYmFsLmkgPSAn
+A10-npm_inject
+
+# Markers the second stage writes into the files it patches so it runs again:
+# M260630A ends the snippet appended to npm's own lib/cli.js after 200 spaces,
+# NPM_WS_SHIM marks the npm-cli.js shim dropped on Windows, RS260605 opens the
+# 1.5 MB copy of the loader ("inz") written into npm and into the startup files
+# of VS Code, Cursor, Antigravity, Discord and GitHub Desktop, and the five
+# C-numbered markers are written by the same injection into those editor and
+# app files. The npm program-file check reads this file, so the first three
+# confirm a patched npm; nothing reads the editor files yet (see the entry).
+# Sources: Greenflagged, as above (all eight); GitGuardian, as above
+# (RS260605, M260630A); Abnormal AI, "PolinRider: How Malicious Coding
+# Assignments Steal Developer Secrets and Backdoor Their Tools", 2026-11-12
+# (RS260605, M260630A).
+/*M260630A*/
+/*NPM_WS_SHIM*/
+/*RS260605*/
+/*C250617A*/
+/*C250618A*/
+/*C250619A*/
+/*C250620A*/
+/*C260511A*/
+
+# The third XOR key of this loader family, used for the /$/boot stage, beside
+# the two already above (q4FZkxX{!h,Sr3=@ and y-p_>d$0B&@^1aQk), which the
+# November loaders reuse unchanged.
+# Source: Greenflagged, as above.
+ThZG+0jfXE6VAGOJ
+
+# The fake hiring company's site, which is also the payload server: the
+# "camera driver" a candidate is told to install fetches payload.js from it,
+# and that payload is the 0xa322 loader. Also in network.txt.
+# Source: JFrog Security Research, "Contagious Interview: One Interview Away
+# From Infection", November 2026.
+accurasofthire.com

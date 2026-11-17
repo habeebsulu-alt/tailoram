@@ -1,0 +1,70 @@
+# Filenames that are indicators on their own, as extended regex, matched against
+# the full path. .vscode/tasks.json is deliberately NOT here: it is legitimate in
+# most repos and is only a finding when it carries "runOn": "folderOpen".
+(^|/)temp_auto_push\.bat$
+# MicrosoftSystem64, related DPRK malware (Contagious Interview), not PolinRider
+# by any published source.
+(^|/)MicrosoftSystem64(\.exe|-win\.exe|-linux|-darwin-(x64|arm64))?$
+(^|/)com\.launchkeeper\.MicrosoftSystem64\.plist$
+# The second working file of the force-push tool, beside temp_auto_push.bat
+# above. Never committed -- it lives on the infected developer's machine -- so
+# this fires on a disk scan, and weak.txt carries the name for the separate case
+# of a committed .gitignore that lists it. config.bat and branch_structure.json,
+# named in the same block, are not here: both are ordinary names, and this file
+# is INFECTED tier with no weaker path tier to put them in.
+# Source: OpenSourceMalware, "PolinRider is A/B Testing its Way Past Your
+# Detections", September 2026.
+(^|/)temp_interactive_push\.bat$
+# The Windows persistence chain of the hands-on-keyboard stage: a Python and a
+# JavaScript stager dropped in %TEMP%, and the VBS that both a scheduled task
+# and a Startup entry named MicrosoftCLROptimization run at logon. The names
+# impersonate the real .NET native-image service, which is called
+# ".NET Framework NGEN v4.0.30319"; nothing legitimate ships either of these.
+# clr_init.vbs, dropped beside the second one, is deliberately absent: it is
+# ordinary enough to need a weak path tier, which this file is not.
+# Source: Deception.Pro, "[Op Report] Hands-on-Keyboard Activity from the DPRK
+# PolinRider Supply Chain Attack", September 2026.
+(^|/)SvcHostUpdate\.(py|js)$
+(^|/)MicrosoftCLROptimization\.vbs$
+# The fake-font payload with a non-font extension. The 2026-09-28 entry turned
+# away fa-solid-900.woff2 because that is a genuine Font Awesome filename and
+# this file is INFECTED tier. .llf is not: Font Awesome ships .woff2, .woff,
+# .ttf, .eot and .svg, and nothing legitimate names an .llf after a font weight.
+# Carried as a regex over the weight rather than one literal because that is
+# what the source gives -- "they're keeping the front of the file name basically
+# the same, so fa-solid- fill in a number [...] the one that I saw was 300, but
+# instead of .woff2 it's a .llf" -- and because the whole point of the variant is
+# that the number rotates. The .woff2 forms stay out, for the reason above.
+# Source: OpenSourceMalware, The OpenSourceMalware Show #23, 2026-10-02
+# (spoken transcript; over 120 versions reported live on GitHub on 2026-09-28).
+(^|/)fa-solid-[0-9]{3}\.llf$
+# The VBS launcher the JavaScript form of the MicrosoftSystem64 dropper writes
+# for its Windows persistence: a scheduled task and a Run-key fallback both run
+# `wscript MicrosoftSystem64.vbs`. Nothing legitimate is called this; it is
+# MicrosoftSystem64's own name with a script extension, so it is INFECTED tier
+# like the binary names above.
+# Source: OpenSSF malicious-packages MAL-2026-5341 (`void-ulid`; Amazon
+# Inspector), June 2026. See docs-site/src/content/docs/indicator-reviews/2026-10-12.md.
+(^|/)MicrosoftSystem64\.vbs$
+# The same LaunchAgent under the agent's new name, `pkg-agent`, from the
+# pino-ulid dropper. The com.launchkeeper prefix is what makes it INFECTED tier.
+# Source: OpenSSF malicious-packages MAL-2026-16154 (`pino-ulid`; Amazon
+# Inspector, SafeDep), September 2026. See docs-site/src/content/docs/indicator-reviews/2026-10-19.md.
+(^|/)com\.launchkeeper\.pkg-agent\.plist$
+# The npm persistence runner of the November 2026 loaders, by name, so that it
+# is found on a copied home directory or a backup drive as well as at the path
+# implant-paths.txt checks on this computer.
+# Source: Greenflagged, "@adminide-stack npm compromise", 2026-11-03, updated
+# 2026-11-04; GitGuardian, 2026-10-27.
+# See docs-site/src/content/docs/indicator-reviews/2026-11-16.md.
+(^|/)\.npm-ws-runner\.js$
+# The side file the second stage leaves beside each editor or app startup file
+# it patches: the loader copy the patched file loads. .inz.orig and .inz.tmp,
+# left by the same injection, are in filenames-review.txt.
+# Source: Greenflagged, as above; Abnormal AI, 2026-11-12.
+\.inz\.cjs$
+# The fake-font payload under a second extension that is not a font format,
+# beside the .llf form above.
+# Source: GitGuardian, "GhostAction Crosses Paths With PolinRider: Inside the
+# October Escalation", 2026-10-27.
+(^|/)fa-solid\.lkf$
