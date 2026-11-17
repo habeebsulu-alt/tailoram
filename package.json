@@ -19,7 +19,7 @@
     "heic2any": "^0.0.4",
     "lucide-react": "^0.475.0",
     "next": "^15.1.7",
-    "nodemailer": "^10.0.14",
+    "nodemailer": "^10.1.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
